@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import aputils
 import asyncio
-import logging
 import subprocess
 import traceback
 import typing
@@ -11,6 +10,7 @@ from aputils.objects import Nodeinfo, Webfinger, WellKnownNodeinfo
 from pathlib import Path
 
 from . import __version__, misc
+from . import logger as logging
 from .misc import Message, Response, View
 from .processors import run_processor
 
@@ -93,20 +93,24 @@ class ActorView(View):
 
 		## reject if the actor isn't whitelisted while the whiltelist is enabled
 		if self.config.whitelist_enabled and not self.config.is_whitelisted(self.actor.domain):
-			logging.verbose(f'Rejected actor for not being in the whitelist: {self.actor.id}')
+			logging.verbose('Rejected actor for not being in the whitelist: %s', self.actor.id)
 			return Response.new_error(403, 'access denied', 'json')
 
 		## reject if actor is banned
 		if self.config.is_banned(self.actor.domain):
-			logging.verbose(f'Ignored request from banned actor: {self.actor.id}')
+			logging.verbose('Ignored request from banned actor: %s', self.actor.id)
 			return Response.new_error(403, 'access denied', 'json')
 
 		## reject if activity type isn't 'Follow' and the actor isn't following
 		if self.message.type != 'Follow' and not self.database.get_inbox(self.actor.domain):
-			logging.verbose(f'Rejected actor for trying to post while not following: {self.actor.id}')
+			logging.verbose(
+				'Rejected actor for trying to post while not following: %s',
+				self.actor.id
+			)
+
 			return Response.new_error(401, 'access denied', 'json')
 
-		logging.debug(f">> payload {self.message.to_json(4)}")
+		logging.debug('>> payload %s', self.message.to_json(4))
 
 		asyncio.ensure_future(run_processor(self))
 		return Response.new(status = 202)

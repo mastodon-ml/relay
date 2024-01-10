@@ -1,10 +1,11 @@
 import aputils
 import asyncio
 import json
-import logging
 import traceback
 
 from urllib.parse import urlparse
+
+from . import logger as logging
 
 
 class RelayDatabase(dict):
@@ -75,7 +76,7 @@ class RelayDatabase(dict):
 				raise e from None
 
 		if not self['private-key']:
-			logging.info("No actor keys present, generating 4096-bit RSA keypair.")
+			logging.info('No actor keys present, generating 4096-bit RSA keypair.')
 			self.signer = aputils.Signer.new(self.config.keyid, size=4096)
 			self['private-key'] = self.signer.export()
 
@@ -125,7 +126,7 @@ class RelayDatabase(dict):
 			'software': software
 		}
 
-		logging.verbose(f'Added inbox to database: {inbox}')
+		logging.verbose('Added inbox to database: %s', inbox)
 		return self['relay-list'][domain]
 
 
@@ -140,13 +141,13 @@ class RelayDatabase(dict):
 
 		if not data['followid'] or not followid or data['followid'] == followid:
 			del self['relay-list'][data['domain']]
-			logging.verbose(f'Removed inbox from database: {data["inbox"]}')
+			logging.verbose('Removed inbox from database: %s', data['inbox'])
 			return True
 
 		if fail:
 			raise ValueError('Follow IDs do not match')
 
-		logging.debug(f'Follow ID does not match: db = {data["followid"]}, object = {followid}')
+		logging.debug('Follow ID does not match: db = %s, object = %s', data['followid'], followid)
 		return False
 
 

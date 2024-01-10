@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 import queue
 import signal
@@ -9,6 +8,7 @@ import traceback
 from aiohttp import web
 from datetime import datetime, timedelta
 
+from . import logger as logging
 from .config import RelayConfig
 from .database import RelayDatabase
 from .http_client import HttpClient
@@ -103,12 +103,18 @@ class Application(web.Application):
 
 	def run(self):
 		if not check_open_port(self.config.listen, self.config.port):
-			return logging.error(f'A server is already running on port {self.config.port}')
+			return logging.error('A server is already running on port %i', self.config.port)
 
 		for view in VIEWS:
 			self.router.add_view(*view)
 
-		logging.info(f'Starting webserver at {self.config.host} ({self.config.listen}:{self.config.port})')
+		logging.info(
+			'Starting webserver at %s (%s:%i)',
+			self.config.host,
+			self.config.listen,
+			self.config.port
+		)
+
 		asyncio.run(self.handle_run())
 
 
@@ -174,7 +180,7 @@ class PushWorker(threading.Thread):
 			try:
 				inbox, message = self.queue.get(block=True, timeout=0.25)
 				self.queue.task_done()
-				logging.verbose(f'New push from Thread-{threading.get_ident()}')
+				logging.verbose('New push from Thread-%i', threading.get_ident())
 				await self.client.post(inbox, message)
 
 			except queue.Empty:

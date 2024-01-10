@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import socket
 import traceback
 import typing
@@ -18,6 +17,8 @@ from functools import cached_property
 from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
 from uuid import uuid4
+
+from . import logger as logging
 
 if typing.TYPE_CHECKING:
 	from typing import Coroutine, Generator
@@ -348,6 +349,7 @@ class View(AbstractView):
 		return self.app.database
 
 
+	# todo: move to views.ActorView
 	async def get_post_data(self) -> Response | None:
 		try:
 			self.signature = Signature.new_from_signature(self.request.headers['signature'])
@@ -394,23 +396,22 @@ class View(AbstractView):
 			self.validate_signature(await self.request.read())
 
 		except SignatureFailureError as e:
-			logging.verbose(f'signature validation failed for "{self.actor.id}": {e}')
+			logging.verbose('signature validation failed for "%s": %s', self.actor.id, e)
 			return Response.new_error(401, str(e), 'json')
 
 		self.instance = self.database.get_inbox(self.actor.inbox)
 
 
-	# aputils.Signer.validate_signature is broken atm, so reimplement it
 	def validate_signature(self, body: bytes) -> None:
 		headers = {key.lower(): value for key, value in self.request.headers.items()}
 		headers["(request-target)"] = " ".join([self.request.method.lower(), self.request.path])
 
-		# if (digest := Digest.new_from_digest(headers.get("digest"))):
-		# 	if not body:
-		# 		raise SignatureFailureError("Missing body for digest verification")
-  # 
-		# 	if not digest.validate(body):
-		# 		raise SignatureFailureError("Body digest does not match")
+		if (digest := Digest.new_from_digest(headers.get("digest"))):
+			if not body:
+				raise SignatureFailureError("Missing body for digest verification")
+  
+			if not digest.validate(body):
+				raise SignatureFailureError("Body digest does not match")
 
 		if self.signature.algorithm_type == "hs2019":
 			if "(created)" not in self.signature.headers:

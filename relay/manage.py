@@ -1,7 +1,6 @@
 import Crypto
 import asyncio
 import click
-import logging
 import platform
 
 from urllib.parse import urlparse

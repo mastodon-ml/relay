@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import typing
 
 from cachetools import LRUCache
 from uuid import uuid4
 
+from . import logger as logging
 from .misc import Message
 
 if typing.TYPE_CHECKING:
@@ -28,7 +28,7 @@ def person_check(actor, software):
 
 async def handle_relay(view: View) -> None:
 	if view.message.objectid in cache:
-		logging.verbose(f'already relayed {view.message.objectid}')
+		logging.verbose('already relayed %s', view.message.objectid)
 		return
 
 	message = Message.new_announce(
@@ -37,7 +37,7 @@ async def handle_relay(view: View) -> None:
 	)
 
 	cache[view.message.objectid] = message.id
-	logging.debug(f'>> relay: {message}')
+	logging.debug('>> relay: %s', message)
 
 	inboxes = view.database.distill_inboxes(message)
 
@@ -47,7 +47,7 @@ async def handle_relay(view: View) -> None:
 
 async def handle_forward(view: View) -> None:
 	if view.message.id in cache:
-		logging.verbose(f'already forwarded {view.message.id}')
+		logging.verbose('already forwarded %s', view.message.id)
 		return
 
 	message = Message.new_announce(
@@ -56,7 +56,7 @@ async def handle_forward(view: View) -> None:
 	)
 
 	cache[view.message.id] = message.id
-	logging.debug(f'>> forward: {message}')
+	logging.debug('>> forward: %s', message)
 
 	inboxes = view.database.distill_inboxes(message.message)
 
@@ -80,7 +80,11 @@ async def handle_follow(view: View) -> None:
 			)
 		)
 
-		return logging.verbose(f'Rejected follow from actor for using specific software: actor={view.actor.id}, software={software}')
+		return logging.verbose(
+			'Rejected follow from actor for using specific software: actor=%s, software=%s',
+			view.actor.id,
+			software
+		)
 
 	## reject if the actor is not an instance actor
 	if person_check(view.actor, software):
@@ -94,7 +98,7 @@ async def handle_follow(view: View) -> None:
 			)
 		)
 
-		logging.verbose(f'Non-application actor tried to follow: {view.actor.id}')
+		logging.verbose('Non-application actor tried to follow: %s', view.actor.id)
 		return
 
 	view.database.add_inbox(view.actor.shared_inbox, view.message.id, software)
@@ -161,7 +165,9 @@ processors = {
 async def run_processor(view: View):
 	if view.message.type not in processors:
 		logging.verbose(
-				f'Message type "{view.message.type}" from actor cannot be handled: {view.actor.id}'
+			'Message type "%s" from actor cannot be handled: %s',
+			view.message.type,
+			view.actor.id
 		)
 
 		return
@@ -173,5 +179,5 @@ async def run_processor(view: View):
 			view.instance['software'] = nodeinfo.sw_name
 			view.database.save()
 
-	logging.verbose(f'New "{view.message.type}" from actor: {view.actor.id}')
+	logging.verbose('New "%s" from actor: %s', view.message.type, view.actor.id)
 	return await processors[view.message.type](view)

@@ -1,4 +1,3 @@
-import logging
 import traceback
 
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
@@ -11,6 +10,7 @@ from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
 
 from . import __version__
+from . import logger as logging
 from .misc import (
 	MIMETYPES,
 	DotDict,
@@ -100,7 +100,7 @@ class HttpClient:
 			headers.update(self.database.signer.sign_headers('GET', url, algorithm='original'))
 
 		try:
-			logging.verbose(f'Fetching resource: {url}')
+			logging.debug('Fetching resource: %s', url)
 
 			async with self._session.get(url, headers=headers) as resp:
 				## Not expecting a response with 202s, so just return
@@ -108,8 +108,8 @@ class HttpClient:
 					return
 
 				elif resp.status != 200:
-					logging.verbose(f'Received error when requesting {url}: {resp.status}')
-					logging.verbose(await resp.read()) # change this to debug
+					logging.verbose('Received error when requesting %s: %i', url, resp.status)
+					logging.debug(await resp.read())
 					return
 
 				if loads:
@@ -123,22 +123,22 @@ class HttpClient:
 
 				else:
 					# todo: raise TypeError or something
-					logging.verbose(f'Invalid Content-Type for "{url}": {resp.content_type}')
-					return logging.debug(f'Response: {resp.read()}')
+					logging.verbose('Invalid Content-Type for "%s": %s', url, resp.content_type)
+					return logging.debug('Response: %s', await resp.read())
 
-				logging.debug(f'{url} >> resp {message.to_json(4)}')
+				logging.debug('%s >> resp %s', url, message.to_json(4))
 
 				self.cache[url] = message
 				return message
 
 		except JSONDecodeError:
-			logging.verbose(f'Failed to parse JSON')
+			logging.verbose('Failed to parse JSON')
 
 		except ClientSSLError:
-			logging.verbose(f'SSL error when connecting to {urlparse(url).netloc}')
+			logging.verbose('SSL error when connecting to %s', urlparse(url).netloc)
 
 		except (AsyncTimeoutError, ClientConnectionError):
-			logging.verbose(f'Failed to connect to {urlparse(url).netloc}')
+			logging.verbose('Failed to connect to %s', urlparse(url).netloc)
 
 		except Exception as e:
 			traceback.print_exc()
@@ -160,21 +160,21 @@ class HttpClient:
 		headers.update(self.database.signer.sign_headers('POST', url, message, algorithm=algorithm))
 
 		try:
-			logging.verbose(f'Sending "{message.type}" to {url}')
+			logging.verbose('Sending "%s" to %s', message.type, url)
 
 			async with self._session.post(url, headers=headers, data=message.to_json()) as resp:
 				## Not expecting a response, so just return
 				if resp.status in {200, 202}:
-					return logging.verbose(f'Successfully sent "{message.type}" to {url}')
+					return logging.verbose('Successfully sent "%s" to %s', message.type, url)
 
-				logging.verbose(f'Received error when pushing to {url}: {resp.status}')
+				logging.verbose('Received error when pushing to %s: %i', url, resp.status)
 				return logging.verbose(await resp.read()) # change this to debug
 
 		except ClientSSLError:
-			logging.warning(f'SSL error when pushing to {urlparse(url).netloc}')
+			logging.warning('SSL error when pushing to %s', urlparse(url).netloc)
 
 		except (AsyncTimeoutError, ClientConnectionError):
-			logging.warning(f'Failed to connect to {urlparse(url).netloc} for message push')
+			logging.warning('Failed to connect to %s for message push', urlparse(url).netloc)
 
 		## prevent workers from being brought down
 		except Exception as e:
@@ -190,7 +190,7 @@ class HttpClient:
 		)
 
 		if not wk_nodeinfo:
-			logging.verbose(f'Failed to fetch well-known nodeinfo url for domain: {domain}')
+			logging.verbose('Failed to fetch well-known nodeinfo url for %s', domain)
 			return False
 
 		for version in ['20', '21']:
@@ -201,7 +201,7 @@ class HttpClient:
 				pass
 
 		if not nodeinfo_url:
-			logging.verbose(f'Failed to fetch nodeinfo url for domain: {domain}')
+			logging.verbose('Failed to fetch nodeinfo url for %s', domain)
 			return False
 
 		return await self.get(nodeinfo_url, loads=Nodeinfo.parse) or False
