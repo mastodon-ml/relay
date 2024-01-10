@@ -13,7 +13,7 @@ from .config import RelayConfig
 from .database import RelayDatabase
 from .http_client import HttpClient
 from .misc import DotDict, check_open_port, set_app
-from .views import routes
+from .views import VIEWS
 
 
 class Application(web.Application):
@@ -49,7 +49,8 @@ class Application(web.Application):
 			cache_size = self.config.json_cache
 		)
 
-		self.set_signal_handler()
+		for path, view in VIEWS:
+			self.router.add_view(path, view)
 
 
 	@property
@@ -90,10 +91,10 @@ class Application(web.Application):
 			self['last_worker'] = 0
 
 
-	def set_signal_handler(self):
+	def set_signal_handler(self, startup):
 		for sig in {'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGTERM'}:
 			try:
-				signal.signal(getattr(signal, sig), self.stop)
+				signal.signal(getattr(signal, sig), self.stop if startup else signal.SIG_DFL)
 
 			# some signals don't exist in windows, so skip them
 			except AttributeError:
@@ -104,8 +105,8 @@ class Application(web.Application):
 		if not check_open_port(self.config.listen, self.config.port):
 			return logging.error(f'A server is already running on port {self.config.port}')
 
-		for route in routes:
-			self.router.add_route(*route)
+		for view in VIEWS:
+			self.router.add_view(*view)
 
 		logging.info(f'Starting webserver at {self.config.host} ({self.config.listen}:{self.config.port})')
 		asyncio.run(self.handle_run())
@@ -117,6 +118,8 @@ class Application(web.Application):
 
 	async def handle_run(self):
 		self['running'] = True
+
+		self.set_signal_handler(True)
 
 		if self.config.workers > 0:
 			for i in range(self.config.workers):
@@ -141,6 +144,7 @@ class Application(web.Application):
 			await asyncio.sleep(0.25)
 
 		await site.stop()
+		await self.client.close()
 
 		self['starttime'] = None
 		self['running'] = False
@@ -155,6 +159,10 @@ class PushWorker(threading.Thread):
 
 
 	def run(self):
+		asyncio.run(self.handle_queue())
+
+
+	async def handle_queue(self):
 		self.client = HttpClient(
 			database = self.app.database,
 			limit = self.app.config.push_limit,
@@ -162,10 +170,6 @@ class PushWorker(threading.Thread):
 			cache_size = self.app.config.json_cache
 		)
 
-		asyncio.run(self.handle_queue())
-
-
-	async def handle_queue(self):
 		while self.app['running']:
 			try:
 				inbox, message = self.queue.get(block=True, timeout=0.25)
@@ -181,36 +185,3 @@ class PushWorker(threading.Thread):
 				traceback.print_exc()
 
 		await self.client.close()
-
-
-## Can't sub-class web.Request, so let's just add some properties
-def request_actor(self):
-	try: return self['actor']
-	except KeyError: pass
-
-
-def request_instance(self):
-	try: return self['instance']
-	except KeyError: pass
-
-
-def request_message(self):
-	try: return self['message']
-	except KeyError: pass
-
-
-def request_signature(self):
-	if 'signature' not in self._state:
-		try: self['signature'] = DotDict.new_from_signature(self.headers['signature'])
-		except KeyError: return
-
-	return self['signature']
-
-
-setattr(web.Request, 'actor', property(request_actor))
-setattr(web.Request, 'instance', property(request_instance))
-setattr(web.Request, 'message', property(request_message))
-setattr(web.Request, 'signature', property(request_signature))
-
-setattr(web.Request, 'config', property(lambda self: self.app.config))
-setattr(web.Request, 'database', property(lambda self: self.app.database))

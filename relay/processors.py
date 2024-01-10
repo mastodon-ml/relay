@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import asyncio
 import logging
+import typing
 
 from cachetools import LRUCache
 from uuid import uuid4
 
 from .misc import Message
+
+if typing.TYPE_CHECKING:
+	from .misc import View
 
 
 cache = LRUCache(1024)
@@ -20,85 +26,86 @@ def person_check(actor, software):
 		return True
 
 
-async def handle_relay(request):
-	if request.message.objectid in cache:
-		logging.verbose(f'already relayed {request.message.objectid}')
+async def handle_relay(view: View) -> None:
+	if view.message.objectid in cache:
+		logging.verbose(f'already relayed {view.message.objectid}')
 		return
 
 	message = Message.new_announce(
-		host = request.config.host,
-		object = request.message.objectid
+		host = view.config.host,
+		object = view.message.objectid
 	)
 
-	cache[request.message.objectid] = message.id
+	cache[view.message.objectid] = message.id
 	logging.debug(f'>> relay: {message}')
 
-	inboxes = request.database.distill_inboxes(request.message)
+	inboxes = view.database.distill_inboxes(message)
 
 	for inbox in inboxes:
-		request.app.push_message(inbox, message)
+		view.app.push_message(inbox, message)
 
 
-async def handle_forward(request):
-	if request.message.id in cache:
-		logging.verbose(f'already forwarded {request.message.id}')
+async def handle_forward(view: View) -> None:
+	if view.message.id in cache:
+		logging.verbose(f'already forwarded {view.message.id}')
 		return
 
 	message = Message.new_announce(
-		host = request.config.host,
-		object = request.message
+		host = view.config.host,
+		object = view.message
 	)
 
-	cache[request.message.id] = message.id
+	cache[view.message.id] = message.id
 	logging.debug(f'>> forward: {message}')
 
-	inboxes = request.database.distill_inboxes(request.message)
+	inboxes = view.database.distill_inboxes(message.message)
 
 	for inbox in inboxes:
-		request.app.push_message(inbox, message)
+		view.app.push_message(inbox, message)
 
 
-async def handle_follow(request):
-	nodeinfo = await request.app.client.fetch_nodeinfo(request.actor.domain)
+async def handle_follow(view: View) -> None:
+	nodeinfo = await view.client.fetch_nodeinfo(view.actor.domain)
 	software = nodeinfo.sw_name if nodeinfo else None
 
 	## reject if software used by actor is banned
-	if request.config.is_banned_software(software):
-		request.app.push_message(
-			request.actor.shared_inbox,
+	if view.config.is_banned_software(software):
+		view.app.push_message(
+			view.actor.shared_inbox,
 			Message.new_response(
-				host = request.config.host,
-				actor = request.actor.id,
-				followid = request.message.id,
+				host = view.config.host,
+				actor = view.actor.id,
+				followid = view.message.id,
 				accept = False
 			)
 		)
 
-		return logging.verbose(f'Rejected follow from actor for using specific software: actor={request.actor.id}, software={software}')
+		return logging.verbose(f'Rejected follow from actor for using specific software: actor={view.actor.id}, software={software}')
 
 	## reject if the actor is not an instance actor
-	if person_check(request.actor, software):
-		request.app.push_message(
-			request.actor.shared_inbox,
+	if person_check(view.actor, software):
+		view.app.push_message(
+			view.actor.shared_inbox,
 			Message.new_response(
-				host = request.config.host,
-				actor = request.actor.id,
-				followid = request.message.id,
+				host = view.config.host,
+				actor = view.actor.id,
+				followid = view.message.id,
 				accept = False
 			)
 		)
 
-		return logging.verbose(f'Non-application actor tried to follow: {request.actor.id}')
+		logging.verbose(f'Non-application actor tried to follow: {view.actor.id}')
+		return
 
-	request.database.add_inbox(request.actor.shared_inbox, request.message.id, software)
-	request.database.save()
+	view.database.add_inbox(view.actor.shared_inbox, view.message.id, software)
+	view.database.save()
 
-	request.app.push_message(
-		request.actor.shared_inbox,
+	view.app.push_message(
+		view.actor.shared_inbox,
 		Message.new_response(
-			host = request.config.host,
-			actor = request.actor.id,
-			followid = request.message.id,
+			host = view.config.host,
+			actor = view.actor.id,
+			followid = view.message.id,
 			accept = True
 		)
 	)
@@ -106,31 +113,37 @@ async def handle_follow(request):
 	# Are Akkoma and Pleroma the only two that expect a follow back?
 	# Ignoring only Mastodon for now
 	if software != 'mastodon':
-		request.app.push_message(
-			request.actor.shared_inbox,
+		view.app.push_message(
+			view.actor.shared_inbox,
 			Message.new_follow(
-				host = request.config.host,
-				actor = request.actor.id
+				host = view.config.host,
+				actor = view.actor.id
 			)
 		)
 
 
-async def handle_undo(request):
+async def handle_undo(view: View) -> None:
 	## If the object is not a Follow, forward it
-	if request.message.object.type != 'Follow':
-		return await handle_forward(request)
+	if view.message.object['type'] != 'Follow':
+		return await handle_forward(view)
 
-	if not request.database.del_inbox(request.actor.domain, request.message.id):
+	if not view.database.del_inbox(view.actor.domain, view.message.object['id']):
+		logging.verbose(
+			'Failed to delete "%s" with follow ID "%s"',
+			view.actor.id,
+			view.message.object['id']
+		)
+
 		return
 
-	request.database.save()
+	view.database.save()
 
-	request.app.push_message(
-		request.actor.shared_inbox,
+	view.app.push_message(
+		view.actor.shared_inbox,
 		Message.new_unfollow(
-			host = request.config.host,
-			actor = request.actor.id,
-			follow = request.message
+			host = view.config.host,
+			actor = view.actor.id,
+			follow = view.message
 		)
 	)
 
@@ -145,16 +158,20 @@ processors = {
 }
 
 
-async def run_processor(request):
-	if request.message.type not in processors:
+async def run_processor(view: View):
+	if view.message.type not in processors:
+		logging.verbose(
+				f'Message type "{view.message.type}" from actor cannot be handled: {view.actor.id}'
+		)
+
 		return
 
-	if request.instance and not request.instance.get('software'):
-		nodeinfo = await request.app.client.fetch_nodeinfo(request.instance['domain'])
+	if view.instance and not view.instance.get('software'):
+		nodeinfo = await view.client.fetch_nodeinfo(view.instance['domain'])
 
 		if nodeinfo:
-			request.instance['software'] = nodeinfo.sw_name
-			request.database.save()
+			view.instance['software'] = nodeinfo.sw_name
+			view.database.save()
 
-	logging.verbose(f'New "{request.message.type}" from actor: {request.actor.id}')
-	return await processors[request.message.type](request)
+	logging.verbose(f'New "{view.message.type}" from actor: {view.actor.id}')
+	return await processors[view.message.type](view)

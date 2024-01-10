@@ -116,10 +116,10 @@ class HttpClient:
 					message = await resp.json(loads=loads)
 
 				elif resp.content_type == MIMETYPES['activity']:
-					message = await resp.json(loads=Message.new_from_json)
+					message = await resp.json(loads=Message.parse)
 
 				elif resp.content_type == MIMETYPES['json']:
-					message = await resp.json(loads=DotDict.new_from_json)
+					message = await resp.json(loads=DotDict.parse)
 
 				else:
 					# todo: raise TypeError or something
@@ -186,7 +186,7 @@ class HttpClient:
 		nodeinfo_url = None
 		wk_nodeinfo = await self.get(
 			f'https://{domain}/.well-known/nodeinfo',
-			loads = WellKnownNodeinfo.new_from_json
+			loads = WellKnownNodeinfo.parse
 		)
 
 		if not wk_nodeinfo:
@@ -204,7 +204,7 @@ class HttpClient:
 			logging.verbose(f'Failed to fetch nodeinfo url for domain: {domain}')
 			return False
 
-		return await self.get(nodeinfo_url, loads=Nodeinfo.new_from_json) or False
+		return await self.get(nodeinfo_url, loads=Nodeinfo.parse) or False
 
 
 async def get(database, *args, **kwargs):

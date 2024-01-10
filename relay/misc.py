@@ -1,18 +1,26 @@
-import aputils
-import asyncio
-import base64
+from __future__ import annotations
+
 import json
 import logging
 import socket
 import traceback
-import uuid
+import typing
 
+from aiohttp.abc import AbstractView
 from aiohttp.hdrs import METH_ALL as METHODS
-from aiohttp.web import Response as AiohttpResponse, View as AiohttpView
+from aiohttp.web import Request as AiohttpRequest, Response as AiohttpResponse
+from aiohttp.web_exceptions import HTTPMethodNotAllowed
+from aputils.errors import SignatureFailureError
+from aputils.misc import Digest, HttpDate, Signature
+from aputils.message import Message as ApMessage
 from datetime import datetime
+from functools import cached_property
 from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
 from uuid import uuid4
+
+if typing.TYPE_CHECKING:
+	from typing import Coroutine, Generator
 
 
 app = None
@@ -161,7 +169,7 @@ class DotDict(dict):
 			self[key] = value
 
 
-class Message(DotDict):
+class Message(ApMessage):
 	@classmethod
 	def new_actor(cls, host, pubkey, description=None):
 		return cls({
@@ -190,7 +198,7 @@ class Message(DotDict):
 	def new_announce(cls, host, object):
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
-			'id': f'https://{host}/activities/{uuid.uuid4()}',
+			'id': f'https://{host}/activities/{uuid4()}',
 			'type': 'Announce',
 			'to': [f'https://{host}/followers'],
 			'actor': f'https://{host}/actor',
@@ -205,7 +213,7 @@ class Message(DotDict):
 			'type': 'Follow',
 			'to': [actor],
 			'object': actor,
-			'id': f'https://{host}/activities/{uuid.uuid4()}',
+			'id': f'https://{host}/activities/{uuid4()}',
 			'actor': f'https://{host}/actor'
 		})
 
@@ -214,7 +222,7 @@ class Message(DotDict):
 	def new_unfollow(cls, host, actor, follow):
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
-			'id': f'https://{host}/activities/{uuid.uuid4()}',
+			'id': f'https://{host}/activities/{uuid4()}',
 			'type': 'Undo',
 			'to': [actor],
 			'actor': f'https://{host}/actor',
@@ -226,7 +234,7 @@ class Message(DotDict):
 	def new_response(cls, host, actor, followid, accept):
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
-			'id': f'https://{host}/activities/{uuid.uuid4()}',
+			'id': f'https://{host}/activities/{uuid4()}',
 			'type': 'Accept' if accept else 'Reject',
 			'to': [actor],
 			'actor': f'https://{host}/actor',
@@ -237,40 +245,6 @@ class Message(DotDict):
 				'actor': actor
 			}
 		})
-
-
-	# misc properties
-	@property
-	def domain(self):
-		return urlparse(self.id).hostname
-
-
-	# actor properties
-	@property
-	def shared_inbox(self):
-		return self.get('endpoints', {}).get('sharedInbox', self.inbox)
-
-
-	# activity properties
-	@property
-	def actorid(self):
-		if isinstance(self.actor, dict):
-			return self.actor.id
-
-		return self.actor
-
-
-	@property
-	def objectid(self):
-		if isinstance(self.object, dict):
-			return self.object.id
-
-		return self.object
-
-
-	@property
-	def signer(self):
-		return aputils.Signer.new_from_actor(self)
 
 
 class Response(AiohttpResponse):
@@ -312,29 +286,147 @@ class Response(AiohttpResponse):
 		self.headers['Location'] = value
 
 
-class View(AiohttpView):
-	async def _iter(self):
-		if self.request.method not in METHODS:
-			self._raise_allowed_methods()
+class View(AbstractView):
+	def __init__(self, request: AiohttpRequest):
+		AbstractView.__init__(self, request)
 
-		method = getattr(self, self.request.method.lower(), None)
+		self.signature: Signature = None
+		self.message: Message = None
+		self.actor: Message = None
+		self.instance: dict[str, str] = None
 
-		if method is None:
-			self._raise_allowed_methods()
 
-		return await method(**self.request.match_info)
+	def __await__(self) -> Generator[Response]:
+		method = self.request.method.upper()
+
+		if method not in METHODS:
+			raise HTTPMethodNotAllowed(method, self.allowed_methods)
+
+		if not (handler := self.handlers.get(method)):
+			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods) from None
+
+		return handler(self.request, **self.request.match_info).__await__()
+
+
+	@cached_property
+	def allowed_methods(self) -> tuple[str]:
+		return tuple(self.handlers.keys())
+
+
+	@cached_property
+	def handlers(self) -> dict[str, Coroutine]:
+		data = {}
+
+		for method in METHODS:
+			try:
+				data[method] = getattr(self, method.lower())
+
+			except AttributeError:
+				continue
+
+		return data
+
+
+	# app components
+	@property
+	def app(self) -> Application:
+		return self.request.app
 
 
 	@property
-	def app(self):
-		return self._request.app
+	def client(self) -> Client:
+		return self.app.client
 
 
 	@property
-	def config(self):
+	def config(self) -> RelayConfig:
 		return self.app.config
 
 
 	@property
-	def database(self):
+	def database(self) -> RelayDatabase:
 		return self.app.database
+
+
+	async def get_post_data(self) -> Response | None:
+		try:
+			self.signature = Signature.new_from_signature(self.request.headers['signature'])
+
+		except KeyError:
+			logging.verbose('Missing signature header')
+			return Response.new_error(400, 'missing signature header', 'json')
+
+		try:
+			self.message = await self.request.json(loads = Message.parse)
+
+		except Exception:
+			traceback.print_exc()
+			logging.verbose('Failed to parse inbox message')
+			return Response.new_error(400, 'failed to parse message', 'json')
+
+		if self.message is None:
+			logging.verbose('empty message')
+			return Response.new_error(400, 'missing message', 'json')
+
+		if 'actor' not in self.message:
+			logging.verbose('actor not in message')
+			return Response.new_error(400, 'no actor in message', 'json')
+
+		self.actor = await self.client.get(self.signature.keyid, sign_headers = True)
+
+		if self.actor is None:
+			## ld signatures aren't handled atm, so just ignore it
+			if self.message.type == 'Delete':
+				logging.verbose(f'Instance sent a delete which cannot be handled')
+				return Response.new(status=202)
+
+			logging.verbose(f'Failed to fetch actor: {self.signature.keyid}')
+			return Response.new_error(400, 'failed to fetch actor', 'json')
+
+		try:
+			self.signer = self.actor.signer
+
+		except KeyError:
+			logging.verbose('Actor missing public key: %s', self.signature.keyid)
+			return Response.new_error(400, 'actor missing public key', 'json')
+
+		try:
+			self.validate_signature(await self.request.read())
+
+		except SignatureFailureError as e:
+			logging.verbose(f'signature validation failed for "{self.actor.id}": {e}')
+			return Response.new_error(401, str(e), 'json')
+
+		self.instance = self.database.get_inbox(self.actor.inbox)
+
+
+	# aputils.Signer.validate_signature is broken atm, so reimplement it
+	def validate_signature(self, body: bytes) -> None:
+		headers = {key.lower(): value for key, value in self.request.headers.items()}
+		headers["(request-target)"] = " ".join([self.request.method.lower(), self.request.path])
+
+		# if (digest := Digest.new_from_digest(headers.get("digest"))):
+		# 	if not body:
+		# 		raise SignatureFailureError("Missing body for digest verification")
+  # 
+		# 	if not digest.validate(body):
+		# 		raise SignatureFailureError("Body digest does not match")
+
+		if self.signature.algorithm_type == "hs2019":
+			if "(created)" not in self.signature.headers:
+				raise SignatureFailureError("'(created)' header not used")
+
+			current_timestamp = HttpDate.new_utc().timestamp()
+
+			if self.signature.created > current_timestamp:
+				raise SignatureFailureError("Creation date after current date")
+
+			if current_timestamp > self.signature.expires:
+				raise SignatureFailureError("Expiration date before current date")
+
+			headers["(created)"] = self.signature.created
+			headers["(expires)"] = self.signature.expires
+
+		# pylint: disable=protected-access
+		if not self.actor.signer._validate_signature(headers, self.signature):
+			raise SignatureFailureError("Signature does not match")
