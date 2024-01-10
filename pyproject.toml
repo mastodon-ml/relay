@@ -1,3 +1,37 @@
 [build-system]
 requires = ["setuptools","wheel"]
 build-backend = 'setuptools.build_meta'
+
+
+[tool.pylint.main]
+jobs = 0
+persistent = true
+
+
+[tool.pylint.design]
+max-args = 10
+max-attributes = 100
+
+
+[tool.pylint.format]
+indent-str = "\t"
+indent-after-paren = 1
+max-line-length = 100
+single-line-if-stmt = true
+
+
+[tool.pylint.messages_control]
+disable = [
+	"broad-exception-caught",
+	"cyclic-import",
+	"global-statement",
+	"invalid-name",
+	"missing-module-docstring",
+	"too-few-public-methods",
+	"too-many-public-methods",
+	"too-many-return-statements",
+	"wrong-import-order",
+	"wrong-import-position",
+	"missing-function-docstring",
+	"missing-class-docstring"
+]
