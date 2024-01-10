@@ -4,37 +4,48 @@ import os
 from pathlib import Path
 
 
-## Add the verbose logging level
+LOG_LEVELS = {
+	'DEBUG': logging.DEBUG,
+	'VERBOSE': 15,
+	'INFO': logging.INFO,
+	'WARNING': logging.WARNING,
+	'ERROR': logging.ERROR,
+	'CRITICAL': logging.CRITICAL
+}
+
+
+debug = logging.debug
+info = logging.info
+warning = logging.warning
+error = logging.error
+critical = logging.critical
+
+
 def verbose(message, *args, **kwargs):
-	if not logging.root.isEnabledFor(logging.VERBOSE):
+	if not logging.root.isEnabledFor(LOG_LEVELS['VERBOSE']):
 		return
 
-	logging.log(logging.VERBOSE, message, *args, **kwargs)
-
-setattr(logging, 'verbose', verbose)
-setattr(logging, 'VERBOSE', 15)
-logging.addLevelName(15, 'VERBOSE')
+	logging.log(LOG_LEVELS['VERBOSE'], message, *args, **kwargs)
 
 
-## Get log level and file from environment if possible
+logging.addLevelName(LOG_LEVELS['VERBOSE'], 'VERBOSE')
 env_log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
 
 try:
-	env_log_file = Path(os.environ.get('LOG_FILE')).expanduser().resolve()
+	env_log_file = Path(os.environ['LOG_FILE']).expanduser().resolve()
 
-except TypeError:
+except KeyError:
 	env_log_file = None
 
 
-## Make sure the level from the environment is valid
 try:
-	log_level = getattr(logging, env_log_level)
+	log_level = LOG_LEVELS[env_log_level]
 
-except AttributeError:
+except KeyError:
+	logging.warning('Invalid log level: %s', env_log_level)
 	log_level = logging.INFO
 
 
-## Set logging config
 handlers = [logging.StreamHandler()]
 
 if env_log_file:
@@ -42,6 +53,6 @@ if env_log_file:
 
 logging.basicConfig(
 	level = log_level,
-	format = "[%(asctime)s] %(levelname)s: %(message)s",
+	format = '[%(asctime)s] %(levelname)s: %(message)s',
 	handlers = handlers
 )
