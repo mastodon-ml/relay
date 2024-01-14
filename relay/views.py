@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import aputils
 import asyncio
 import subprocess
-import traceback
 import typing
 
 from aputils.objects import Nodeinfo, Webfinger, WellKnownNodeinfo
 from pathlib import Path
 
-from . import __version__, misc
+from . import __version__
 from . import logger as logging
 from .misc import Message, Response, View
 from .processors import run_processor
@@ -35,8 +33,16 @@ HOME_TEMPLATE = """
 	<body>
 	<p>This is an Activity Relay for fediverse instances.</p>
 	<p>{note}</p>
-	<p>You may subscribe to this relay with the address: <a href="https://{host}/actor">https://{host}/actor</a></p>
-	<p>To host your own relay, you may download the code at this address: <a href="https://git.pleroma.social/pleroma/relay">https://git.pleroma.social/pleroma/relay</a></p>
+	<p>
+		You may subscribe to this relay with the address:
+		<a href="https://{host}/actor">https://{host}/actor</a>
+	</p>
+	<p>
+		To host your own relay, you may download the code at this address:
+		<a href="https://git.pleroma.social/pleroma/relay">
+			https://git.pleroma.social/pleroma/relay
+		</a>
+	</p>
 	<br><p>List of {count} registered instances:<br>{targets}</p>
 	</body></html>
 """
@@ -60,6 +66,8 @@ def register_route(*paths: str) -> Callable:
 	return wrapper
 
 
+# pylint: disable=unused-argument
+
 @register_route('/')
 class HomeView(View):
 	async def get(self, request: Request) -> Response:
@@ -78,7 +86,7 @@ class HomeView(View):
 class ActorView(View):
 	async def get(self, request: Request) -> Response:
 		data = Message.new_actor(
-			host = self.config.host, 
+			host = self.config.host,
 			pubkey = self.database.signer.pubkey
 		)
 
@@ -140,14 +148,14 @@ class WebfingerView(View):
 @register_route('/nodeinfo/{niversion:\\d.\\d}.json', '/nodeinfo/{niversion:\\d.\\d}')
 class NodeinfoView(View):
 	async def get(self, request: Request, niversion: str) -> Response:
-		data = dict(
-			name = 'activityrelay',
-			version = VERSION,
-			protocols = ['activitypub'],
-			open_regs = not self.config.whitelist_enabled,
-			users = 1,
-			metadata = {'peers': self.database.hostnames}
-		)
+		data = {
+			'name': 'activityrelay',
+			'version': VERSION,
+			'protocols': ['activitypub'],
+			'open_regs': not self.config.whitelist_enabled,
+			'users': 1,
+			'metadata': {'peers': self.database.hostnames}
+		}
 
 		if niversion == '2.1':
 			data['repo'] = 'https://git.pleroma.social/pleroma/relay'

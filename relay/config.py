@@ -1,5 +1,7 @@
-import json
+from __future__ import annotations
+
 import os
+import typing
 import yaml
 
 from functools import cached_property
@@ -7,6 +9,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .misc import DotDict, boolean
+
+if typing.TYPE_CHECKING:
+	from typing import Any
+	from .database import RelayDatabase
 
 
 RELAY_SOFTWARE = [
@@ -25,17 +31,19 @@ APKEYS = [
 
 
 class RelayConfig(DotDict):
-	def __init__(self, path):
+	__slots__ = ('path', )
+
+	def __init__(self, path: str | Path):
 		DotDict.__init__(self, {})
 
 		if self.is_docker:
 			path = '/data/config.yaml'
 
-		self._path = Path(path).expanduser()
+		self._path = Path(path).expanduser().resolve()
 		self.reset()
 
 
-	def __setitem__(self, key, value):
+	def __setitem__(self, key: str, value: Any) -> None:
 		if key in ['blocked_instances', 'blocked_software', 'whitelist']:
 			assert isinstance(value, (list, set, tuple))
 
@@ -51,36 +59,31 @@ class RelayConfig(DotDict):
 
 
 	@property
-	def db(self):
+	def db(self) -> RelayDatabase:
 		return Path(self['db']).expanduser().resolve()
 
 
 	@property
-	def path(self):
-		return self._path
-
-
-	@property
-	def actor(self):
+	def actor(self) -> str:
 		return f'https://{self.host}/actor'
 
 
 	@property
-	def inbox(self):
+	def inbox(self) -> str:
 		return f'https://{self.host}/inbox'
 
 
 	@property
-	def keyid(self):
+	def keyid(self) -> str:
 		return f'{self.actor}#main-key'
 
 
 	@cached_property
-	def is_docker(self):
+	def is_docker(self) -> bool:
 		return bool(os.environ.get('DOCKER_RUNNING'))
 
 
-	def reset(self):
+	def reset(self) -> None:
 		self.clear()
 		self.update({
 			'db': str(self._path.parent.joinpath(f'{self._path.stem}.jsonld')),
@@ -99,7 +102,7 @@ class RelayConfig(DotDict):
 		})
 
 
-	def ban_instance(self, instance):
+	def ban_instance(self, instance: str) -> bool:
 		if instance.startswith('http'):
 			instance = urlparse(instance).hostname
 
@@ -110,7 +113,7 @@ class RelayConfig(DotDict):
 		return True
 
 
-	def unban_instance(self, instance):
+	def unban_instance(self, instance: str) -> bool:
 		if instance.startswith('http'):
 			instance = urlparse(instance).hostname
 
@@ -118,11 +121,11 @@ class RelayConfig(DotDict):
 			self.blocked_instances.remove(instance)
 			return True
 
-		except:
+		except ValueError:
 			return False
 
 
-	def ban_software(self, software):
+	def ban_software(self, software: str) -> bool:
 		if self.is_banned_software(software):
 			return False
 
@@ -130,16 +133,16 @@ class RelayConfig(DotDict):
 		return True
 
 
-	def unban_software(self, software):
+	def unban_software(self, software: str) -> bool:
 		try:
 			self.blocked_software.remove(software)
 			return True
 
-		except:
+		except ValueError:
 			return False
 
 
-	def add_whitelist(self, instance):
+	def add_whitelist(self, instance: str) -> bool:
 		if instance.startswith('http'):
 			instance = urlparse(instance).hostname
 
@@ -150,7 +153,7 @@ class RelayConfig(DotDict):
 		return True
 
 
-	def del_whitelist(self, instance):
+	def del_whitelist(self, instance: str) -> bool:
 		if instance.startswith('http'):
 			instance = urlparse(instance).hostname
 
@@ -158,32 +161,32 @@ class RelayConfig(DotDict):
 			self.whitelist.remove(instance)
 			return True
 
-		except:
+		except ValueError:
 			return False
 
 
-	def is_banned(self, instance):
+	def is_banned(self, instance: str) -> bool:
 		if instance.startswith('http'):
 			instance = urlparse(instance).hostname
 
 		return instance in self.blocked_instances
 
 
-	def is_banned_software(self, software):
+	def is_banned_software(self, software: str) -> bool:
 		if not software:
 			return False
 
 		return software.lower() in self.blocked_software
 
 
-	def is_whitelisted(self, instance):
+	def is_whitelisted(self, instance: str) -> bool:
 		if instance.startswith('http'):
 			instance = urlparse(instance).hostname
 
 		return instance in self.whitelist
 
 
-	def load(self):
+	def load(self) -> bool:
 		self.reset()
 
 		options = {}
@@ -195,7 +198,7 @@ class RelayConfig(DotDict):
 			pass
 
 		try:
-			with open(self.path) as fd:
+			with self._path.open('r', encoding = 'UTF-8') as fd:
 				config = yaml.load(fd, **options)
 
 		except FileNotFoundError:
@@ -214,7 +217,7 @@ class RelayConfig(DotDict):
 
 				continue
 
-			elif key not in self:
+			if key not in self:
 				continue
 
 			self[key] = value
@@ -225,7 +228,7 @@ class RelayConfig(DotDict):
 		return True
 
 
-	def save(self):
+	def save(self) -> None:
 		config = {
 			# just turning config.db into a string is good enough for now
 			'db': str(self.db),
@@ -239,7 +242,5 @@ class RelayConfig(DotDict):
 			'ap': {key: self[key] for key in APKEYS}
 		}
 
-		with open(self._path, 'w') as fd:
+		with self._path.open('w', encoding = 'utf-8') as fd:
 			yaml.dump(config, fd, sort_keys=False)
-
-		return config

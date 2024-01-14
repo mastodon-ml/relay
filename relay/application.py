@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import asyncio
-import os
 import queue
 import signal
 import threading
 import traceback
+import typing
 
 from aiohttp import web
 from datetime import datetime, timedelta
@@ -12,20 +14,29 @@ from . import logger as logging
 from .config import RelayConfig
 from .database import RelayDatabase
 from .http_client import HttpClient
-from .misc import DotDict, check_open_port, set_app
+from .misc import check_open_port
 from .views import VIEWS
+
+if typing.TYPE_CHECKING:
+	from typing import Any
+	from .misc import Message
+
+
+# pylint: disable=unsubscriptable-object
 
 
 class Application(web.Application):
-	def __init__(self, cfgpath):
+	def __init__(self, cfgpath: str):
 		web.Application.__init__(self)
 
-		self['starttime'] = None
+		self['workers'] = []
+		self['last_worker'] = 0
+		self['start_time'] = None
 		self['running'] = False
 		self['config'] = RelayConfig(cfgpath)
 
-		if not self['config'].load():
-			self['config'].save()
+		if not self.config.load():
+			self.config.save()
 
 		if self.config.is_docker:
 			self.config.update({
@@ -34,13 +45,8 @@ class Application(web.Application):
 				'port': 8080
 			})
 
-		self['workers'] = []
-		self['last_worker'] = 0
-
-		set_app(self)
-
-		self['database'] = RelayDatabase(self['config'])
-		self['database'].load()
+		self['database'] = RelayDatabase(self.config)
+		self.database.load()
 
 		self['client'] = HttpClient(
 			database = self.database,
@@ -54,33 +60,34 @@ class Application(web.Application):
 
 
 	@property
-	def client(self):
+	def client(self) -> HttpClient:
 		return self['client']
 
 
 	@property
-	def config(self):
+	def config(self) -> RelayConfig:
 		return self['config']
 
 
 	@property
-	def database(self):
+	def database(self) -> RelayDatabase:
 		return self['database']
 
 
 	@property
-	def uptime(self):
-		if not self['starttime']:
+	def uptime(self) -> timedelta:
+		if not self['start_time']:
 			return timedelta(seconds=0)
 
-		uptime = datetime.now() - self['starttime']
+		uptime = datetime.now() - self['start_time']
 
 		return timedelta(seconds=uptime.seconds)
 
 
-	def push_message(self, inbox, message):
+	def push_message(self, inbox: str, message: Message) -> None:
 		if self.config.workers <= 0:
-			return asyncio.ensure_future(self.client.post(inbox, message))
+			asyncio.ensure_future(self.client.post(inbox, message))
+			return
 
 		worker = self['workers'][self['last_worker']]
 		worker.queue.put((inbox, message))
@@ -91,8 +98,8 @@ class Application(web.Application):
 			self['last_worker'] = 0
 
 
-	def set_signal_handler(self, startup):
-		for sig in {'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGTERM'}:
+	def set_signal_handler(self, startup: bool) -> None:
+		for sig in ('SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGTERM'):
 			try:
 				signal.signal(getattr(signal, sig), self.stop if startup else signal.SIG_DFL)
 
@@ -101,9 +108,10 @@ class Application(web.Application):
 				pass
 
 
-	def run(self):
+	def run(self) -> None:
 		if not check_open_port(self.config.listen, self.config.port):
-			return logging.error('A server is already running on port %i', self.config.port)
+			logging.error('A server is already running on port %i', self.config.port)
+			return
 
 		for view in VIEWS:
 			self.router.add_view(*view)
@@ -118,17 +126,17 @@ class Application(web.Application):
 		asyncio.run(self.handle_run())
 
 
-	def stop(self, *_):
+	def stop(self, *_: Any) -> None:
 		self['running'] = False
 
 
-	async def handle_run(self):
+	async def handle_run(self) -> None:
 		self['running'] = True
 
 		self.set_signal_handler(True)
 
 		if self.config.workers > 0:
-			for i in range(self.config.workers):
+			for _ in range(self.config.workers):
 				worker = PushWorker(self)
 				worker.start()
 
@@ -137,14 +145,15 @@ class Application(web.Application):
 		runner = web.AppRunner(self, access_log_format='%{X-Forwarded-For}i "%r" %s %b "%{User-Agent}i"')
 		await runner.setup()
 
-		site = web.TCPSite(runner,
+		site = web.TCPSite(
+			runner,
 			host = self.config.listen,
 			port = self.config.port,
 			reuse_address = True
 		)
 
 		await site.start()
-		self['starttime'] = datetime.now()
+		self['start_time'] = datetime.now()
 
 		while self['running']:
 			await asyncio.sleep(0.25)
@@ -152,23 +161,24 @@ class Application(web.Application):
 		await site.stop()
 		await self.client.close()
 
-		self['starttime'] = None
+		self['start_time'] = None
 		self['running'] = False
 		self['workers'].clear()
 
 
 class PushWorker(threading.Thread):
-	def __init__(self, app):
+	def __init__(self, app: Application):
 		threading.Thread.__init__(self)
 		self.app = app
 		self.queue = queue.Queue()
+		self.client = None
 
 
-	def run(self):
+	def run(self) -> None:
 		asyncio.run(self.handle_queue())
 
 
-	async def handle_queue(self):
+	async def handle_queue(self) -> None:
 		self.client = HttpClient(
 			database = self.app.database,
 			limit = self.app.config.push_limit,

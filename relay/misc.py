@@ -12,19 +12,20 @@ from aiohttp.web_exceptions import HTTPMethodNotAllowed
 from aputils.errors import SignatureFailureError
 from aputils.misc import Digest, HttpDate, Signature
 from aputils.message import Message as ApMessage
-from datetime import datetime
 from functools import cached_property
 from json.decoder import JSONDecodeError
-from urllib.parse import urlparse
 from uuid import uuid4
 
 from . import logger as logging
 
 if typing.TYPE_CHECKING:
-	from typing import Coroutine, Generator
+	from typing import Any, Coroutine, Generator, Optional, Type
+	from aputils.signer import Signer
+	from .application import Application
+	from .config import RelayConfig
+	from .database import RelayDatabase
+	from .http_client import HttpClient
 
-
-app = None
 
 MIMETYPES = {
 	'activity': 'application/activity+json',
@@ -39,94 +40,87 @@ NODEINFO_NS = {
 }
 
 
-def set_app(new_app):
-	global app
-	app = new_app
-
-
-def boolean(value):
+def boolean(value: Any) -> bool:
 	if isinstance(value, str):
 		if value.lower() in ['on', 'y', 'yes', 'true', 'enable', 'enabled', '1']:
 			return True
 
-		elif value.lower() in ['off', 'n', 'no', 'false', 'disable', 'disable', '0']:
+		if value.lower() in ['off', 'n', 'no', 'false', 'disable', 'disable', '0']:
 			return False
 
-		else:
-			raise TypeError(f'Cannot parse string "{value}" as a boolean')
+		raise TypeError(f'Cannot parse string "{value}" as a boolean')
 
-	elif isinstance(value, int):
+	if isinstance(value, int):
 		if value == 1:
 			return True
 
-		elif value == 0:
+		if value == 0:
 			return False
 
-		else:
-			raise ValueError('Integer value must be 1 or 0')
+		raise ValueError('Integer value must be 1 or 0')
 
-	elif value == None:
+	if value is None:
 		return False
 
-	try:
-		return value.__bool__()
-
-	except AttributeError:
-		raise TypeError(f'Cannot convert object of type "{clsname(value)}"')
+	return bool(value)
 
 
-def check_open_port(host, port):
+def check_open_port(host: str, port: int) -> bool:
 	if host == '0.0.0.0':
 		host = '127.0.0.1'
 
 	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 		try:
-			return s.connect_ex((host , port)) != 0
+			return s.connect_ex((host, port)) != 0
 
-		except socket.error as e:
+		except socket.error:
 			return False
 
 
 class DotDict(dict):
-	def __init__(self, _data, **kwargs):
+	def __init__(self, _data: dict[str, Any], **kwargs: Any):
 		dict.__init__(self)
 
 		self.update(_data, **kwargs)
 
 
-	def __getattr__(self, k):
+	def __getattr__(self, key: str) -> str:
 		try:
-			return self[k]
+			return self[key]
 
 		except KeyError:
-			raise AttributeError(f'{self.__class__.__name__} object has no attribute {k}') from None
+			raise AttributeError(
+				f'{self.__class__.__name__} object has no attribute {key}'
+			) from None
 
 
-	def __setattr__(self, k, v):
-		if k.startswith('_'):
-			super().__setattr__(k, v)
+	def __setattr__(self, key: str, value: Any) -> None:
+		if key.startswith('_'):
+			super().__setattr__(key, value)
 
 		else:
-			self[k] = v
+			self[key] = value
 
 
-	def __setitem__(self, k, v):
-		if type(v) == dict:
-			v = DotDict(v)
+	def __setitem__(self, key: str, value: Any) -> None:
+		if type(value) is dict:  # pylint: disable=unidiomatic-typecheck
+			value = DotDict(value)
 
-		super().__setitem__(k, v)
+		super().__setitem__(key, value)
 
 
-	def __delattr__(self, k):
+	def __delattr__(self, key: str) -> None:
 		try:
-			dict.__delitem__(self, k)
+			dict.__delitem__(self, key)
 
 		except KeyError:
-			raise AttributeError(f'{self.__class__.__name__} object has no attribute {k}') from None
+			raise AttributeError(
+				f'{self.__class__.__name__} object has no attribute {key}'
+			) from None
 
 
 	@classmethod
-	def new_from_json(cls, data):
+	def new_from_json(cls: Type[DotDict], data: dict[str, Any]) -> DotDict[str, Any]:
 		if not data:
 			raise JSONDecodeError('Empty body', data, 1)
 
@@ -134,11 +128,11 @@ class DotDict(dict):
 			return cls(json.loads(data))
 
 		except ValueError:
-			raise JSONDecodeError('Invalid body', data, 1)
+			raise JSONDecodeError('Invalid body', data, 1) from None
 
 
 	@classmethod
-	def new_from_signature(cls, sig):
+	def new_from_signature(cls: Type[DotDict], sig: str) -> DotDict[str, Any]:
 		data = cls({})
 
 		for chunk in sig.strip().split(','):
@@ -153,11 +147,11 @@ class DotDict(dict):
 		return data
 
 
-	def to_json(self, indent=None):
+	def to_json(self, indent: Optional[int | str] = None) -> str:
 		return json.dumps(self, indent=indent)
 
 
-	def update(self, _data, **kwargs):
+	def update(self, _data: dict[str, Any], **kwargs: Any) -> None:
 		if isinstance(_data, dict):
 			for key, value in _data.items():
 				self[key] = value
@@ -172,7 +166,11 @@ class DotDict(dict):
 
 class Message(ApMessage):
 	@classmethod
-	def new_actor(cls, host, pubkey, description=None):
+	def new_actor(cls: Type[Message],  # pylint: disable=arguments-differ
+				host: str,
+				pubkey: str,
+				description: Optional[str] = None) -> Message:
+
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
 			'id': f'https://{host}/actor',
@@ -196,19 +194,19 @@ class Message(ApMessage):
 
 
 	@classmethod
-	def new_announce(cls, host, object):
+	def new_announce(cls: Type[Message], host: str, obj: str) -> Message:
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
 			'id': f'https://{host}/activities/{uuid4()}',
 			'type': 'Announce',
 			'to': [f'https://{host}/followers'],
 			'actor': f'https://{host}/actor',
-			'object': object
+			'object': obj
 		})
 
 
 	@classmethod
-	def new_follow(cls, host, actor):
+	def new_follow(cls: Type[Message], host: str, actor: str) -> Message:
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
 			'type': 'Follow',
@@ -220,7 +218,7 @@ class Message(ApMessage):
 
 
 	@classmethod
-	def new_unfollow(cls, host, actor, follow):
+	def new_unfollow(cls: Type[Message], host: str, actor: str, follow: str) -> Message:
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
 			'id': f'https://{host}/activities/{uuid4()}',
@@ -232,7 +230,12 @@ class Message(ApMessage):
 
 
 	@classmethod
-	def new_response(cls, host, actor, followid, accept):
+	def new_response(cls: Type[Message],
+					host: str,
+					actor: str,
+					followid: str,
+					accept: bool) -> Message:
+
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
 			'id': f'https://{host}/activities/{uuid4()}',
@@ -250,7 +253,12 @@ class Message(ApMessage):
 
 class Response(AiohttpResponse):
 	@classmethod
-	def new(cls, body='', status=200, headers=None, ctype='text'):
+	def new(cls: Type[Response],
+			body: Optional[str | bytes | dict] = '',
+			status: Optional[int] = 200,
+			headers: Optional[dict[str, str]] = None,
+			ctype: Optional[str] = 'text') -> Response:
+
 		kwargs = {
 			'status': status,
 			'headers': headers,
@@ -270,7 +278,11 @@ class Response(AiohttpResponse):
 
 
 	@classmethod
-	def new_error(cls, status, body, ctype='text'):
+	def new_error(cls: Type[Response],
+				status: int,
+				body: str | bytes | dict,
+				ctype: str = 'text') -> Response:
+
 		if ctype == 'json':
 			body = json.dumps({'status': status, 'error': body})
 
@@ -278,12 +290,12 @@ class Response(AiohttpResponse):
 
 
 	@property
-	def location(self):
+	def location(self) -> str:
 		return self.headers.get('Location')
 
 
 	@location.setter
-	def location(self, value):
+	def location(self, value: str) -> None:
 		self.headers['Location'] = value
 
 
@@ -295,6 +307,7 @@ class View(AbstractView):
 		self.message: Message = None
 		self.actor: Message = None
 		self.instance: dict[str, str] = None
+		self.signer: Signer = None
 
 
 	def __await__(self) -> Generator[Response]:
@@ -335,7 +348,7 @@ class View(AbstractView):
 
 
 	@property
-	def client(self) -> Client:
+	def client(self) -> HttpClient:
 		return self.app.client
 
 
@@ -377,9 +390,9 @@ class View(AbstractView):
 		self.actor = await self.client.get(self.signature.keyid, sign_headers = True)
 
 		if self.actor is None:
-			## ld signatures aren't handled atm, so just ignore it
+			# ld signatures aren't handled atm, so just ignore it
 			if self.message.type == 'Delete':
-				logging.verbose(f'Instance sent a delete which cannot be handled')
+				logging.verbose('Instance sent a delete which cannot be handled')
 				return Response.new(status=202)
 
 			logging.verbose(f'Failed to fetch actor: {self.signature.keyid}')
@@ -409,7 +422,7 @@ class View(AbstractView):
 		if (digest := Digest.new_from_digest(headers.get("digest"))):
 			if not body:
 				raise SignatureFailureError("Missing body for digest verification")
-  
+
 			if not digest.validate(body):
 				raise SignatureFailureError("Body digest does not match")
 
@@ -429,5 +442,5 @@ class View(AbstractView):
 			headers["(expires)"] = self.signature.expires
 
 		# pylint: disable=protected-access
-		if not self.actor.signer._validate_signature(headers, self.signature):
+		if not self.signer._validate_signature(headers, self.signature):
 			raise SignatureFailureError("Signature does not match")

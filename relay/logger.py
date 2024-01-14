@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import logging
 import os
+import typing
 
 from pathlib import Path
 
+if typing.TYPE_CHECKING:
+	from typing import Any, Callable
 
-LOG_LEVELS = {
+
+LOG_LEVELS: dict[str, int] = {
 	'DEBUG': logging.DEBUG,
 	'VERBOSE': 15,
 	'INFO': logging.INFO,
@@ -14,14 +20,14 @@ LOG_LEVELS = {
 }
 
 
-debug = logging.debug
-info = logging.info
-warning = logging.warning
-error = logging.error
-critical = logging.critical
+debug: Callable = logging.debug
+info: Callable = logging.info
+warning: Callable = logging.warning
+error: Callable = logging.error
+critical: Callable = logging.critical
 
 
-def verbose(message, *args, **kwargs):
+def verbose(message: str, *args: Any, **kwargs: Any) -> None:
 	if not logging.root.isEnabledFor(LOG_LEVELS['VERBOSE']):
 		return
 

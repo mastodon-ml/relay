@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import typing
 
 from cachetools import LRUCache
-from uuid import uuid4
 
 from . import logger as logging
 from .misc import Message
@@ -16,8 +14,8 @@ if typing.TYPE_CHECKING:
 cache = LRUCache(1024)
 
 
-def person_check(actor, software):
-	## pleroma and akkoma may use Person for the actor type for some reason
+def person_check(actor: str, software: str) -> bool:
+	# pleroma and akkoma may use Person for the actor type for some reason
 	if software in {'akkoma', 'pleroma'} and actor.id == f'https://{actor.domain}/relay':
 		return False
 
@@ -25,21 +23,19 @@ def person_check(actor, software):
 	if actor.type != 'Application':
 		return True
 
+	return False
+
 
 async def handle_relay(view: View) -> None:
 	if view.message.objectid in cache:
 		logging.verbose('already relayed %s', view.message.objectid)
 		return
 
-	message = Message.new_announce(
-		host = view.config.host,
-		object = view.message.objectid
-	)
-
+	message = Message.new_announce(view.config.host, view.message.objectid)
 	cache[view.message.objectid] = message.id
 	logging.debug('>> relay: %s', message)
 
-	inboxes = view.database.distill_inboxes(message)
+	inboxes = view.database.distill_inboxes(view.message)
 
 	for inbox in inboxes:
 		view.app.push_message(inbox, message)
@@ -50,15 +46,11 @@ async def handle_forward(view: View) -> None:
 		logging.verbose('already forwarded %s', view.message.id)
 		return
 
-	message = Message.new_announce(
-		host = view.config.host,
-		object = view.message
-	)
-
+	message = Message.new_announce(view.config.host, view.message)
 	cache[view.message.id] = message.id
 	logging.debug('>> forward: %s', message)
 
-	inboxes = view.database.distill_inboxes(message.message)
+	inboxes = view.database.distill_inboxes(view.message)
 
 	for inbox in inboxes:
 		view.app.push_message(inbox, message)
@@ -162,7 +154,7 @@ processors = {
 }
 
 
-async def run_processor(view: View):
+async def run_processor(view: View) -> None:
 	if view.message.type not in processors:
 		logging.verbose(
 			'Message type "%s" from actor cannot be handled: %s',
@@ -180,4 +172,4 @@ async def run_processor(view: View):
 			view.database.save()
 
 	logging.verbose('New "%s" from actor: %s', view.message.type, view.actor.id)
-	return await processors[view.message.type](view)
+	await processors[view.message.type](view)
