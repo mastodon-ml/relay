@@ -208,7 +208,7 @@ class RelayDatabase(dict):
 	def distill_inboxes(self, message: Message) -> Iterator[str]:
 		src_domains = {
 			message.domain,
-			urlparse(message.objectid).netloc
+			urlparse(message.object_id).netloc
 		}
 
 		for domain, instance in self['relay-list'].items():

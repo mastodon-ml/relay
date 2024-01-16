@@ -27,12 +27,12 @@ def person_check(actor: str, software: str) -> bool:
 
 
 async def handle_relay(view: View) -> None:
-	if view.message.objectid in cache:
-		logging.verbose('already relayed %s', view.message.objectid)
+	if view.message.object_id in cache:
+		logging.verbose('already relayed %s', view.message.object_id)
 		return
 
-	message = Message.new_announce(view.config.host, view.message.objectid)
-	cache[view.message.objectid] = message.id
+	message = Message.new_announce(view.config.host, view.message.object_id)
+	cache[view.message.object_id] = message.id
 	logging.debug('>> relay: %s', message)
 
 	inboxes = view.database.distill_inboxes(view.message)
