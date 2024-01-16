@@ -251,6 +251,16 @@ class Message(ApMessage):
 		})
 
 
+	# todo: remove when fixed in aputils
+	@property
+	def object_id(self) -> str:
+		try:
+			return self["object"]["id"]
+
+		except (KeyError, TypeError):
+			return self["object"]
+
+
 class Response(AiohttpResponse):
 	@classmethod
 	def new(cls: Type[Response],
