@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import aputils
 import json
 import typing
 
+from aputils.signer import Signer
 from urllib.parse import urlparse
 
 from . import logger as logging
@@ -85,11 +85,11 @@ class RelayDatabase(dict):
 
 		if not self['private-key']:
 			logging.info('No actor keys present, generating 4096-bit RSA keypair.')
-			self.signer = aputils.Signer.new(self.config.keyid, size=4096)
+			self.signer = Signer.new(self.config.keyid, size=4096)
 			self['private-key'] = self.signer.export()
 
 		else:
-			self.signer = aputils.Signer(self['private-key'], self.config.keyid)
+			self.signer = Signer(self['private-key'], self.config.keyid)
 
 		self.save()
 		return not new_db
