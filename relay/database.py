@@ -1,14 +1,21 @@
-import aputils
-import asyncio
-import json
-import logging
-import traceback
+from __future__ import annotations
 
+import json
+import typing
+
+from aputils.signer import Signer
 from urllib.parse import urlparse
+
+from . import logger as logging
+
+if typing.TYPE_CHECKING:
+	from typing import Iterator, Optional
+	from .config import RelayConfig
+	from .misc import Message
 
 
 class RelayDatabase(dict):
-	def __init__(self, config):
+	def __init__(self, config: RelayConfig):
 		dict.__init__(self, {
 			'relay-list': {},
 			'private-key': None,
@@ -21,16 +28,16 @@ class RelayDatabase(dict):
 
 
 	@property
-	def hostnames(self):
+	def hostnames(self) -> tuple[str]:
 		return tuple(self['relay-list'].keys())
 
 
 	@property
-	def inboxes(self):
+	def inboxes(self) -> tuple[dict[str, str]]:
 		return tuple(data['inbox'] for data in self['relay-list'].values())
 
 
-	def load(self):
+	def load(self) -> bool:
 		new_db = True
 
 		try:
@@ -40,7 +47,7 @@ class RelayDatabase(dict):
 			self['version'] = data.get('version', None)
 			self['private-key'] = data.get('private-key')
 
-			if self['version'] == None:
+			if self['version'] is None:
 				self['version'] = 1
 
 				if 'actorKeys' in data:
@@ -58,7 +65,9 @@ class RelayDatabase(dict):
 				self['relay-list'] = data.get('relay-list', {})
 
 			for domain, instance in self['relay-list'].items():
-				if self.config.is_banned(domain) or (self.config.whitelist_enabled and not self.config.is_whitelisted(domain)):
+				if self.config.is_banned(domain) or \
+					(self.config.whitelist_enabled and not self.config.is_whitelisted(domain)):
+
 					self.del_inbox(domain)
 					continue
 
@@ -75,36 +84,40 @@ class RelayDatabase(dict):
 				raise e from None
 
 		if not self['private-key']:
-			logging.info("No actor keys present, generating 4096-bit RSA keypair.")
-			self.signer = aputils.Signer.new(self.config.keyid, size=4096)
+			logging.info('No actor keys present, generating 4096-bit RSA keypair.')
+			self.signer = Signer.new(self.config.keyid, size=4096)
 			self['private-key'] = self.signer.export()
 
 		else:
-			self.signer = aputils.Signer(self['private-key'], self.config.keyid)
+			self.signer = Signer(self['private-key'], self.config.keyid)
 
 		self.save()
 		return not new_db
 
 
-	def save(self):
-		with self.config.db.open('w') as fd:
+	def save(self) -> None:
+		with self.config.db.open('w', encoding = 'UTF-8') as fd:
 			json.dump(self, fd, indent=4)
 
 
-	def get_inbox(self, domain, fail=False):
+	def get_inbox(self, domain: str, fail: Optional[bool] = False) -> dict[str, str] | None:
 		if domain.startswith('http'):
 			domain = urlparse(domain).hostname
 
-		inbox = self['relay-list'].get(domain)
-
-		if inbox:
+		if (inbox := self['relay-list'].get(domain)):
 			return inbox
 
 		if fail:
 			raise KeyError(domain)
 
+		return None
 
-	def add_inbox(self, inbox, followid=None, software=None):
+
+	def add_inbox(self,
+				inbox: str,
+				followid: Optional[str] = None,
+				software: Optional[str] = None) -> dict[str, str]:
+
 		assert inbox.startswith('https'), 'Inbox must be a url'
 		domain = urlparse(inbox).hostname
 		instance = self.get_inbox(domain)
@@ -125,11 +138,15 @@ class RelayDatabase(dict):
 			'software': software
 		}
 
-		logging.verbose(f'Added inbox to database: {inbox}')
+		logging.verbose('Added inbox to database: %s', inbox)
 		return self['relay-list'][domain]
 
 
-	def del_inbox(self, domain, followid=None, fail=False):
+	def del_inbox(self,
+				domain: str,
+				followid: Optional[str] = None,
+				fail: Optional[bool] = False) -> bool:
+
 		data = self.get_inbox(domain, fail=False)
 
 		if not data:
@@ -140,17 +157,17 @@ class RelayDatabase(dict):
 
 		if not data['followid'] or not followid or data['followid'] == followid:
 			del self['relay-list'][data['domain']]
-			logging.verbose(f'Removed inbox from database: {data["inbox"]}')
+			logging.verbose('Removed inbox from database: %s', data['inbox'])
 			return True
 
 		if fail:
 			raise ValueError('Follow IDs do not match')
 
-		logging.debug(f'Follow ID does not match: db = {data["followid"]}, object = {followid}')
+		logging.debug('Follow ID does not match: db = %s, object = %s', data['followid'], followid)
 		return False
 
 
-	def get_request(self, domain, fail=True):
+	def get_request(self, domain: str, fail: bool = True) -> dict[str, str] | None:
 		if domain.startswith('http'):
 			domain = urlparse(domain).hostname
 
@@ -161,8 +178,10 @@ class RelayDatabase(dict):
 			if fail:
 				raise e
 
+			return None
 
-	def add_request(self, actor, inbox, followid):
+
+	def add_request(self, actor: str, inbox: str, followid: str) -> None:
 		domain = urlparse(inbox).hostname
 
 		try:
@@ -179,17 +198,17 @@ class RelayDatabase(dict):
 		}
 
 
-	def del_request(self, domain):
+	def del_request(self, domain: str) -> None:
 		if domain.startswith('http'):
-			domain = urlparse(inbox).hostname
+			domain = urlparse(domain).hostname
 
 		del self['follow-requests'][domain]
 
 
-	def distill_inboxes(self, message):
+	def distill_inboxes(self, message: Message) -> Iterator[str]:
 		src_domains = {
 			message.domain,
-			urlparse(message.objectid).netloc
+			urlparse(message.object_id).netloc
 		}
 
 		for domain, instance in self['relay-list'].items():
