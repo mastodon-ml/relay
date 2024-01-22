@@ -57,6 +57,9 @@ class Config:
 
 	@property
 	def sqlite_path(self) -> Path:
+		if not os.path.isabs(self.sq_path):
+			return self.path.parent.joinpath(self.sq_path).resolve()
+
 		return Path(self.sq_path).expanduser().resolve()
 
 

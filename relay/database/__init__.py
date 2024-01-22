@@ -18,7 +18,7 @@ if typing.TYPE_CHECKING:
 
 def get_database(config: Config, migrate: Optional[bool] = True) -> tinysql.Database:
 	if config.db_type == "sqlite":
-		db = tinysql.Database.sqlite(config.sq_path, connection_class = Connection)
+		db = tinysql.Database.sqlite(config.sqlite_path, connection_class = Connection)
 
 	elif config.db_type == "postgres":
 		db = tinysql.Database.postgres(
