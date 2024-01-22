@@ -9,7 +9,7 @@ a = Analysis(
 	pathex=[],
 	binaries=[],
 	datas=[
-		('relay/database', 'relay/database')
+		('relay/data', 'relay/data')
 	],
 	hiddenimports=[],
 	hookspath=[],

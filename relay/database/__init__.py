@@ -30,7 +30,7 @@ def get_database(config: Config, migrate: Optional[bool] = True) -> tinysql.Data
 			connection_class = Connection
 		)
 
-	db.load_prepared_statements(pkgfiles("relay").joinpath("database", "statements.sql"))
+	db.load_prepared_statements(pkgfiles("relay").joinpath("data", "statements.sql"))
 
 	if not migrate:
 		return db

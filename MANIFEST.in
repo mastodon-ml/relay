@@ -1,1 +1,1 @@
-include database/statements.sql
+include data/statements.sql
