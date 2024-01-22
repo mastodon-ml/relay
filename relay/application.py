@@ -8,52 +8,41 @@ import traceback
 import typing
 
 from aiohttp import web
+from aputils.signer import Signer
 from datetime import datetime, timedelta
 
 from . import logger as logging
-from .config import RelayConfig
-from .database import RelayDatabase
+from .config import Config
+from .database import get_database
 from .http_client import HttpClient
 from .misc import check_open_port
 from .views import VIEWS
 
 if typing.TYPE_CHECKING:
+	from tinysql import Database
 	from typing import Any
 	from .misc import Message
 
 
 # pylint: disable=unsubscriptable-object
 
-
 class Application(web.Application):
+	DEFAULT: Application = None
+
 	def __init__(self, cfgpath: str):
 		web.Application.__init__(self)
+
+		Application.DEFAULT = self
+
+		self['signer'] = None
+		self['config'] = Config(cfgpath, load = True)
+		self['database'] = get_database(self.config)
+		self['client'] = HttpClient()
 
 		self['workers'] = []
 		self['last_worker'] = 0
 		self['start_time'] = None
 		self['running'] = False
-		self['config'] = RelayConfig(cfgpath)
-
-		if not self.config.load():
-			self.config.save()
-
-		if self.config.is_docker:
-			self.config.update({
-				'db': '/data/relay.jsonld',
-				'listen': '0.0.0.0',
-				'port': 8080
-			})
-
-		self['database'] = RelayDatabase(self.config)
-		self.database.load()
-
-		self['client'] = HttpClient(
-			database = self.database,
-			limit = self.config.push_limit,
-			timeout = self.config.timeout,
-			cache_size = self.config.json_cache
-		)
 
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
@@ -65,13 +54,27 @@ class Application(web.Application):
 
 
 	@property
-	def config(self) -> RelayConfig:
+	def config(self) -> Config:
 		return self['config']
 
 
 	@property
-	def database(self) -> RelayDatabase:
+	def database(self) -> Database:
 		return self['database']
+
+
+	@property
+	def signer(self) -> Signer:
+		return self['signer']
+
+
+	@signer.setter
+	def signer(self, value: Signer | str) -> None:
+		if isinstance(value, Signer):
+			self['signer'] = value
+			return
+
+		self['signer'] = Signer(value, self.config.keyid)
 
 
 	@property
@@ -118,7 +121,7 @@ class Application(web.Application):
 
 		logging.info(
 			'Starting webserver at %s (%s:%i)',
-			self.config.host,
+			self.config.domain,
 			self.config.listen,
 			self.config.port
 		)
@@ -179,12 +182,7 @@ class PushWorker(threading.Thread):
 
 
 	async def handle_queue(self) -> None:
-		self.client = HttpClient(
-			database = self.app.database,
-			limit = self.app.config.push_limit,
-			timeout = self.app.config.timeout,
-			cache_size = self.app.config.json_cache
-		)
+		self.client = HttpClient()
 
 		while self.app['running']:
 			try:

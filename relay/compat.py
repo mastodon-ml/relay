@@ -1,17 +1,128 @@
 from __future__ import annotations
 
 import json
+import os
 import typing
+import yaml
 
-from aputils.signer import Signer
+from functools import cached_property
+from pathlib import Path
 from urllib.parse import urlparse
 
 from . import logger as logging
+from .misc import Message, boolean
 
 if typing.TYPE_CHECKING:
-	from typing import Iterator, Optional
-	from .config import RelayConfig
-	from .misc import Message
+	from typing import Any, Iterator, Optional
+
+
+# pylint: disable=duplicate-code
+
+class RelayConfig(dict):
+	def __init__(self, path: str):
+		dict.__init__(self, {})
+
+		if self.is_docker:
+			path = '/data/config.yaml'
+
+		self._path = Path(path).expanduser().resolve()
+		self.reset()
+
+
+	def __setitem__(self, key: str, value: Any) -> None:
+		if key in ['blocked_instances', 'blocked_software', 'whitelist']:
+			assert isinstance(value, (list, set, tuple))
+
+		elif key in ['port', 'workers', 'json_cache', 'timeout']:
+			if not isinstance(value, int):
+				value = int(value)
+
+		elif key == 'whitelist_enabled':
+			if not isinstance(value, bool):
+				value = boolean(value)
+
+		super().__setitem__(key, value)
+
+
+	@property
+	def db(self) -> RelayDatabase:
+		return Path(self['db']).expanduser().resolve()
+
+
+	@property
+	def actor(self) -> str:
+		return f'https://{self["host"]}/actor'
+
+
+	@property
+	def inbox(self) -> str:
+		return f'https://{self["host"]}/inbox'
+
+
+	@property
+	def keyid(self) -> str:
+		return f'{self.actor}#main-key'
+
+
+	@cached_property
+	def is_docker(self) -> bool:
+		return bool(os.environ.get('DOCKER_RUNNING'))
+
+
+	def reset(self) -> None:
+		self.clear()
+		self.update({
+			'db': str(self._path.parent.joinpath(f'{self._path.stem}.jsonld')),
+			'listen': '0.0.0.0',
+			'port': 8080,
+			'note': 'Make a note about your instance here.',
+			'push_limit': 512,
+			'json_cache': 1024,
+			'timeout': 10,
+			'workers': 0,
+			'host': 'relay.example.com',
+			'whitelist_enabled': False,
+			'blocked_software': [],
+			'blocked_instances': [],
+			'whitelist': []
+		})
+
+
+	def load(self) -> None:
+		self.reset()
+
+		options = {}
+
+		try:
+			options['Loader'] = yaml.FullLoader
+
+		except AttributeError:
+			pass
+
+		try:
+			with self._path.open('r', encoding = 'UTF-8') as fd:
+				config = yaml.load(fd, **options)
+
+		except FileNotFoundError:
+			return
+
+		if not config:
+			return
+
+		for key, value in config.items():
+			if key in ['ap']:
+				for k, v in value.items():
+					if k not in self:
+						continue
+
+					self[k] = v
+
+				continue
+
+			if key not in self:
+				continue
+
+			self[key] = value
 
 
 class RelayDatabase(dict):
@@ -37,9 +148,7 @@ class RelayDatabase(dict):
 		return tuple(data['inbox'] for data in self['relay-list'].values())
 
 
-	def load(self) -> bool:
-		new_db = True
-
+	def load(self) -> None:
 		try:
 			with self.config.db.open() as fd:
 				data = json.load(fd)
@@ -65,16 +174,8 @@ class RelayDatabase(dict):
 				self['relay-list'] = data.get('relay-list', {})
 
 			for domain, instance in self['relay-list'].items():
-				if self.config.is_banned(domain) or \
-					(self.config.whitelist_enabled and not self.config.is_whitelisted(domain)):
-
-					self.del_inbox(domain)
-					continue
-
 				if not instance.get('domain'):
 					instance['domain'] = domain
-
-			new_db = False
 
 		except FileNotFoundError:
 			pass
@@ -82,17 +183,6 @@ class RelayDatabase(dict):
 		except json.decoder.JSONDecodeError as e:
 			if self.config.db.stat().st_size > 0:
 				raise e from None
-
-		if not self['private-key']:
-			logging.info('No actor keys present, generating 4096-bit RSA keypair.')
-			self.signer = Signer.new(self.config.keyid, size=4096)
-			self['private-key'] = self.signer.export()
-
-		else:
-			self.signer = Signer(self['private-key'], self.config.keyid)
-
-		self.save()
-		return not new_db
 
 
 	def save(self) -> None:

@@ -1,76 +1,73 @@
 from __future__ import annotations
 
+import getpass
 import os
 import typing
 import yaml
 
-from functools import cached_property
 from pathlib import Path
-from urllib.parse import urlparse
 
-from .misc import DotDict, boolean
+from .misc import IS_DOCKER
 
 if typing.TYPE_CHECKING:
-	from typing import Any
-	from .database import RelayDatabase
+	from typing import Any, Optional
 
 
-RELAY_SOFTWARE = [
-	'activityrelay', # https://git.pleroma.social/pleroma/relay
-	'aoderelay', # https://git.asonix.dog/asonix/relay
-	'feditools-relay' # https://git.ptzo.gdn/feditools/relay
-]
+DEFAULTS: dict[str, Any] = {
+	'listen': '0.0.0.0',
+	'port': 8080,
+	'domain': 'relay.example.com',
+	'workers': len(os.sched_getaffinity(0)),
+	'db_type': 'sqlite',
+	'sq_path': 'relay.sqlite3',
+	'pg_host': '/var/run/postgresql',
+	'pg_port': 5432,
+	'pg_user': getpass.getuser(),
+	'pg_pass': None,
+	'pg_name': 'activityrelay'
+}
 
-APKEYS = [
-	'host',
-	'whitelist_enabled',
-	'blocked_software',
-	'blocked_instances',
-	'whitelist'
-]
-
-
-class RelayConfig(DotDict):
-	__slots__ = ('path', )
-
-	def __init__(self, path: str | Path):
-		DotDict.__init__(self, {})
-
-		if self.is_docker:
-			path = '/data/config.yaml'
-
-		self._path = Path(path).expanduser().resolve()
-		self.reset()
+if IS_DOCKER:
+	DEFAULTS['sq_path'] = '/data/relay.jsonld'
 
 
-	def __setitem__(self, key: str, value: Any) -> None:
-		if key in ['blocked_instances', 'blocked_software', 'whitelist']:
-			assert isinstance(value, (list, set, tuple))
+class Config:
+	def __init__(self, path: str, load: Optional[bool] = False):
+		self.path = Path(path).expanduser().resolve()
 
-		elif key in ['port', 'workers', 'json_cache', 'timeout']:
-			if not isinstance(value, int):
-				value = int(value)
+		self.listen = None
+		self.port = None
+		self.domain = None
+		self.workers = None
+		self.db_type = None
+		self.sq_path = None
+		self.pg_host = None
+		self.pg_port = None
+		self.pg_user = None
+		self.pg_pass = None
+		self.pg_name = None
 
-		elif key == 'whitelist_enabled':
-			if not isinstance(value, bool):
-				value = boolean(value)
+		if load:
+			try:
+				self.load()
 
-		super().__setitem__(key, value)
+			except FileNotFoundError:
+				self.save()
 
 
 	@property
-	def db(self) -> RelayDatabase:
-		return Path(self['db']).expanduser().resolve()
+	def sqlite_path(self) -> Path:
+		return Path(self.sq_path).expanduser().resolve()
 
 
 	@property
 	def actor(self) -> str:
-		return f'https://{self.host}/actor'
+		return f'https://{self.domain}/actor'
 
 
 	@property
 	def inbox(self) -> str:
-		return f'https://{self.host}/inbox'
+		return f'https://{self.domain}/inbox'
 
 
 	@property
@@ -78,115 +75,7 @@ class RelayConfig(DotDict):
 		return f'{self.actor}#main-key'
 
 
-	@cached_property
-	def is_docker(self) -> bool:
-		return bool(os.environ.get('DOCKER_RUNNING'))
-
-
-	def reset(self) -> None:
-		self.clear()
-		self.update({
-			'db': str(self._path.parent.joinpath(f'{self._path.stem}.jsonld')),
-			'listen': '0.0.0.0',
-			'port': 8080,
-			'note': 'Make a note about your instance here.',
-			'push_limit': 512,
-			'json_cache': 1024,
-			'timeout': 10,
-			'workers': 0,
-			'host': 'relay.example.com',
-			'whitelist_enabled': False,
-			'blocked_software': [],
-			'blocked_instances': [],
-			'whitelist': []
-		})
-
-
-	def ban_instance(self, instance: str) -> bool:
-		if instance.startswith('http'):
-			instance = urlparse(instance).hostname
-
-		if self.is_banned(instance):
-			return False
-
-		self.blocked_instances.append(instance)
-		return True
-
-
-	def unban_instance(self, instance: str) -> bool:
-		if instance.startswith('http'):
-			instance = urlparse(instance).hostname
-
-		try:
-			self.blocked_instances.remove(instance)
-			return True
-
-		except ValueError:
-			return False
-
-
-	def ban_software(self, software: str) -> bool:
-		if self.is_banned_software(software):
-			return False
-
-		self.blocked_software.append(software)
-		return True
-
-
-	def unban_software(self, software: str) -> bool:
-		try:
-			self.blocked_software.remove(software)
-			return True
-
-		except ValueError:
-			return False
-
-
-	def add_whitelist(self, instance: str) -> bool:
-		if instance.startswith('http'):
-			instance = urlparse(instance).hostname
-
-		if self.is_whitelisted(instance):
-			return False
-
-		self.whitelist.append(instance)
-		return True
-
-
-	def del_whitelist(self, instance: str) -> bool:
-		if instance.startswith('http'):
-			instance = urlparse(instance).hostname
-
-		try:
-			self.whitelist.remove(instance)
-			return True
-
-		except ValueError:
-			return False
-
-
-	def is_banned(self, instance: str) -> bool:
-		if instance.startswith('http'):
-			instance = urlparse(instance).hostname
-
-		return instance in self.blocked_instances
-
-
-	def is_banned_software(self, software: str) -> bool:
-		if not software:
-			return False
-
-		return software.lower() in self.blocked_software
-
-
-	def is_whitelisted(self, instance: str) -> bool:
-		if instance.startswith('http'):
-			instance = urlparse(instance).hostname
-
-		return instance in self.whitelist
-
-
-	def load(self) -> bool:
+	def load(self) -> None:
 		self.reset()
 
 		options = {}
@@ -197,50 +86,69 @@ class RelayConfig(DotDict):
 		except AttributeError:
 			pass
 
-		try:
-			with self._path.open('r', encoding = 'UTF-8') as fd:
-				config = yaml.load(fd, **options)
-
-		except FileNotFoundError:
-			return False
+		with self.path.open('r', encoding = 'UTF-8') as fd:
+			config = yaml.load(fd, **options)
+			pgcfg = config.get('postgresql', {})
 
 		if not config:
-			return False
+			raise ValueError('Config is empty')
 
-		for key, value in config.items():
-			if key in ['ap']:
-				for k, v in value.items():
-					if k not in self:
-						continue
+		if IS_DOCKER:
+			self.listen = '0.0.0.0'
+			self.port = 8080
+			self.sq_path = '/data/relay.jsonld'
 
-					self[k] = v
+		else:
+			self.set('listen', config.get('listen', DEFAULTS['listen']))
+			self.set('port', config.get('port', DEFAULTS['port']))
+			self.set('sq_path', config.get('sqlite_path', DEFAULTS['sq_path']))
 
+		self.set('domain', config.get('domain', DEFAULTS['domain']))
+		self.set('db_type', config.get('database_type', DEFAULTS['db_type']))
+
+		for key in DEFAULTS:
+			if not key.startswith('pg'):
 				continue
 
-			if key not in self:
+			try:
+				self.set(key, pgcfg[key[3:]])
+
+			except KeyError:
 				continue
 
-			self[key] = value
 
-		if self.host.endswith('example.com'):
-			return False
-
-		return True
+	def reset(self) -> None:
+		for key, value in DEFAULTS.items():
+			setattr(self, key, value)
 
 
 	def save(self) -> None:
+		self.path.parent.mkdir(exist_ok = True, parents = True)
+
 		config = {
-			# just turning config.db into a string is good enough for now
-			'db': str(self.db),
 			'listen': self.listen,
 			'port': self.port,
-			'note': self.note,
-			'push_limit': self.push_limit,
-			'workers': self.workers,
-			'json_cache': self.json_cache,
-			'timeout': self.timeout,
-			'ap': {key: self[key] for key in APKEYS}
+			'domain': self.domain,
+			'database_type': self.db_type,
+			'sqlite_path': self.sq_path,
+			'postgres': {
+				'host': self.pg_host,
+				'port': self.pg_port,
+				'user': self.pg_user,
+				'pass': self.pg_pass,
+				'name': self.pg_name
+			}
 		}
 
-		with self._path.open('w', encoding = 'utf-8') as fd:
-			yaml.dump(config, fd, sort_keys=False)
+		with self.path.open('w', encoding = 'utf-8') as fd:
+			yaml.dump(config, fd, sort_keys = False)
+
+
+	def set(self, key: str, value: Any) -> None:
+		if key not in DEFAULTS:
+			raise KeyError(key)
+
+		if key in ('port', 'pg_port', 'workers') and not isinstance(value, int):
+			value = int(value)
+
+		setattr(self, key, value)

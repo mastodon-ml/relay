@@ -1,32 +1,27 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
-import traceback
 import typing
 
 from aiohttp.abc import AbstractView
 from aiohttp.hdrs import METH_ALL as METHODS
-from aiohttp.web import Request as AiohttpRequest, Response as AiohttpResponse
+from aiohttp.web import Response as AiohttpResponse
 from aiohttp.web_exceptions import HTTPMethodNotAllowed
-from aputils.errors import SignatureFailureError
-from aputils.misc import Digest, HttpDate, Signature
 from aputils.message import Message as ApMessage
 from functools import cached_property
-from json.decoder import JSONDecodeError
 from uuid import uuid4
-
-from . import logger as logging
 
 if typing.TYPE_CHECKING:
 	from typing import Any, Coroutine, Generator, Optional, Type
-	from aputils.signer import Signer
 	from .application import Application
-	from .config import RelayConfig
-	from .database import RelayDatabase
+	from .config import Config
+	from .database import Database
 	from .http_client import HttpClient
 
 
+IS_DOCKER = bool(os.environ.get('DOCKER_RUNNING'))
 MIMETYPES = {
 	'activity': 'application/activity+json',
 	'html': 'text/html',
@@ -77,91 +72,13 @@ def check_open_port(host: str, port: int) -> bool:
 			return False
 
 
-class DotDict(dict):
-	def __init__(self, _data: dict[str, Any], **kwargs: Any):
-		dict.__init__(self)
+def get_app() -> Application:
+	from .application import Application  # pylint: disable=import-outside-toplevel
 
-		self.update(_data, **kwargs)
+	if not Application.DEFAULT:
+		raise ValueError('No default application set')
 
-
-	def __getattr__(self, key: str) -> str:
-		try:
-			return self[key]
-
-		except KeyError:
-			raise AttributeError(
-				f'{self.__class__.__name__} object has no attribute {key}'
-			) from None
-
-
-	def __setattr__(self, key: str, value: Any) -> None:
-		if key.startswith('_'):
-			super().__setattr__(key, value)
-
-		else:
-			self[key] = value
-
-
-	def __setitem__(self, key: str, value: Any) -> None:
-		if type(value) is dict:  # pylint: disable=unidiomatic-typecheck
-			value = DotDict(value)
-
-		super().__setitem__(key, value)
-
-
-	def __delattr__(self, key: str) -> None:
-		try:
-			dict.__delitem__(self, key)
-
-		except KeyError:
-			raise AttributeError(
-				f'{self.__class__.__name__} object has no attribute {key}'
-			) from None
-
-
-	@classmethod
-	def new_from_json(cls: Type[DotDict], data: dict[str, Any]) -> DotDict[str, Any]:
-		if not data:
-			raise JSONDecodeError('Empty body', data, 1)
-
-		try:
-			return cls(json.loads(data))
-
-		except ValueError:
-			raise JSONDecodeError('Invalid body', data, 1) from None
-
-
-	@classmethod
-	def new_from_signature(cls: Type[DotDict], sig: str) -> DotDict[str, Any]:
-		data = cls({})
-
-		for chunk in sig.strip().split(','):
-			key, value = chunk.split('=', 1)
-			value = value.strip('\"')
-
-			if key == 'headers':
-				value = value.split()
-
-			data[key.lower()] = value
-
-		return data
-
-
-	def to_json(self, indent: Optional[int | str] = None) -> str:
-		return json.dumps(self, indent=indent)
-
-
-	def update(self, _data: dict[str, Any], **kwargs: Any) -> None:
-		if isinstance(_data, dict):
-			for key, value in _data.items():
-				self[key] = value
-
-		elif isinstance(_data, (list, tuple, set)):
-			for key, value in _data:
-				self[key] = value
-
-		for key, value in kwargs.items():
-			self[key] = value
+	return Application.DEFAULT
 
 
 class Message(ApMessage):
@@ -181,7 +98,7 @@ class Message(ApMessage):
 			'followers': f'https://{host}/followers',
 			'following': f'https://{host}/following',
 			'inbox': f'https://{host}/inbox',
-			'url': f'https://{host}/inbox',
+			'url': f'https://{host}/',
 			'endpoints': {
 				'sharedInbox': f'https://{host}/inbox'
 			},
@@ -310,16 +227,6 @@ class Response(AiohttpResponse):
 
 
 class View(AbstractView):
-	def __init__(self, request: AiohttpRequest):
-		AbstractView.__init__(self, request)
-
-		self.signature: Signature = None
-		self.message: Message = None
-		self.actor: Message = None
-		self.instance: dict[str, str] = None
-		self.signer: Signer = None
-
-
 	def __await__(self) -> Generator[Response]:
 		method = self.request.method.upper()
 
@@ -363,94 +270,10 @@ class View(AbstractView):
 
 
 	@property
-	def config(self) -> RelayConfig:
+	def config(self) -> Config:
 		return self.app.config
 
 
 	@property
-	def database(self) -> RelayDatabase:
+	def database(self) -> Database:
 		return self.app.database
-
-
-	# todo: move to views.ActorView
-	async def get_post_data(self) -> Response | None:
-		try:
-			self.signature = Signature.new_from_signature(self.request.headers['signature'])
-
-		except KeyError:
-			logging.verbose('Missing signature header')
-			return Response.new_error(400, 'missing signature header', 'json')
-
-		try:
-			self.message = await self.request.json(loads = Message.parse)
-
-		except Exception:
-			traceback.print_exc()
-			logging.verbose('Failed to parse inbox message')
-			return Response.new_error(400, 'failed to parse message', 'json')
-
-		if self.message is None:
-			logging.verbose('empty message')
-			return Response.new_error(400, 'missing message', 'json')
-
-		if 'actor' not in self.message:
-			logging.verbose('actor not in message')
-			return Response.new_error(400, 'no actor in message', 'json')
-
-		self.actor = await self.client.get(self.signature.keyid, sign_headers = True)
-
-		if self.actor is None:
-			# ld signatures aren't handled atm, so just ignore it
-			if self.message.type == 'Delete':
-				logging.verbose('Instance sent a delete which cannot be handled')
-				return Response.new(status=202)
-
-			logging.verbose(f'Failed to fetch actor: {self.signature.keyid}')
-			return Response.new_error(400, 'failed to fetch actor', 'json')
-
-		try:
-			self.signer = self.actor.signer
-
-		except KeyError:
-			logging.verbose('Actor missing public key: %s', self.signature.keyid)
-			return Response.new_error(400, 'actor missing public key', 'json')
-
-		try:
-			self.validate_signature(await self.request.read())
-
-		except SignatureFailureError as e:
-			logging.verbose('signature validation failed for "%s": %s', self.actor.id, e)
-			return Response.new_error(401, str(e), 'json')
-
-		self.instance = self.database.get_inbox(self.actor.inbox)
-
-
-	def validate_signature(self, body: bytes) -> None:
-		headers = {key.lower(): value for key, value in self.request.headers.items()}
-		headers["(request-target)"] = " ".join([self.request.method.lower(), self.request.path])
-
-		if (digest := Digest.new_from_digest(headers.get("digest"))):
-			if not body:
-				raise SignatureFailureError("Missing body for digest verification")
-
-			if not digest.validate(body):
-				raise SignatureFailureError("Body digest does not match")
-
-		if self.signature.algorithm_type == "hs2019":
-			if "(created)" not in self.signature.headers:
-				raise SignatureFailureError("'(created)' header not used")
-
-			current_timestamp = HttpDate.new_utc().timestamp()
-
-			if self.signature.created > current_timestamp:
-				raise SignatureFailureError("Creation date after current date")
-
-			if current_timestamp > self.signature.expires:
-				raise SignatureFailureError("Expiration date before current date")
-
-			headers["(created)"] = self.signature.created
-			headers["(expires)"] = self.signature.expires
-
-		# pylint: disable=protected-access
-		if not self.signer._validate_signature(headers, self.signature):
-			raise SignatureFailureError("Signature does not match")
