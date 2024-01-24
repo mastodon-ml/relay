@@ -3,7 +3,7 @@ Description=ActivityPub Relay
 
 [Service]
 WorkingDirectory=/home/relay/relay
-ExecStart=/usr/bin/python3 -m relay
+ExecStart=/usr/bin/python3 -m relay run
 
 [Install]
 WantedBy=multi-user.target
