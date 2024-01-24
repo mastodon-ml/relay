@@ -33,7 +33,7 @@ TABLES: list[Table] = [
 		Column('created', 'timestamp')
 	),
 	Table(
-		'instance_bans',
+		'domain_bans',
 		Column('domain', 'text', primary_key = True, unique = True, nullable = True),
 		Column('reason', 'text'),
 		Column('note', 'text'),
