@@ -189,7 +189,7 @@ def cli_run(ctx: click.Context) -> None:
 def cli_convert(ctx: click.Context, old_config: str) -> None:
 	'Convert an old config and jsonld database to the new format.'
 
-	old_config = Path(old_config).expanduser().resolve()
+	old_config = Path(old_config).expanduser().resolve() if old_config else ctx.obj.config.path
 	backup = ctx.obj.config.path.parent.joinpath(f'{ctx.obj.config.path.stem}.backup.yaml')
 
 	if str(old_config) == str(ctx.obj.config.path) and not backup.exists():
@@ -206,6 +206,8 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 	ctx.obj.config.set('port', config['port'])
 	ctx.obj.config.set('workers', config['workers'])
 	ctx.obj.config.set('sq_path', config['db'].replace('jsonld', 'sqlite3'))
+	ctx.obj.config.set('domain', config['host'])
+	ctx.obj.config.save()
 
 	with get_database(ctx.obj.config) as db:
 		with db.connection() as conn:
