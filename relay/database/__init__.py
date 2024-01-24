@@ -12,11 +12,10 @@ from .schema import VERSIONS, migrate_0
 from .. import logger as logging
 
 if typing.TYPE_CHECKING:
-	from typing import Optional
 	from .config import Config
 
 
-def get_database(config: Config, migrate: Optional[bool] = True) -> tinysql.Database:
+def get_database(config: Config, migrate: bool = True) -> tinysql.Database:
 	if config.db_type == "sqlite":
 		db = tinysql.Database.sqlite(config.sqlite_path, connection_class = Connection)
 
@@ -41,9 +40,7 @@ def get_database(config: Config, migrate: Optional[bool] = True) -> tinysql.Data
 			migrate_0(conn)
 			return db
 
-		schema_ver = conn.get_config('schema-version')
-
-		if schema_ver < get_default_value('schema-version'):
+		if (schema_ver := conn.get_config('schema-version')) < get_default_value('schema-version'):
 			logging.info("Migrating database from version '%i'", schema_ver)
 
 			for ver, func in VERSIONS:

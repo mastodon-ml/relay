@@ -7,7 +7,7 @@ from tinysql import Column, Connection, Table
 from .config import get_default_value
 
 if typing.TYPE_CHECKING:
-	from typing import Callable
+	from collections.abc import Callable
 
 
 VERSIONS: list[Callable] = []

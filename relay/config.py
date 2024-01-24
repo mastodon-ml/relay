@@ -10,7 +10,7 @@ from pathlib import Path
 from .misc import IS_DOCKER
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Optional
+	from typing import Any
 
 
 DEFAULTS: dict[str, Any] = {
@@ -32,7 +32,7 @@ if IS_DOCKER:
 
 
 class Config:
-	def __init__(self, path: str, load: Optional[bool] = False):
+	def __init__(self, path: str, load: bool = False):
 		self.path = Path(path).expanduser().resolve()
 
 		self.listen = None
@@ -151,7 +151,7 @@ class Config:
 		if key not in DEFAULTS:
 			raise KeyError(key)
 
-		if key in ('port', 'pg_port', 'workers') and not isinstance(value, int):
+		if key in {'port', 'pg_port', 'workers'} and not isinstance(value, int):
 			value = int(value)
 
 		setattr(self, key, value)

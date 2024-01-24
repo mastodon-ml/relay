@@ -22,7 +22,7 @@ from .misc import IS_DOCKER, Message, check_open_port
 
 if typing.TYPE_CHECKING:
 	from tinysql import Row
-	from typing import Any, Optional
+	from typing import Any
 
 
 # pylint: disable=unsubscriptable-object,unsupported-assignment-operation
@@ -69,7 +69,7 @@ def cli(ctx: click.Context, config: str) -> None:
 @cli.command('setup')
 @click.pass_context
 def cli_setup(ctx: click.Context) -> None:
-	'Generate a new config'
+	'Generate a new config and create the database'
 
 	while True:
 		ctx.obj.config.domain = click.prompt(
@@ -184,7 +184,7 @@ def cli_run(ctx: click.Context) -> None:
 
 
 @cli.command('convert')
-@click.option('--old-config', '-o', help = 'Path to the new config file')
+@click.option('--old-config', '-o', help = 'Path to the config file to convert from')
 @click.pass_context
 def cli_convert(ctx: click.Context, old_config: str) -> None:
 	'Convert an old config and jsonld database to the new format.'
@@ -220,7 +220,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 			) as inboxes:
 
 				for inbox in inboxes:
-					if inbox['software'] in ('akkoma', 'pleroma'):
+					if inbox['software'] in {'akkoma', 'pleroma'}:
 						actor = f'https://{inbox["domain"]}/relay'
 
 					elif inbox['software'] == 'mastodon':
@@ -349,9 +349,7 @@ def cli_inbox_follow(ctx: click.Context, actor: str) -> None:
 			if not actor.startswith('http'):
 				actor = f'https://{actor}/actor'
 
-			actor_data = asyncio.run(http.get(actor, sign_headers = True))
-
-			if not actor_data:
+			if not (actor_data := asyncio.run(http.get(actor, sign_headers = True))):
 				click.echo(f'Failed to fetch actor: {actor}')
 				return
 
@@ -411,14 +409,17 @@ def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 @click.argument('inbox')
 @click.option('--actor', '-a', help = 'Actor url for the inbox')
 @click.option('--followid', '-f', help = 'Url for the follow activity')
-@click.option('--software', '-s', type = click.Choice(SOFTWARE))
+@click.option('--software', '-s',
+	type = click.Choice(SOFTWARE),
+	help = 'Nodeinfo software name of the instance'
+)  # noqa: E124
 @click.pass_context
 def cli_inbox_add(
 				ctx: click.Context,
 				inbox: str,
-				actor: Optional[str] = None,
-				followid: Optional[str] = None,
-				software: Optional[str] = None) -> None:
+				actor: str | None = None,
+				followid: str | None = None,
+				software: str | None = None) -> None:
 	'Add an inbox to the database'
 
 	if not inbox.startswith('http'):
@@ -427,6 +428,10 @@ def cli_inbox_add(
 
 	else:
 		domain = urlparse(inbox).netloc
+
+	if not software:
+		if (nodeinfo := asyncio.run(http.fetch_nodeinfo(domain))):
+			software = nodeinfo.sw_name
 
 	if not actor and software:
 		try:
@@ -592,9 +597,7 @@ def cli_software_ban(ctx: click.Context,
 			return
 
 		if fetch_nodeinfo:
-			nodeinfo = asyncio.run(http.fetch_nodeinfo(name))
-
-			if not nodeinfo:
+			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(name))):
 				click.echo(f'Failed to fetch software name from domain: {name}')
 				return
 
@@ -634,9 +637,7 @@ def cli_software_unban(ctx: click.Context, name: str, fetch_nodeinfo: bool) -> N
 			return
 
 		if fetch_nodeinfo:
-			nodeinfo = asyncio.run(http.fetch_nodeinfo(name))
-
-			if not nodeinfo:
+			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(name))):
 				click.echo(f'Failed to fetch software name from domain: {name}')
 				return
 

@@ -18,7 +18,7 @@ from .processors import run_processor
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
 	from aputils.signer import Signer
-	from typing import Callable
+	from collections.abc import Callable
 
 
 VIEWS = []

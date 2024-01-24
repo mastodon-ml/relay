@@ -13,7 +13,8 @@ from . import logger as logging
 from .misc import Message, boolean
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Iterator, Optional
+	from collections.abc import Iterator
+	from typing import Any
 
 
 # pylint: disable=duplicate-code
@@ -30,10 +31,10 @@ class RelayConfig(dict):
 
 
 	def __setitem__(self, key: str, value: Any) -> None:
-		if key in ['blocked_instances', 'blocked_software', 'whitelist']:
+		if key in {'blocked_instances', 'blocked_software', 'whitelist'}:
 			assert isinstance(value, (list, set, tuple))
 
-		elif key in ['port', 'workers', 'json_cache', 'timeout']:
+		elif key in {'port', 'workers', 'json_cache', 'timeout'}:
 			if not isinstance(value, int):
 				value = int(value)
 
@@ -110,7 +111,7 @@ class RelayConfig(dict):
 			return
 
 		for key, value in config.items():
-			if key in ['ap']:
+			if key == 'ap':
 				for k, v in value.items():
 					if k not in self:
 						continue
@@ -190,7 +191,7 @@ class RelayDatabase(dict):
 			json.dump(self, fd, indent=4)
 
 
-	def get_inbox(self, domain: str, fail: Optional[bool] = False) -> dict[str, str] | None:
+	def get_inbox(self, domain: str, fail: bool = False) -> dict[str, str] | None:
 		if domain.startswith('http'):
 			domain = urlparse(domain).hostname
 
@@ -205,14 +206,13 @@ class RelayDatabase(dict):
 
 	def add_inbox(self,
 				inbox: str,
-				followid: Optional[str] = None,
-				software: Optional[str] = None) -> dict[str, str]:
+				followid: str | None = None,
+				software: str | None = None) -> dict[str, str]:
 
 		assert inbox.startswith('https'), 'Inbox must be a url'
 		domain = urlparse(inbox).hostname
-		instance = self.get_inbox(domain)
 
-		if instance:
+		if (instance := self.get_inbox(domain)):
 			if followid:
 				instance['followid'] = followid
 
@@ -234,12 +234,10 @@ class RelayDatabase(dict):
 
 	def del_inbox(self,
 				domain: str,
-				followid: Optional[str] = None,
-				fail: Optional[bool] = False) -> bool:
+				followid: str = None,
+				fail: bool = False) -> bool:
 
-		data = self.get_inbox(domain, fail=False)
-
-		if not data:
+		if not (data := self.get_inbox(domain, fail=False)):
 			if fail:
 				raise KeyError(domain)
 

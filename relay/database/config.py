@@ -6,7 +6,8 @@ from .. import logger as logging
 from ..misc import boolean
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Callable
+	from collections.abc import Callable
+	from typing import Any
 
 
 CONFIG_DEFAULTS: dict[str, tuple[str, Any]] = {

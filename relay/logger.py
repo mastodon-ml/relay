@@ -8,7 +8,8 @@ from enum import IntEnum
 from pathlib import Path
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Callable, Type
+	from collections.abc import Callable
+	from typing import Any
 
 
 class LogLevel(IntEnum):
@@ -25,7 +26,7 @@ class LogLevel(IntEnum):
 
 
 	@classmethod
-	def parse(cls: Type[IntEnum], data: object) -> IntEnum:
+	def parse(cls: type[IntEnum], data: object) -> IntEnum:
 		if isinstance(data, cls):
 			return data
 

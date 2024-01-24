@@ -14,7 +14,8 @@ from functools import cached_property
 from uuid import uuid4
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Coroutine, Generator, Optional, Type
+	from collections.abc import Coroutine, Generator
+	from typing import Any
 	from .application import Application
 	from .config import Config
 	from .database import Database
@@ -37,10 +38,10 @@ NODEINFO_NS = {
 
 def boolean(value: Any) -> bool:
 	if isinstance(value, str):
-		if value.lower() in ['on', 'y', 'yes', 'true', 'enable', 'enabled', '1']:
+		if value.lower() in {'on', 'y', 'yes', 'true', 'enable', 'enabled', '1'}:
 			return True
 
-		if value.lower() in ['off', 'n', 'no', 'false', 'disable', 'disable', '0']:
+		if value.lower() in {'off', 'n', 'no', 'false', 'disable', 'disabled', '0'}:
 			return False
 
 		raise TypeError(f'Cannot parse string "{value}" as a boolean')
@@ -83,10 +84,10 @@ def get_app() -> Application:
 
 class Message(ApMessage):
 	@classmethod
-	def new_actor(cls: Type[Message],  # pylint: disable=arguments-differ
+	def new_actor(cls: type[Message],  # pylint: disable=arguments-differ
 				host: str,
 				pubkey: str,
-				description: Optional[str] = None) -> Message:
+				description: str | None = None) -> Message:
 
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
@@ -111,7 +112,7 @@ class Message(ApMessage):
 
 
 	@classmethod
-	def new_announce(cls: Type[Message], host: str, obj: str) -> Message:
+	def new_announce(cls: type[Message], host: str, obj: str) -> Message:
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
 			'id': f'https://{host}/activities/{uuid4()}',
@@ -123,7 +124,7 @@ class Message(ApMessage):
 
 
 	@classmethod
-	def new_follow(cls: Type[Message], host: str, actor: str) -> Message:
+	def new_follow(cls: type[Message], host: str, actor: str) -> Message:
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
 			'type': 'Follow',
@@ -135,7 +136,7 @@ class Message(ApMessage):
 
 
 	@classmethod
-	def new_unfollow(cls: Type[Message], host: str, actor: str, follow: str) -> Message:
+	def new_unfollow(cls: type[Message], host: str, actor: str, follow: str) -> Message:
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
 			'id': f'https://{host}/activities/{uuid4()}',
@@ -147,7 +148,7 @@ class Message(ApMessage):
 
 
 	@classmethod
-	def new_response(cls: Type[Message],
+	def new_response(cls: type[Message],
 					host: str,
 					actor: str,
 					followid: str,
@@ -180,11 +181,11 @@ class Message(ApMessage):
 
 class Response(AiohttpResponse):
 	@classmethod
-	def new(cls: Type[Response],
-			body: Optional[str | bytes | dict] = '',
-			status: Optional[int] = 200,
-			headers: Optional[dict[str, str]] = None,
-			ctype: Optional[str] = 'text') -> Response:
+	def new(cls: type[Response],
+			body: str | bytes | dict = '',
+			status: int = 200,
+			headers: dict[str, str] | None = None,
+			ctype: str = 'text') -> Response:
 
 		kwargs = {
 			'status': status,
@@ -205,7 +206,7 @@ class Response(AiohttpResponse):
 
 
 	@classmethod
-	def new_error(cls: Type[Response],
+	def new_error(cls: type[Response],
 				status: int,
 				body: str | bytes | dict,
 				ctype: str = 'text') -> Response:
@@ -228,12 +229,10 @@ class Response(AiohttpResponse):
 
 class View(AbstractView):
 	def __await__(self) -> Generator[Response]:
-		method = self.request.method.upper()
+		if (self.request.method) not in METHODS:
+			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods)
 
-		if method not in METHODS:
-			raise HTTPMethodNotAllowed(method, self.allowed_methods)
-
-		if not (handler := self.handlers.get(method)):
+		if not (handler := self.handlers.get(self.request.method)):
 			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods) from None
 
 		return handler(self.request, **self.request.match_info).__await__()

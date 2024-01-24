@@ -16,7 +16,7 @@ from . import logger as logging
 from .misc import MIMETYPES, Message, get_app
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Callable, Optional
+	from typing import Any
 
 
 HEADERS = {
@@ -26,11 +26,7 @@ HEADERS = {
 
 
 class HttpClient:
-	def __init__(self,
-				limit: Optional[int] = 100,
-				timeout: Optional[int] = 10,
-				cache_size: Optional[int] = 1024):
-
+	def __init__(self, limit: int = 100, timeout: int = 10, cache_size: int = 1024):
 		self.cache = LRUCache(cache_size)
 		self.limit = limit
 		self.timeout = timeout
@@ -77,9 +73,9 @@ class HttpClient:
 
 	async def get(self,  # pylint: disable=too-many-branches
 				url: str,
-				sign_headers: Optional[bool] = False,
-				loads: Optional[Callable] = None,
-				force: Optional[bool] = False) -> Message | dict | None:
+				sign_headers: bool = False,
+				loads: callable | None = None,
+				force: bool = False) -> Message | dict | None:
 
 		await self.open()
 
@@ -151,11 +147,13 @@ class HttpClient:
 			instance = conn.get_inbox(url)
 
 		## Using the old algo by default is probably a better idea right now
+		# pylint: disable=consider-ternary-expression
 		if instance and instance['software'] in {'mastodon'}:
 			algorithm = 'hs2019'
 
 		else:
 			algorithm = 'original'
+		# pylint: enable=consider-ternary-expression
 
 		headers = {'Content-Type': 'application/activity+json'}
 		headers.update(get_app().signer.sign_headers('POST', url, message, algorithm=algorithm))
@@ -195,7 +193,7 @@ class HttpClient:
 			logging.verbose('Failed to fetch well-known nodeinfo url for %s', domain)
 			return None
 
-		for version in ['20', '21']:
+		for version in ('20', '21'):
 			try:
 				nodeinfo_url = wk_nodeinfo.get_url(version)
 

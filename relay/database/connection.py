@@ -12,8 +12,9 @@ from .. import logger as logging
 from ..misc import get_app
 
 if typing.TYPE_CHECKING:
+	from collections.abc import Iterator
 	from tinysql import Cursor, Row
-	from typing import Any, Iterator, Optional
+	from typing import Any
 	from .application import Application
 	from ..misc import Message
 
@@ -43,7 +44,7 @@ class Connection(tinysql.Connection):
 				yield inbox['inbox']
 
 
-	def exec_statement(self, name: str, params: Optional[dict[str, Any]] = None) -> Cursor:
+	def exec_statement(self, name: str, params: dict[str, Any] | None = None) -> Cursor:
 		return self.execute(self.database.prepared_statements[name], params)
 
 
@@ -110,9 +111,9 @@ class Connection(tinysql.Connection):
 	def put_inbox(self,
 				domain: str,
 				inbox: str,
-				actor: Optional[str] = None,
-				followid: Optional[str] = None,
-				software: Optional[str] = None) -> Row:
+				actor: str | None = None,
+				followid: str | None = None,
+				software: str | None = None) -> Row:
 
 		params = {
 			'domain': domain,
@@ -129,9 +130,9 @@ class Connection(tinysql.Connection):
 
 	def update_inbox(self,
 					inbox: str,
-					actor: Optional[str] = None,
-					followid: Optional[str] = None,
-					software: Optional[str] = None) -> Row:
+					actor: str | None = None,
+					followid: str | None = None,
+					software: str | None = None) -> Row:
 
 		if not (actor or followid or software):
 			raise ValueError('Missing "actor", "followid", and/or "software"')
@@ -171,8 +172,8 @@ class Connection(tinysql.Connection):
 
 	def put_domain_ban(self,
 							domain: str,
-							reason: Optional[str] = None,
-							note: Optional[str] = None) -> Row:
+							reason: str | None = None,
+							note: str | None = None) -> Row:
 
 		params = {
 			'domain': domain,
@@ -187,8 +188,8 @@ class Connection(tinysql.Connection):
 
 	def update_domain_ban(self,
 						domain: str,
-						reason: Optional[str] = None,
-						note: Optional[str] = None) -> tinysql.Row:
+						reason: str | None = None,
+						note: str | None = None) -> tinysql.Row:
 
 		if not (reason or note):
 			raise ValueError('"reason" and/or "note" must be specified')
@@ -225,8 +226,8 @@ class Connection(tinysql.Connection):
 
 	def put_software_ban(self,
 							name: str,
-							reason: Optional[str] = None,
-							note: Optional[str] = None) -> Row:
+							reason: str | None = None,
+							note: str | None = None) -> Row:
 
 		params = {
 			'name': name,
@@ -241,8 +242,8 @@ class Connection(tinysql.Connection):
 
 	def update_software_ban(self,
 						name: str,
-						reason: Optional[str] = None,
-						note: Optional[str] = None) -> tinysql.Row:
+						reason: str | None = None,
+						note: str | None = None) -> tinysql.Row:
 
 		if not (reason or note):
 			raise ValueError('"reason" and/or "note" must be specified')
