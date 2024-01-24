@@ -3,11 +3,8 @@
 There are a number of commands to manage your relay's database and config. You can add `--help` to
 any category or command to get help on that specific option (ex. `activityrelay inbox --help`).
 
-Note: Unless specified, it is recommended to run any commands while the relay is shutdown.
-
-Note 2: `activityrelay` is only available via pip or pipx if `~/.local/bin` is in `$PATH`. If it
-isn't, use `python3 -m relay` if installed via pip or `~/.local/bin/activityrelay` if installed
-via pipx
+Note: `activityrelay` is only available via pip or pipx if `~/.local/bin` is in `$PATH`. If not,
+use `python3 -m relay` if installed via pip or `~/.local/bin/activityrelay` if installed via pipx.
 
 
 ## Run
@@ -22,6 +19,22 @@ Run the relay.
 Run the setup wizard to configure your relay.
 
 	activityrelay setup
+
+
+## Convert
+
+Convert the old config and jsonld to the new config and SQL backend. If the old config filename is
+not specified, the config will get backed up as `relay.backup.yaml` before converting.
+
+	activityrelay convert --old-config relaycfg.yaml
+
+
+## Edit Config
+
+Open the config file in a text editor. If an editor is not specified with `--editor`, the default
+editor will be used.
+
+	activityrelay edit-config --editor micro
 
 
 ## Config
@@ -120,7 +133,7 @@ Remove a domain from the whitelist.
 
 ### Import
 
-Add all current inboxes to the whitelist
+Add all current inboxes to the whitelist.
 
 	activityrelay whitelist import
 
@@ -132,15 +145,15 @@ Manage the instance ban list.
 
 ### List
 
-List the currently banned instances
+List the currently banned instances.
 
 	activityrelay instance list
 
 
 ### Ban
 
-Add an instance to the ban list. If the instance is currently subscribed, remove it from the
-database. 
+Add an instance to the ban list. If the instance is currently subscribed, it will be removed from
+the inbox list.
 
 	activityrelay instance ban <domain>
 
@@ -152,10 +165,17 @@ Remove an instance from the ban list.
 	activityrelay instance unban <domain>
 
 
+### Update
+
+Update the ban reason or note for an instance ban.
+
+	activityrelay instance update bad.example.com --reason "the baddest reason"
+
+
 ## Software
 
 Manage the software ban list. To get the correct name, check the software's nodeinfo endpoint.
-You can find it at nodeinfo\['software']\['name'].
+You can find it at `nodeinfo['software']['name']`.
 
 
 ### List
@@ -186,4 +206,12 @@ name via nodeinfo.
 
 If the name is `RELAYS` (case-sensitive), remove all known relay software names from the list.
 
-	activityrelay unban [-f/--fetch-nodeinfo] <name, domain, or RELAYS>
+	activityrelay software unban [-f/--fetch-nodeinfo] <name, domain, or RELAYS>
+
+
+### Update
+
+Update the ban reason or note for a software ban. Either `--reason` and/or `--note` must be
+specified.
+
+	activityrelay software update relay.example.com --reason "begone relay"
