@@ -9,6 +9,7 @@ from aputils.errors import SignatureFailureError
 from aputils.misc import Digest, HttpDate, Signature
 from aputils.objects import Nodeinfo, Webfinger, WellKnownNodeinfo
 from pathlib import Path
+from urllib.parse import urlparse
 
 from . import __version__
 from . import logger as logging
@@ -112,11 +113,11 @@ class ActorView(View):
 
 
 	async def post(self, request: Request) -> Response:
-		if (response := await self.get_post_data()):
+		if response := await self.get_post_data():
 			return response
 
 		with self.database.connection() as conn:
-			self.instance = conn.get_inbox(self.actor.inbox)
+			self.instance = conn.get_inbox(self.actor.shared_inbox)
 			config = conn.get_config_all()
 
 			## reject if the actor isn't whitelisted while the whiltelist is enabled
@@ -170,7 +171,7 @@ class ActorView(View):
 
 		self.actor = await self.client.get(self.signature.keyid, sign_headers = True)
 
-		if self.actor is None:
+		if not self.actor:
 			# ld signatures aren't handled atm, so just ignore it
 			if self.message.type == 'Delete':
 				logging.verbose('Instance sent a delete which cannot be handled')
