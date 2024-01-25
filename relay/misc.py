@@ -180,6 +180,11 @@ class Message(ApMessage):
 
 
 class Response(AiohttpResponse):
+	# AiohttpResponse.__len__ method returns 0, so bool(response) always returns False
+	def __bool__(self) -> bool:
+		return True
+
+
 	@classmethod
 	def new(cls: type[Response],
 			body: str | bytes | dict = '',
