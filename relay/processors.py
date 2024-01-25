@@ -17,7 +17,7 @@ cache = LRUCache(1024)
 
 def person_check(actor: str, software: str) -> bool:
 	# pleroma and akkoma may use Person for the actor type for some reason
-	# akkoma changed this in a 3.6.0
+	# akkoma changed this in 3.6.0
 	if software in {'akkoma', 'pleroma'} and actor.id == f'https://{actor.domain}/relay':
 		return False
 
@@ -62,7 +62,7 @@ async def handle_follow(view: ActorView) -> None:
 
 	with view.database.connection() as conn:
 		# reject if software used by actor is banned
-		if view.config.is_banned_software(software):
+		if conn.get_software_ban(software):
 			view.app.push_message(
 				view.actor.shared_inbox,
 				Message.new_response(
@@ -141,7 +141,7 @@ async def handle_undo(view: ActorView) -> None:
 		return
 
 	with view.database.connection() as conn:
-		if not conn.del_inbox(view.actor.inbox):
+		if not conn.del_inbox(view.actor.id):
 			logging.verbose(
 				'Failed to delete "%s" with follow ID "%s"',
 				view.actor.id,
