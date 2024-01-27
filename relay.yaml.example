@@ -1,43 +1,35 @@
-# this is the path that the object graph will get dumped to (in JSON-LD format),
-# you probably shouldn't change it, but you can if you want.
-db: relay.jsonld
+# [string] Domain the relay will be hosted on
+domain: relay.example.com
 
-# Listener
+# [string] Address the relay will listen on
 listen: 0.0.0.0
+
+# [integer] Port the relay will listen on
 port: 8080
 
-# Note
-note: "Make a note about your instance here."
+# [integer] Number of push workers to start (will get removed in a future update)
+workers: 8
 
-# Number of worker threads to start. If 0, use asyncio futures instead of threads.
-workers: 0
+# [string] Database backend to use. Valid values: sqlite, postgres
+database_type: sqlite
 
-# Maximum number of inbox posts to do at once
-# If workers is set to 1 or above, this is the max for each worker
-push_limit: 512
+# [string] Path to the sqlite database file if the sqlite backend is in use
+sqlite_path: relay.sqlite3
 
-# The amount of json objects to cache from GET requests
-json_cache: 1024
+# settings for the postgresql backend
+postgres:
 
-ap:
-  # This is used for generating activitypub messages, as well as instructions for
-  # linking AP identities.  It should be an SSL-enabled domain reachable by https.
-  host: 'relay.example.com'
+  # [string] hostname or unix socket to connect to
+  host: /var/run/postgresql
 
-  blocked_instances:
-  - 'bad-instance.example.com'
-  - 'another-bad-instance.example.com'
+  # [integer] port of the server
+  port: 5432
 
-  whitelist_enabled: false
+  # [string] username to use when logging into the server (default is the current system username)
+  user: null
 
-  whitelist:
-  - 'good-instance.example.com'
-  - 'another.good-instance.example.com'
+  # [string] password of the user
+  pass: null
 
-  # uncomment the lines below to prevent certain activitypub software from posting
-  # to the relay (all known relays by default). this uses the software name in nodeinfo
-  #blocked_software:
-  #- 'activityrelay'
-  #- 'aoderelay'
-  #- 'social.seattle.wa.us-relay'
-  #- 'unciarelay'
+  # [string] name of the database to use
+  name: activityrelay

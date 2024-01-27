@@ -6,22 +6,49 @@ import click
 import platform
 import typing
 
+from aputils.signer import Signer
+from pathlib import Path
+from shutil import copyfile
 from urllib.parse import urlparse
 
-from . import misc, __version__
+from . import __version__
 from . import http_client as http
+from . import logger as logging
 from .application import Application
-from .config import RELAY_SOFTWARE
+from .compat import RelayConfig, RelayDatabase
+from .database import get_database
+from .database.connection import RELAY_SOFTWARE
+from .misc import IS_DOCKER, Message, check_open_port
 
 if typing.TYPE_CHECKING:
+	from tinysql import Row
 	from typing import Any
 
 
 # pylint: disable=unsubscriptable-object,unsupported-assignment-operation
 
 
-app = None
-CONFIG_IGNORE = {'blocked_software', 'blocked_instances', 'whitelist'}
+CONFIG_IGNORE = (
+	'schema-version',
+	'private-key'
+)
+
+ACTOR_FORMATS = {
+	'mastodon': 'https://{domain}/actor',
+	'akkoma': 'https://{domain}/relay',
+	'pleroma': 'https://{domain}/relay'
+}
+
+SOFTWARE = (
+	'mastodon',
+	'akkoma',
+	'pleroma',
+	'misskey',
+	'friendica',
+	'hubzilla',
+	'firefish',
+	'gotosocial'
+)
 
 
 @click.group('cli', context_settings={'show_default': True}, invoke_without_command=True)
@@ -29,11 +56,10 @@ CONFIG_IGNORE = {'blocked_software', 'blocked_instances', 'whitelist'}
 @click.version_option(version=__version__, prog_name='ActivityRelay')
 @click.pass_context
 def cli(ctx: click.Context, config: str) -> None:
-	global app
-	app = Application(config)
+	ctx.obj = Application(config)
 
 	if not ctx.invoked_subcommand:
-		if app.config.host.endswith('example.com'):
+		if ctx.obj.config.domain.endswith('example.com'):
 			cli_setup.callback()
 
 		else:
@@ -41,46 +67,92 @@ def cli(ctx: click.Context, config: str) -> None:
 
 
 @cli.command('setup')
-def cli_setup() -> None:
-	'Generate a new config'
+@click.pass_context
+def cli_setup(ctx: click.Context) -> None:
+	'Generate a new config and create the database'
 
 	while True:
-		app.config.host = click.prompt(
+		ctx.obj.config.domain = click.prompt(
 			'What domain will the relay be hosted on?',
-			default = app.config.host
+			default = ctx.obj.config.domain
 		)
 
-		if not app.config.host.endswith('example.com'):
+		if not ctx.obj.config.domain.endswith('example.com'):
 			break
 
-		click.echo('The domain must not be example.com')
+		click.echo('The domain must not end with "example.com"')
 
-	if not app.config.is_docker:
-		app.config.listen = click.prompt(
+	if not IS_DOCKER:
+		ctx.obj.config.listen = click.prompt(
 			'Which address should the relay listen on?',
-			default = app.config.listen
+			default = ctx.obj.config.listen
 		)
 
-		while True:
-			app.config.port = click.prompt(
-				'What TCP port should the relay listen on?',
-				default = app.config.port,
-				type = int
-			)
+		ctx.obj.config.port = click.prompt(
+			'What TCP port should the relay listen on?',
+			default = ctx.obj.config.port,
+			type = int
+		)
 
-			break
+	ctx.obj.config.db_type = click.prompt(
+		'Which database backend will be used?',
+		default = ctx.obj.config.db_type,
+		type = click.Choice(['postgres', 'sqlite'], case_sensitive = False)
+	)
 
-	app.config.save()
+	if ctx.obj.config.db_type == 'sqlite':
+		ctx.obj.config.sq_path = click.prompt(
+			'Where should the database be stored?',
+			default = ctx.obj.config.sq_path
+		)
 
-	if not app.config.is_docker and click.confirm('Relay all setup! Would you like to run it now?'):
+	elif ctx.obj.config.db_type == 'postgres':
+		ctx.obj.config.pg_name = click.prompt(
+			'What is the name of the database?',
+			default = ctx.obj.config.pg_name
+		)
+
+		ctx.obj.config.pg_host = click.prompt(
+			'What IP address or hostname does the server listen on?',
+			default = ctx.obj.config.pg_host
+		)
+
+		ctx.obj.config.pg_port = click.prompt(
+			'What port does the server listen on?',
+			default = ctx.obj.config.pg_port,
+			type = int
+		)
+
+		ctx.obj.config.pg_user = click.prompt(
+			'Which user will authenticate with the server?',
+			default = ctx.obj.config.pg_user
+		)
+
+		ctx.obj.config.pg_pass = click.prompt(
+			'User password: ',
+			hide_input = True
+		) or None
+
+	ctx.obj.config.save()
+
+	config = {
+		'private-key': Signer.new('n/a').export()
+	}
+
+	with ctx.obj.database.connection() as conn:
+		for key, value in config.items():
+			conn.put_config(key, value)
+
+	if not IS_DOCKER and click.confirm('Relay all setup! Would you like to run it now?'):
 		cli_run.callback()
 
 
 @cli.command('run')
-def cli_run() -> None:
+@click.pass_context
+def cli_run(ctx: click.Context) -> None:
 	'Run the relay'
 
-	if app.config.host.endswith('example.com'):
+	if ctx.obj.config.domain.endswith('example.com') or not ctx.obj.signer:
 		click.echo(
 			'Relay is not set up. Please edit your relay config or run "activityrelay setup".'
 		)
@@ -104,40 +176,144 @@ def cli_run() -> None:
 		click.echo(pip_command)
 		return
 
-	if not misc.check_open_port(app.config.listen, app.config.port):
-		click.echo(f'Error: A server is already running on port {app.config.port}')
+	if not check_open_port(ctx.obj.config.listen, ctx.obj.config.port):
+		click.echo(f'Error: A server is already running on port {ctx.obj.config.port}')
 		return
 
-	app.run()
+	ctx.obj.run()
+
+
+@cli.command('convert')
+@click.option('--old-config', '-o', help = 'Path to the config file to convert from')
+@click.pass_context
+def cli_convert(ctx: click.Context, old_config: str) -> None:
+	'Convert an old config and jsonld database to the new format.'
+
+	old_config = Path(old_config).expanduser().resolve() if old_config else ctx.obj.config.path
+	backup = ctx.obj.config.path.parent.joinpath(f'{ctx.obj.config.path.stem}.backup.yaml')
+
+	if str(old_config) == str(ctx.obj.config.path) and not backup.exists():
+		logging.info('Created backup config @ %s', backup)
+		copyfile(ctx.obj.config.path, backup)
+
+	config = RelayConfig(old_config)
+	config.load()
+
+	database = RelayDatabase(config)
+	database.load()
+
+	ctx.obj.config.set('listen', config['listen'])
+	ctx.obj.config.set('port', config['port'])
+	ctx.obj.config.set('workers', config['workers'])
+	ctx.obj.config.set('sq_path', config['db'].replace('jsonld', 'sqlite3'))
+	ctx.obj.config.set('domain', config['host'])
+	ctx.obj.config.save()
+
+	with get_database(ctx.obj.config) as db:
+		with db.connection() as conn:
+			conn.put_config('private-key', database['private-key'])
+			conn.put_config('note', config['note'])
+			conn.put_config('whitelist-enabled', config['whitelist_enabled'])
+
+			with click.progressbar(
+				database['relay-list'].values(),
+				label = 'Inboxes'.ljust(15),
+				width = 0
+			) as inboxes:
+
+				for inbox in inboxes:
+					if inbox['software'] in {'akkoma', 'pleroma'}:
+						actor = f'https://{inbox["domain"]}/relay'
+
+					elif inbox['software'] == 'mastodon':
+						actor = f'https://{inbox["domain"]}/actor'
+
+					else:
+						actor = None
+
+					conn.put_inbox(
+						inbox['domain'],
+						inbox['inbox'],
+						actor = actor,
+						followid = inbox['followid'],
+						software = inbox['software']
+					)
+
+			with click.progressbar(
+				config['blocked_software'],
+				label = 'Banned software'.ljust(15),
+				width = 0
+			) as banned_software:
+
+				for software in banned_software:
+					conn.put_software_ban(
+						software,
+						reason = 'relay' if software in RELAY_SOFTWARE else None
+					)
+
+			with click.progressbar(
+				config['blocked_instances'],
+				label = 'Banned domains'.ljust(15),
+				width = 0
+			) as banned_software:
+
+				for domain in banned_software:
+					conn.put_domain_ban(domain)
+
+			with click.progressbar(
+				config['whitelist'],
+				label = 'Whitelist'.ljust(15),
+				width = 0
+			) as whitelist:
+
+				for instance in whitelist:
+					conn.put_domain_whitelist(instance)
+
+	click.echo('Finished converting old config and database :3')
+
+
+@cli.command('edit-config')
+@click.option('--editor', '-e', help = 'Text editor to use')
+@click.pass_context
+def cli_editconfig(ctx: click.Context, editor: str) -> None:
+	'Edit the config file'
+
+	click.edit(
+		editor = editor,
+		filename = str(ctx.obj.config.path)
+	)
 
 
 @cli.group('config')
 def cli_config() -> None:
-	'Manage the relay config'
+	'Manage the relay settings stored in the database'
 
 
 @cli_config.command('list')
-def cli_config_list() -> None:
+@click.pass_context
+def cli_config_list(ctx: click.Context) -> None:
 	'List the current relay config'
 
 	click.echo('Relay Config:')
 
-	for key, value in app.config.items():
-		if key not in CONFIG_IGNORE:
-			key = f'{key}:'.ljust(20)
-			click.echo(f'- {key} {value}')
+	with ctx.obj.database.connection() as conn:
+		for key, value in conn.get_config_all().items():
+			if key not in CONFIG_IGNORE:
+				key = f'{key}:'.ljust(20)
+				click.echo(f'- {key} {value}')
 
 
 @cli_config.command('set')
 @click.argument('key')
 @click.argument('value')
-def cli_config_set(key: str, value: Any) -> None:
+@click.pass_context
+def cli_config_set(ctx: click.Context, key: str, value: Any) -> None:
 	'Set a config value'
 
-	app.config[key] = value
-	app.config.save()
+	with ctx.obj.database.connection() as conn:
+		new_value = conn.put_config(key, value)
 
-	print(f'{key}: {app.config[key]}')
+	print(f'{key}: {repr(new_value)}')
 
 
 @cli.group('inbox')
@@ -146,127 +322,150 @@ def cli_inbox() -> None:
 
 
 @cli_inbox.command('list')
-def cli_inbox_list() -> None:
+@click.pass_context
+def cli_inbox_list(ctx: click.Context) -> None:
 	'List the connected instances or relays'
 
 	click.echo('Connected to the following instances or relays:')
 
-	for inbox in app.database.inboxes:
-		click.echo(f'- {inbox}')
+	with ctx.obj.database.connection() as conn:
+		for inbox in conn.execute('SELECT * FROM inboxes'):
+			click.echo(f'- {inbox["inbox"]}')
 
 
 @cli_inbox.command('follow')
 @click.argument('actor')
-def cli_inbox_follow(actor: str) -> None:
+@click.pass_context
+def cli_inbox_follow(ctx: click.Context, actor: str) -> None:
 	'Follow an actor (Relay must be running)'
 
-	if app.config.is_banned(actor):
-		click.echo(f'Error: Refusing to follow banned actor: {actor}')
-		return
-
-	if not actor.startswith('http'):
-		domain = actor
-		actor = f'https://{actor}/actor'
-
-	else:
-		domain = urlparse(actor).hostname
-
-	try:
-		inbox_data = app.database['relay-list'][domain]
-		inbox = inbox_data['inbox']
-
-	except KeyError:
-		actor_data = asyncio.run(http.get(app.database, actor, sign_headers=True))
-
-		if not actor_data:
-			click.echo(f'Failed to fetch actor: {actor}')
+	with ctx.obj.database.connection() as conn:
+		if conn.get_domain_ban(actor):
+			click.echo(f'Error: Refusing to follow banned actor: {actor}')
 			return
 
-		inbox = actor_data.shared_inbox
+		if (inbox_data := conn.get_inbox(actor)):
+			inbox = inbox_data['inbox']
 
-	message = misc.Message.new_follow(
-		host = app.config.host,
+		else:
+			if not actor.startswith('http'):
+				actor = f'https://{actor}/actor'
+
+			if not (actor_data := asyncio.run(http.get(actor, sign_headers = True))):
+				click.echo(f'Failed to fetch actor: {actor}')
+				return
+
+			inbox = actor_data.shared_inbox
+
+	message = Message.new_follow(
+		host = ctx.obj.config.domain,
 		actor = actor
 	)
 
-	asyncio.run(http.post(app.database, inbox, message))
+	asyncio.run(http.post(inbox, message))
 	click.echo(f'Sent follow message to actor: {actor}')
 
 
 @cli_inbox.command('unfollow')
 @click.argument('actor')
-def cli_inbox_unfollow(actor: str) -> None:
+@click.pass_context
+def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 	'Unfollow an actor (Relay must be running)'
 
-	if not actor.startswith('http'):
-		domain = actor
-		actor = f'https://{actor}/actor'
+	inbox_data: Row = None
 
-	else:
-		domain = urlparse(actor).hostname
+	with ctx.obj.database.connection() as conn:
+		if conn.get_domain_ban(actor):
+			click.echo(f'Error: Refusing to follow banned actor: {actor}')
+			return
 
-	try:
-		inbox_data = app.database['relay-list'][domain]
-		inbox = inbox_data['inbox']
-		message = misc.Message.new_unfollow(
-			host = app.config.host,
-			actor = actor,
-			follow = inbox_data['followid']
-		)
+		if (inbox_data := conn.get_inbox(actor)):
+			inbox = inbox_data['inbox']
+			message = Message.new_unfollow(
+				host = ctx.obj.config.domain,
+				actor = actor,
+				follow = inbox_data['followid']
+			)
 
-	except KeyError:
-		actor_data = asyncio.run(http.get(app.database, actor, sign_headers=True))
-		inbox = actor_data.shared_inbox
-		message = misc.Message.new_unfollow(
-			host = app.config.host,
-			actor = actor,
-			follow = {
-				'type': 'Follow',
-				'object': actor,
-				'actor': f'https://{app.config.host}/actor'
-			}
-		)
+		else:
+			if not actor.startswith('http'):
+				actor = f'https://{actor}/actor'
 
-	asyncio.run(http.post(app.database, inbox, message))
+			actor_data = asyncio.run(http.get(actor, sign_headers = True))
+			inbox = actor_data.shared_inbox
+			message = Message.new_unfollow(
+				host = ctx.obj.config.domain,
+				actor = actor,
+				follow = {
+					'type': 'Follow',
+					'object': actor,
+					'actor': f'https://{ctx.obj.config.domain}/actor'
+				}
+			)
+
+	asyncio.run(http.post(inbox, message))
 	click.echo(f'Sent unfollow message to: {actor}')
 
 
 @cli_inbox.command('add')
 @click.argument('inbox')
-def cli_inbox_add(inbox: str) -> None:
+@click.option('--actor', '-a', help = 'Actor url for the inbox')
+@click.option('--followid', '-f', help = 'Url for the follow activity')
+@click.option('--software', '-s',
+	type = click.Choice(SOFTWARE),
+	help = 'Nodeinfo software name of the instance'
+)  # noqa: E124
+@click.pass_context
+def cli_inbox_add(
+				ctx: click.Context,
+				inbox: str,
+				actor: str | None = None,
+				followid: str | None = None,
+				software: str | None = None) -> None:
 	'Add an inbox to the database'
 
 	if not inbox.startswith('http'):
+		domain = inbox
 		inbox = f'https://{inbox}/inbox'
 
-	if app.config.is_banned(inbox):
-		click.echo(f'Error: Refusing to add banned inbox: {inbox}')
-		return
+	else:
+		domain = urlparse(inbox).netloc
 
-	if app.database.get_inbox(inbox):
-		click.echo(f'Error: Inbox already in database: {inbox}')
-		return
+	if not software:
+		if (nodeinfo := asyncio.run(http.fetch_nodeinfo(domain))):
+			software = nodeinfo.sw_name
 
-	app.database.add_inbox(inbox)
-	app.database.save()
+	if not actor and software:
+		try:
+			actor = ACTOR_FORMATS[software].format(domain = domain)
+
+		except KeyError:
+			pass
+
+	with ctx.obj.database.connection() as conn:
+		if conn.get_domain_ban(domain):
+			click.echo(f'Refusing to add banned inbox: {inbox}')
+			return
+
+		if conn.get_inbox(inbox):
+			click.echo(f'Error: Inbox already in database: {inbox}')
+			return
+
+		conn.put_inbox(domain, inbox, actor, followid, software)
 
 	click.echo(f'Added inbox to the database: {inbox}')
 
 
 @cli_inbox.command('remove')
 @click.argument('inbox')
-def cli_inbox_remove(inbox: str) -> None:
+@click.pass_context
+def cli_inbox_remove(ctx: click.Context, inbox: str) -> None:
 	'Remove an inbox from the database'
 
-	try:
-		dbinbox = app.database.get_inbox(inbox, fail=True)
-
-	except KeyError:
-		click.echo(f'Error: Inbox does not exist: {inbox}')
-		return
-
-	app.database.del_inbox(dbinbox['domain'])
-	app.database.save()
+	with ctx.obj.database.connection() as conn:
+		if not conn.del_inbox(inbox):
+			click.echo(f'Inbox not in database: {inbox}')
+			return
 
 	click.echo(f'Removed inbox from the database: {inbox}')
 
@@ -277,47 +476,76 @@ def cli_instance() -> None:
 
 
 @cli_instance.command('list')
-def cli_instance_list() -> None:
+@click.pass_context
+def cli_instance_list(ctx: click.Context) -> None:
 	'List all banned instances'
 
-	click.echo('Banned instances or relays:')
+	click.echo('Banned domains:')
 
-	for domain in app.config.blocked_instances:
-		click.echo(f'- {domain}')
+	with ctx.obj.database.connection() as conn:
+		for instance in conn.execute('SELECT * FROM domain_bans'):
+			if instance['reason']:
+				click.echo(f'- {instance["domain"]} ({instance["reason"]})')
+
+			else:
+				click.echo(f'- {instance["domain"]}')
 
 
 @cli_instance.command('ban')
-@click.argument('target')
-def cli_instance_ban(target: str) -> None:
+@click.argument('domain')
+@click.option('--reason', '-r', help = 'Public note about why the domain is banned')
+@click.option('--note', '-n', help = 'Internal note that will only be seen by admins and mods')
+@click.pass_context
+def cli_instance_ban(ctx: click.Context, domain: str, reason: str, note: str) -> None:
 	'Ban an instance and remove the associated inbox if it exists'
 
-	if target.startswith('http'):
-		target = urlparse(target).hostname
+	with ctx.obj.database.connection() as conn:
+		if conn.get_domain_ban(domain):
+			click.echo(f'Domain already banned: {domain}')
+			return
 
-	if app.config.ban_instance(target):
-		app.config.save()
-
-		if app.database.del_inbox(target):
-			app.database.save()
-
-		click.echo(f'Banned instance: {target}')
-		return
-
-	click.echo(f'Instance already banned: {target}')
+		conn.put_domain_ban(domain, reason, note)
+		conn.del_inbox(domain)
+		click.echo(f'Banned instance: {domain}')
 
 
 @cli_instance.command('unban')
-@click.argument('target')
-def cli_instance_unban(target: str) -> None:
+@click.argument('domain')
+@click.pass_context
+def cli_instance_unban(ctx: click.Context, domain: str) -> None:
 	'Unban an instance'
 
-	if app.config.unban_instance(target):
-		app.config.save()
+	with ctx.obj.database.connection() as conn:
+		if not conn.del_domain_ban(domain):
+			click.echo(f'Instance wasn\'t banned: {domain}')
+			return
 
-		click.echo(f'Unbanned instance: {target}')
-		return
+		click.echo(f'Unbanned instance: {domain}')
 
-	click.echo(f'Instance wasn\'t banned: {target}')
+
+@cli_instance.command('update')
+@click.argument('domain')
+@click.option('--reason', '-r')
+@click.option('--note', '-n')
+@click.pass_context
+def cli_instance_update(ctx: click.Context, domain: str, reason: str, note: str) -> None:
+	'Update the public reason or internal note for a domain ban'
+
+	if not (reason or note):
+		ctx.fail('Must pass --reason or --note')
+
+	with ctx.obj.database.connection() as conn:
+		if not (row := conn.update_domain_ban(domain, reason, note)):
+			click.echo(f'Failed to update domain ban: {domain}')
+			return
+
+		click.echo(f'Updated domain ban: {domain}')
+
+		if row['reason']:
+			click.echo(f'- {row["domain"]} ({row["reason"]})')
+
+		else:
+			click.echo(f'- {row["domain"]}')
 
 
 @cli.group('software')
@@ -326,79 +554,127 @@ def cli_software() -> None:
 
 
 @cli_software.command('list')
-def cli_software_list() -> None:
+@click.pass_context
+def cli_software_list(ctx: click.Context) -> None:
 	'List all banned software'
 
 	click.echo('Banned software:')
 
-	for software in app.config.blocked_software:
-		click.echo(f'- {software}')
+	with ctx.obj.database.connection() as conn:
+		for software in conn.execute('SELECT * FROM software_bans'):
+			if software['reason']:
+				click.echo(f'- {software["name"]} ({software["reason"]})')
+
+			else:
+				click.echo(f'- {software["name"]}')
 
 
 @cli_software.command('ban')
-@click.option(
-	'--fetch-nodeinfo/--ignore-nodeinfo', '-f', 'fetch_nodeinfo', default = False,
-	help = 'Treat NAME like a domain and try to fet the software name from nodeinfo'
-)
 @click.argument('name')
-def cli_software_ban(name: str, fetch_nodeinfo: bool) -> None:
+@click.option('--reason', '-r')
+@click.option('--note', '-n')
+@click.option(
+	'--fetch-nodeinfo', '-f',
+	is_flag = True,
+	help = 'Treat NAME like a domain and try to fetch the software name from nodeinfo'
+)
+@click.pass_context
+def cli_software_ban(ctx: click.Context,
+					name: str,
+					reason: str,
+					note: str,
+					fetch_nodeinfo: bool) -> None:
 	'Ban software. Use RELAYS for NAME to ban relays'
 
-	if name == 'RELAYS':
-		for software in RELAY_SOFTWARE:
-			app.config.ban_software(software)
+	with ctx.obj.database.connection() as conn:
+		if name == 'RELAYS':
+			for software in RELAY_SOFTWARE:
+				if conn.get_software_ban(software):
+					click.echo(f'Relay already banned: {software}')
+					continue
 
-		app.config.save()
-		click.echo('Banned all relay software')
-		return
+				conn.put_software_ban(software, reason or 'relay', note)
 
-	if fetch_nodeinfo:
-		nodeinfo = asyncio.run(http.fetch_nodeinfo(app.database, name))
+			click.echo('Banned all relay software')
+			return
 
-		if not nodeinfo:
-			click.echo(f'Failed to fetch software name from domain: {name}')
+		if fetch_nodeinfo:
+			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(name))):
+				click.echo(f'Failed to fetch software name from domain: {name}')
+				return
 
-		name = nodeinfo.sw_name
+			name = nodeinfo.sw_name
 
-	if app.config.ban_software(name):
-		app.config.save()
+		if conn.get_software_ban(name):
+			click.echo(f'Software already banned: {name}')
+			return
+
+		if not conn.put_software_ban(name, reason, note):
+			click.echo(f'Failed to ban software: {name}')
+			return
+
 		click.echo(f'Banned software: {name}')
-		return
-
-	click.echo(f'Software already banned: {name}')
 
 
 @cli_software.command('unban')
-@click.option(
-	'--fetch-nodeinfo/--ignore-nodeinfo', '-f', 'fetch_nodeinfo', default = False,
-	help = 'Treat NAME like a domain and try to fet the software name from nodeinfo'
-)
 @click.argument('name')
-def cli_software_unban(name: str, fetch_nodeinfo: bool) -> None:
+@click.option('--reason', '-r')
+@click.option('--note', '-n')
+@click.option(
+	'--fetch-nodeinfo', '-f',
+	is_flag = True,
+	help = 'Treat NAME like a domain and try to fetch the software name from nodeinfo'
+)
+@click.pass_context
+def cli_software_unban(ctx: click.Context, name: str, fetch_nodeinfo: bool) -> None:
 	'Ban software. Use RELAYS for NAME to unban relays'
 
-	if name == 'RELAYS':
-		for software in RELAY_SOFTWARE:
-			app.config.unban_software(software)
+	with ctx.obj.database.connection() as conn:
+		if name == 'RELAYS':
+			for software in RELAY_SOFTWARE:
+				if not conn.del_software_ban(software):
+					click.echo(f'Relay was not banned: {software}')
 
-		app.config.save()
-		click.echo('Unbanned all relay software')
-		return
+			click.echo('Unbanned all relay software')
+			return
 
-	if fetch_nodeinfo:
-		nodeinfo = asyncio.run(http.fetch_nodeinfo(app.database, name))
+		if fetch_nodeinfo:
+			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(name))):
+				click.echo(f'Failed to fetch software name from domain: {name}')
+				return
 
-		if not nodeinfo:
-			click.echo(f'Failed to fetch software name from domain: {name}')
+			name = nodeinfo.sw_name
 
-		name = nodeinfo.sw_name
+		if not conn.del_software_ban(name):
+			click.echo(f'Software was not banned: {name}')
+			return
 
-	if app.config.unban_software(name):
-		app.config.save()
 		click.echo(f'Unbanned software: {name}')
-		return
 
-	click.echo(f'Software wasn\'t banned: {name}')
+
+@cli_software.command('update')
+@click.argument('name')
+@click.option('--reason', '-r')
+@click.option('--note', '-n')
+@click.pass_context
+def cli_software_update(ctx: click.Context, name: str, reason: str, note: str) -> None:
+	'Update the public reason or internal note for a software ban'
+
+	if not (reason or note):
+		ctx.fail('Must pass --reason or --note')
+
+	with ctx.obj.database.connection() as conn:
+		if not (row := conn.update_software_ban(name, reason, note)):
+			click.echo(f'Failed to update software ban: {name}')
+			return
+
+		click.echo(f'Updated software ban: {name}')
+
+		if row['reason']:
+			click.echo(f'- {row["name"]} ({row["reason"]})')
+
+		else:
+			click.echo(f'- {row["name"]}')
 
 
 @cli.group('whitelist')
@@ -407,52 +683,64 @@ def cli_whitelist() -> None:
 
 
 @cli_whitelist.command('list')
-def cli_whitelist_list() -> None:
+@click.pass_context
+def cli_whitelist_list(ctx: click.Context) -> None:
 	'List all the instances in the whitelist'
 
-	click.echo('Current whitelisted domains')
+	click.echo('Current whitelisted domains:')
 
-	for domain in app.config.whitelist:
-		click.echo(f'- {domain}')
+	with ctx.obj.database.connection() as conn:
+		for domain in conn.execute('SELECT * FROM whitelist'):
+			click.echo(f'- {domain["domain"]}')
 
 
 @cli_whitelist.command('add')
-@click.argument('instance')
-def cli_whitelist_add(instance: str) -> None:
-	'Add an instance to the whitelist'
+@click.argument('domain')
+@click.pass_context
+def cli_whitelist_add(ctx: click.Context, domain: str) -> None:
+	'Add a domain to the whitelist'
 
-	if not app.config.add_whitelist(instance):
-		click.echo(f'Instance already in the whitelist: {instance}')
-		return
+	with ctx.obj.database.connection() as conn:
+		if conn.get_domain_whitelist(domain):
+			click.echo(f'Instance already in the whitelist: {domain}')
+			return
 
-	app.config.save()
-	click.echo(f'Instance added to the whitelist: {instance}')
+		conn.put_domain_whitelist(domain)
+		click.echo(f'Instance added to the whitelist: {domain}')
 
 
 @cli_whitelist.command('remove')
-@click.argument('instance')
-def cli_whitelist_remove(instance: str) -> None:
+@click.argument('domain')
+@click.pass_context
+def cli_whitelist_remove(ctx: click.Context, domain: str) -> None:
 	'Remove an instance from the whitelist'
 
-	if not app.config.del_whitelist(instance):
-		click.echo(f'Instance not in the whitelist: {instance}')
-		return
+	with ctx.obj.database.connection() as conn:
+		if not conn.del_domain_whitelist(domain):
+			click.echo(f'Domain not in the whitelist: {domain}')
+			return
 
-	app.config.save()
+		if conn.get_config('whitelist-enabled'):
+			if conn.del_inbox(domain):
+				click.echo(f'Removed inbox for domain: {domain}')
 
-	if app.config.whitelist_enabled:
-		if app.database.del_inbox(instance):
-			app.database.save()
-
-	click.echo(f'Removed instance from the whitelist: {instance}')
+		click.echo(f'Removed domain from the whitelist: {domain}')
 
 
 @cli_whitelist.command('import')
-def cli_whitelist_import() -> None:
+@click.pass_context
+def cli_whitelist_import(ctx: click.Context) -> None:
 	'Add all current inboxes to the whitelist'
 
-	for domain in app.database.hostnames:
-		cli_whitelist_add.callback(domain)
+	with ctx.obj.database.connection() as conn:
+		for inbox in conn.execute('SELECT * FROM inboxes').all():
+			if conn.get_domain_whitelist(inbox['domain']):
+				click.echo(f'Domain already in whitelist: {inbox["domain"]}')
+				continue
+
+			conn.put_domain_whitelist(inbox['domain'])
+
+		click.echo('Imported whitelist from inboxes')
 
 
 def main() -> None:

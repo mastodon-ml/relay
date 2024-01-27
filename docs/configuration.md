@@ -2,39 +2,21 @@
 
 ## General
 
-### DB
+### Domain
 
-The path to the database. It contains the relay actor private key and all subscribed
-instances. If the path is not absolute, it is relative to the working directory.
+Hostname the relay will be hosted on.
 
-	db: relay.jsonld
+	domain: relay.example.com
 
 
 ### Listener
 
 The address and port the relay will listen on. If the reverse proxy (nginx, apache, caddy, etc)
-is running on the same host, it is recommended to change `listen` to `localhost`
+is running on the same host, it is recommended to change `listen` to `localhost` if the reverse
+proxy is on the same host.
 
 	listen: 0.0.0.0
 	port: 8080
-
-
-### Note
-
-A small blurb to describe your relay instance. This will show up on the relay's home page.
-
-	note: "Make a note about your instance here."
-
-
-### Post Limit
-
-The maximum number of messages to send out at once. For each incoming message, a message will be
-sent out to every subscribed instance minus the instance which sent the message. This limit
-is to prevent too many outgoing connections from being made, so adjust if necessary.
-
-Note: If the `workers` option is set to anything above 0, this limit will be per worker.
-
-	push_limit: 512
 
 
 ### Push Workers
@@ -46,60 +28,59 @@ threads.
 	workers: 0
 
 
-### JSON GET cache limit
+### Database type
 
-JSON objects (actors, nodeinfo, etc) will get cached when fetched. This will set the max number of
-objects to keep in the cache.
+SQL database backend to use. Valid values are `sqlite` or `postgres`.
 
-	json_cache: 1024
+	database_type: sqlite
 
 
-## AP
+### Sqlite File Path
 
-Various ActivityPub-related settings
+Path to the sqlite database file. If the path is not absolute, it is relative to the config file.
+directory.
+
+	sqlite_path: relay.jsonld
+
+
+## Postgresql
+
+In order to use the Postgresql backend, the user and database need to be created first.
+
+	sudo -u postgres psql -c "CREATE USER activityrelay"
+	sudo -u postgres psql -c "CREATE DATABASE activityrelay OWNER activityrelay"
+
+
+### Database Name
+
+Name of the database to use.
+
+	name: activityrelay
 
 
 ### Host
 
-The domain your relay will use to identify itself.
+Hostname, IP address, or unix socket the server is hosted on.
 
-	host: relay.example.com
-
-
-### Whitelist Enabled
-
-If set to `true`, only instances in the whitelist can follow the relay. Any subscribed instances
-not in the whitelist will be removed from the inbox list on startup.
-
-	whitelist_enabled: false
+	host: /var/run/postgresql
 
 
-### Whitelist
+### Port
 
-A list of domains of instances which are allowed to subscribe to your relay.
+Port number the server is listening on.
 
-	whitelist:
-	- bad-instance.example.com
-	- another-bad-instance.example.com
+	port: 5432
 
 
-### Blocked Instances
+### Username
 
-A list of instances which are unable to follow the instance. If a subscribed instance is added to
-the block list, it will be removed from the inbox list on startup.
+User to use when logging into the server.
 
-	blocked_instances:
-	- bad-instance.example.com
-	- another-bad-instance.example.com
+	user: null
 
 
-### Blocked Software
+### Password
 
-A list of ActivityPub software which cannot follow your relay. This list is empty by default, but
-setting this to the below list will block all other relays and prevent relay chains
+Password for the specified user.
 
-	blocked_software:
-	- activityrelay
-	- aoderelay
-	- social.seattle.wa.us-relay
-	- unciarelay
+	pass: null

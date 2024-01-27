@@ -6,6 +6,23 @@ build-backend = 'setuptools.build_meta'
 [tool.pylint.main]
 jobs = 0
 persistent = true
+load-plugins = [
+	"pylint.extensions.code_style",
+	"pylint.extensions.comparison_placement",
+	"pylint.extensions.confusing_elif",
+	"pylint.extensions.for_any_all",
+	"pylint.extensions.consider_ternary_expression",
+	"pylint.extensions.bad_builtin",
+	"pylint.extensions.dict_init_mutate",
+	"pylint.extensions.check_elif",
+	"pylint.extensions.empty_comment",
+	"pylint.extensions.private_import",
+	"pylint.extensions.redefined_variable_type",
+	"pylint.extensions.no_self_use",
+	"pylint.extensions.overlapping_exceptions",
+	"pylint.extensions.set_membership",
+	"pylint.extensions.typing"
+]
 
 
 [tool.pylint.design]
@@ -22,6 +39,7 @@ single-line-if-stmt = true
 
 [tool.pylint.messages_control]
 disable = [
+	"fixme",
 	"broad-exception-caught",
 	"cyclic-import",
 	"global-statement",
@@ -31,7 +49,8 @@ disable = [
 	"too-many-public-methods",
 	"too-many-return-statements",
 	"wrong-import-order",
-	"wrong-import-position",
 	"missing-function-docstring",
-	"missing-class-docstring"
+	"missing-class-docstring",
+	"consider-using-namedtuple-or-dataclass",
+	"confusing-consecutive-elif"
 ]

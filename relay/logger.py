@@ -4,20 +4,63 @@ import logging
 import os
 import typing
 
+from enum import IntEnum
 from pathlib import Path
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Callable
+	from collections.abc import Callable
+	from typing import Any
 
 
-LOG_LEVELS: dict[str, int] = {
-	'DEBUG': logging.DEBUG,
-	'VERBOSE': 15,
-	'INFO': logging.INFO,
-	'WARNING': logging.WARNING,
-	'ERROR': logging.ERROR,
-	'CRITICAL': logging.CRITICAL
-}
+class LogLevel(IntEnum):
+	DEBUG = logging.DEBUG
+	VERBOSE = 15
+	INFO = logging.INFO
+	WARNING = logging.WARNING
+	ERROR = logging.ERROR
+	CRITICAL = logging.CRITICAL
+
+
+	def __str__(self) -> str:
+		return self.name
+
+
+	@classmethod
+	def parse(cls: type[IntEnum], data: object) -> IntEnum:
+		if isinstance(data, cls):
+			return data
+
+		if isinstance(data, str):
+			data = data.upper()
+
+		try:
+			return cls[data]
+
+		except KeyError:
+			pass
+
+		try:
+			return cls(data)
+
+		except ValueError:
+			pass
+
+		raise AttributeError(f'Invalid enum property for {cls.__name__}: {data}')
+
+
+def get_level() -> LogLevel:
+	return LogLevel.parse(logging.root.level)
+
+
+def set_level(level: LogLevel | str) -> None:
+	logging.root.setLevel(LogLevel.parse(level))
+
+
+def verbose(message: str, *args: Any, **kwargs: Any) -> None:
+	if not logging.root.isEnabledFor(LogLevel['VERBOSE']):
+		return
+
+	logging.log(LogLevel['VERBOSE'], message, *args, **kwargs)
 
 
 debug: Callable = logging.debug
@@ -27,14 +70,7 @@ error: Callable = logging.error
 critical: Callable = logging.critical
 
 
-def verbose(message: str, *args: Any, **kwargs: Any) -> None:
-	if not logging.root.isEnabledFor(LOG_LEVELS['VERBOSE']):
-		return
-
-	logging.log(LOG_LEVELS['VERBOSE'], message, *args, **kwargs)
-
-
-logging.addLevelName(LOG_LEVELS['VERBOSE'], 'VERBOSE')
+logging.addLevelName(LogLevel['VERBOSE'], 'VERBOSE')
 env_log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
 
 try:
@@ -45,11 +81,11 @@ except KeyError:
 
 
 try:
-	log_level = LOG_LEVELS[env_log_level]
+	log_level = LogLevel[env_log_level]
 
 except KeyError:
-	logging.warning('Invalid log level: %s', env_log_level)
-	log_level = logging.INFO
+	print('Invalid log level:', env_log_level)
+	log_level = LogLevel['INFO']
 
 
 handlers = [logging.StreamHandler()]

@@ -13,11 +13,10 @@ from urllib.parse import urlparse
 
 from . import __version__
 from . import logger as logging
-from .misc import MIMETYPES, Message
+from .misc import MIMETYPES, Message, get_app
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Callable, Optional
-	from .database import RelayDatabase
+	from typing import Any
 
 
 HEADERS = {
@@ -27,13 +26,7 @@ HEADERS = {
 
 
 class HttpClient:
-	def __init__(self,
-				database: RelayDatabase,
-				limit: Optional[int] = 100,
-				timeout: Optional[int] = 10,
-				cache_size: Optional[int] = 1024):
-
-		self.database = database
+	def __init__(self, limit: int = 100, timeout: int = 10, cache_size: int = 1024):
 		self.cache = LRUCache(cache_size)
 		self.limit = limit
 		self.timeout = timeout
@@ -80,9 +73,9 @@ class HttpClient:
 
 	async def get(self,  # pylint: disable=too-many-branches
 				url: str,
-				sign_headers: Optional[bool] = False,
-				loads: Optional[Callable] = None,
-				force: Optional[bool] = False) -> Message | dict | None:
+				sign_headers: bool = False,
+				loads: callable | None = None,
+				force: bool = False) -> Message | dict | None:
 
 		await self.open()
 
@@ -98,7 +91,7 @@ class HttpClient:
 		headers = {}
 
 		if sign_headers:
-			headers.update(self.database.signer.sign_headers('GET', url, algorithm='original'))
+			get_app().signer.sign_headers('GET', url, algorithm = 'original')
 
 		try:
 			logging.debug('Fetching resource: %s', url)
@@ -150,23 +143,27 @@ class HttpClient:
 	async def post(self, url: str, message: Message) -> None:
 		await self.open()
 
-		instance = self.database.get_inbox(url)
+		# todo: cache inboxes to avoid opening a db connection
+		with get_app().database.connection() as conn:
+			instance = conn.get_inbox(url)
 
 		## Using the old algo by default is probably a better idea right now
-		if instance and instance.get('software') in {'mastodon'}:
+		# pylint: disable=consider-ternary-expression
+		if instance and instance['software'] in {'mastodon'}:
 			algorithm = 'hs2019'
 
 		else:
 			algorithm = 'original'
+		# pylint: enable=consider-ternary-expression
 
 		headers = {'Content-Type': 'application/activity+json'}
-		headers.update(self.database.signer.sign_headers('POST', url, message, algorithm=algorithm))
+		headers.update(get_app().signer.sign_headers('POST', url, message, algorithm=algorithm))
 
 		try:
 			logging.verbose('Sending "%s" to %s', message.type, url)
 
 			async with self._session.post(url, headers=headers, data=message.to_json()) as resp:
-				## Not expecting a response, so just return
+				# Not expecting a response, so just return
 				if resp.status in {200, 202}:
 					logging.verbose('Successfully sent "%s" to %s', message.type, url)
 					return
@@ -181,7 +178,7 @@ class HttpClient:
 		except (AsyncTimeoutError, ClientConnectionError):
 			logging.warning('Failed to connect to %s for message push', urlparse(url).netloc)
 
-		## prevent workers from being brought down
+		# prevent workers from being brought down
 		except Exception:
 			traceback.print_exc()
 
@@ -197,7 +194,7 @@ class HttpClient:
 			logging.verbose('Failed to fetch well-known nodeinfo url for %s', domain)
 			return None
 
-		for version in ['20', '21']:
+		for version in ('20', '21'):
 			try:
 				nodeinfo_url = wk_nodeinfo.get_url(version)
 
@@ -211,16 +208,16 @@ class HttpClient:
 		return await self.get(nodeinfo_url, loads = Nodeinfo.parse) or None
 
 
-async def get(database: RelayDatabase, *args: Any, **kwargs: Any) -> Message | dict | None:
-	async with HttpClient(database) as client:
+async def get(*args: Any, **kwargs: Any) -> Message | dict | None:
+	async with HttpClient() as client:
 		return await client.get(*args, **kwargs)
 
 
-async def post(database: RelayDatabase, *args: Any, **kwargs: Any) -> None:
-	async with HttpClient(database) as client:
+async def post(*args: Any, **kwargs: Any) -> None:
+	async with HttpClient() as client:
 		return await client.post(*args, **kwargs)
 
 
-async def fetch_nodeinfo(database: RelayDatabase, *args: Any, **kwargs: Any) -> Nodeinfo | None:
-	async with HttpClient(database) as client:
+async def fetch_nodeinfo(*args: Any, **kwargs: Any) -> Nodeinfo | None:
+	async with HttpClient() as client:
 		return await client.fetch_nodeinfo(*args, **kwargs)
