@@ -143,6 +143,7 @@ class HttpClient:
 	async def post(self, url: str, message: Message) -> None:
 		await self.open()
 
+		# todo: cache inboxes to avoid opening a db connection
 		with get_app().database.connection() as conn:
 			instance = conn.get_inbox(url)
 

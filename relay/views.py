@@ -9,7 +9,6 @@ from aputils.errors import SignatureFailureError
 from aputils.misc import Digest, HttpDate, Signature
 from aputils.objects import Nodeinfo, Webfinger, WellKnownNodeinfo
 from pathlib import Path
-from urllib.parse import urlparse
 
 from . import __version__
 from . import logger as logging

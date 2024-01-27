@@ -32,6 +32,7 @@ exe = EXE(
 	a.datas,
 	[],
 	name='activityrelay',
+	icon=None,
 	debug=False,
 	bootloader_ignore_signals=False,
 	strip=False,

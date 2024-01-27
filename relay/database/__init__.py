@@ -17,11 +17,11 @@ if typing.TYPE_CHECKING:
 
 def get_database(config: Config, migrate: bool = True) -> tinysql.Database:
 	if config.db_type == "sqlite":
-		# todo: remove check_same_thread when tinysql stores connections per thread
 		db = tinysql.Database.sqlite(
 			config.sqlite_path,
 			connection_class = Connection,
-			check_same_thread = False
+			min_connections = 2,
+			max_connections = 10
 		)
 
 	elif config.db_type == "postgres":
