@@ -3,13 +3,17 @@ from __future__ import annotations
 import tinysql
 import typing
 
-from importlib.resources import files as pkgfiles
-
 from .config import get_default_value
 from .connection import Connection
 from .schema import VERSIONS, migrate_0
 
 from .. import logger as logging
+
+try:
+	from importlib.resources import files as pkgfiles
+
+except ImportError:
+	from importlib_resources import files as pkgfiles
 
 if typing.TYPE_CHECKING:
 	from .config import Config
