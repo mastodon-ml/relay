@@ -129,8 +129,10 @@ def cli_setup(ctx: click.Context) -> None:
 		)
 
 		ctx.obj.config.pg_pass = click.prompt(
-			'User password: ',
-			hide_input = True
+			'User password',
+			hide_input = True,
+			show_default = False,
+			default = ctx.obj.config.pg_pass or ""
 		) or None
 
 	ctx.obj.config.save()
