@@ -69,6 +69,7 @@ class Item:
 	def from_data(cls: type[Item], *args) -> Item:
 		data = cls(*args)
 		data.value = deserialize_value(data.value, data.value_type)
+		data.updated = datetime.fromtimestamp(data.updated, tz = timezone.utc)
 		return data
 
 
@@ -153,6 +154,7 @@ class SqlCache(Cache):
 				if not (row := cur.one()):
 					raise KeyError(f'{namespace}:{key}')
 
+				row.pop('id', None)
 				return Item.from_data(*tuple(row.values()))
 
 
@@ -178,7 +180,9 @@ class SqlCache(Cache):
 		}
 
 		with self._db.connection() as conn:
-			for row in conn.exec_statement('set-cache-item', params):
+			with conn.exec_statement('set-cache-item', params) as conn:
+				row = conn.one()
+				row.pop('id', None)
 				return Item.from_data(*tuple(row.values()))
 
 
