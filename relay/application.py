@@ -12,6 +12,7 @@ from aputils.signer import Signer
 from datetime import datetime, timedelta
 
 from . import logger as logging
+from .cache import get_cache
 from .config import Config
 from .database import get_database
 from .http_client import HttpClient
@@ -19,8 +20,9 @@ from .misc import check_open_port
 from .views import VIEWS
 
 if typing.TYPE_CHECKING:
-	from tinysql import Database
+	from tinysql import Database, Row
 	from typing import Any
+	from .cache import Cache
 	from .misc import Message
 
 
@@ -38,6 +40,7 @@ class Application(web.Application):
 		self['config'] = Config(cfgpath, load = True)
 		self['database'] = get_database(self.config)
 		self['client'] = HttpClient()
+		self['cache'] = get_cache(self)
 
 		self['workers'] = []
 		self['last_worker'] = 0
@@ -46,6 +49,11 @@ class Application(web.Application):
 
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
+
+
+	@property
+	def cache(self) -> Cache:
+		return self['cache']
 
 
 	@property
@@ -87,13 +95,13 @@ class Application(web.Application):
 		return timedelta(seconds=uptime.seconds)
 
 
-	def push_message(self, inbox: str, message: Message) -> None:
+	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
 		if self.config.workers <= 0:
-			asyncio.ensure_future(self.client.post(inbox, message))
+			asyncio.ensure_future(self.client.post(inbox, message, instance))
 			return
 
 		worker = self['workers'][self['last_worker']]
-		worker.queue.put((inbox, message))
+		worker.queue.put((inbox, message, instance))
 
 		self['last_worker'] += 1
 
@@ -186,10 +194,10 @@ class PushWorker(threading.Thread):
 
 		while self.app['running']:
 			try:
-				inbox, message = self.queue.get(block=True, timeout=0.25)
+				inbox, message, instance = self.queue.get(block=True, timeout=0.25)
 				self.queue.task_done()
 				logging.verbose('New push from Thread-%i', threading.get_ident())
-				await self.client.post(inbox, message)
+				await self.client.post(inbox, message, instance)
 
 			except queue.Empty:
 				pass

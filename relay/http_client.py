@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import traceback
 import typing
 
@@ -7,7 +8,6 @@ from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
 from aputils.objects import Nodeinfo, WellKnownNodeinfo
-from cachetools import LRUCache
 from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
 
@@ -16,7 +16,11 @@ from . import logger as logging
 from .misc import MIMETYPES, Message, get_app
 
 if typing.TYPE_CHECKING:
+	from aputils import Signer
+	from tinysql import Row
 	from typing import Any
+	from .application import Application
+	from .cache import Cache
 
 
 HEADERS = {
@@ -26,8 +30,7 @@ HEADERS = {
 
 
 class HttpClient:
-	def __init__(self, limit: int = 100, timeout: int = 10, cache_size: int = 1024):
-		self.cache = LRUCache(cache_size)
+	def __init__(self, limit: int = 100, timeout: int = 10):
 		self.limit = limit
 		self.timeout = timeout
 		self._conn = None
@@ -41,6 +44,21 @@ class HttpClient:
 
 	async def __aexit__(self, *_: Any) -> None:
 		await self.close()
+
+
+	@property
+	def app(self) -> Application:
+		return get_app()
+
+
+	@property
+	def cache(self) -> Cache:
+		return self.app.cache
+
+
+	@property
+	def signer(self) -> Signer:
+		return self.app.signer
 
 
 	async def open(self) -> None:
@@ -74,8 +92,8 @@ class HttpClient:
 	async def get(self,  # pylint: disable=too-many-branches
 				url: str,
 				sign_headers: bool = False,
-				loads: callable | None = None,
-				force: bool = False) -> Message | dict | None:
+				loads: callable = json.loads,
+				force: bool = False) -> dict | None:
 
 		await self.open()
 
@@ -85,13 +103,20 @@ class HttpClient:
 		except ValueError:
 			pass
 
-		if not force and url in self.cache:
-			return self.cache[url]
+		if not force:
+			try:
+				item = self.cache.get('request', url)
+
+				if not item.older_than(48):
+					return loads(item.value)
+
+			except KeyError:
+				logging.verbose('Failed to fetch cached data for url: %s', url)
 
 		headers = {}
 
 		if sign_headers:
-			get_app().signer.sign_headers('GET', url, algorithm = 'original')
+			self.signer.sign_headers('GET', url, algorithm = 'original')
 
 		try:
 			logging.debug('Fetching resource: %s', url)
@@ -101,32 +126,22 @@ class HttpClient:
 				if resp.status == 202:
 					return None
 
-				if resp.status != 200:
-					logging.verbose('Received error when requesting %s: %i', url, resp.status)
-					logging.debug(await resp.read())
-					return None
+				data = await resp.read()
 
-				if loads:
-					message = await resp.json(loads=loads)
+			if resp.status != 200:
+				logging.verbose('Received error when requesting %s: %i', url, resp.status)
+				logging.debug(await resp.read())
+				return None
 
-				elif resp.content_type == MIMETYPES['activity']:
-					message = await resp.json(loads = Message.parse)
+			message = loads(data)
+			self.cache.set('request', url, data.decode('utf-8'), 'str')
+			logging.debug('%s >> resp %s', url, json.dumps(message, indent = 4))
 
-				elif resp.content_type == MIMETYPES['json']:
-					message = await resp.json()
-
-				else:
-					logging.verbose('Invalid Content-Type for "%s": %s', url, resp.content_type)
-					logging.debug('Response: %s', await resp.read())
-					return None
-
-				logging.debug('%s >> resp %s', url, message.to_json(4))
-
-				self.cache[url] = message
-				return message
+			return message
 
 		except JSONDecodeError:
 			logging.verbose('Failed to parse JSON')
+			return None
 
 		except ClientSSLError:
 			logging.verbose('SSL error when connecting to %s', urlparse(url).netloc)
@@ -140,12 +155,8 @@ class HttpClient:
 		return None
 
 
-	async def post(self, url: str, message: Message) -> None:
+	async def post(self, url: str, message: Message, instance: Row | None = None) -> None:
 		await self.open()
-
-		# todo: cache inboxes to avoid opening a db connection
-		with get_app().database.connection() as conn:
-			instance = conn.get_inbox(url)
 
 		## Using the old algo by default is probably a better idea right now
 		# pylint: disable=consider-ternary-expression

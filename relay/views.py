@@ -19,6 +19,7 @@ if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
 	from aputils.signer import Signer
 	from collections.abc import Callable
+	from tinysql import Row
 
 
 VIEWS = []
@@ -98,7 +99,7 @@ class ActorView(View):
 		self.signature: Signature = None
 		self.message: Message = None
 		self.actor: Message = None
-		self.instance: dict[str, str] = None
+		self.instance: Row = None
 		self.signer: Signer = None
 
 
@@ -168,7 +169,11 @@ class ActorView(View):
 			logging.verbose('actor not in message')
 			return Response.new_error(400, 'no actor in message', 'json')
 
-		self.actor = await self.client.get(self.signature.keyid, sign_headers = True)
+		self.actor = await self.client.get(
+			self.signature.keyid,
+			sign_headers = True,
+			loads = Message.parse
+		)
 
 		if not self.actor:
 			# ld signatures aren't handled atm, so just ignore it

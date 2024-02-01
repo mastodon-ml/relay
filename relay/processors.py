@@ -3,16 +3,11 @@ from __future__ import annotations
 import tinysql
 import typing
 
-from cachetools import LRUCache
-
 from . import logger as logging
 from .misc import Message
 
 if typing.TYPE_CHECKING:
 	from .views import ActorView
-
-
-cache = LRUCache(1024)
 
 
 def person_check(actor: str, software: str) -> bool:
@@ -29,31 +24,39 @@ def person_check(actor: str, software: str) -> bool:
 
 
 async def handle_relay(view: ActorView) -> None:
-	if view.message.object_id in cache:
+	try:
+		view.cache.get('handle-relay', view.message.object_id)
 		logging.verbose('already relayed %s', view.message.object_id)
 		return
 
+	except KeyError:
+		pass
+
 	message = Message.new_announce(view.config.domain, view.message.object_id)
-	cache[view.message.object_id] = message.id
+	view.cache.set('handle-relay', view.message.object_id, message.id, 'str')
 	logging.debug('>> relay: %s', message)
 
 	with view.database.connection() as conn:
 		for inbox in conn.distill_inboxes(view.message):
-			view.app.push_message(inbox, message)
+			view.app.push_message(inbox, message, view.instance)
 
 
 async def handle_forward(view: ActorView) -> None:
-	if view.message.id in cache:
-		logging.verbose('already forwarded %s', view.message.id)
+	try:
+		view.cache.get('handle-relay', view.message.object_id)
+		logging.verbose('already forwarded %s', view.message.object_id)
 		return
 
+	except KeyError:
+		pass
+
 	message = Message.new_announce(view.config.domain, view.message)
-	cache[view.message.id] = message.id
+	view.cache.set('handle-relay', view.message.object_id, message.id, 'str')
 	logging.debug('>> forward: %s', message)
 
 	with view.database.connection() as conn:
 		for inbox in conn.distill_inboxes(view.message):
-			view.app.push_message(inbox, message)
+			view.app.push_message(inbox, message, view.instance)
 
 
 async def handle_follow(view: ActorView) -> None:

@@ -17,6 +17,7 @@ if typing.TYPE_CHECKING:
 	from collections.abc import Coroutine, Generator
 	from typing import Any
 	from .application import Application
+	from .cache import Cache
 	from .config import Config
 	from .database import Database
 	from .http_client import HttpClient
@@ -266,6 +267,11 @@ class View(AbstractView):
 	@property
 	def app(self) -> Application:
 		return self.request.app
+
+
+	@property
+	def cache(self) -> Cache:
+		return self.app.cache
 
 
 	@property
