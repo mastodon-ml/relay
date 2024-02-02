@@ -100,14 +100,10 @@ async def handle_follow(view: ActorView) -> None:
 			return
 
 		if conn.get_inbox(view.actor.shared_inbox):
-			data = {'followid': view.message.id}
-			statement = tinysql.Update('inboxes', data, inbox = view.actor.shared_inbox)
-
-			with conn.query(statement):
-				pass
+			view.instance = conn.update_inbox(view.actor.shared_inbox, followid = view.message.id)
 
 		else:
-			conn.put_inbox(
+			view.instance = conn.put_inbox(
 				view.actor.domain,
 				view.actor.shared_inbox,
 				view.actor.id,
@@ -122,7 +118,8 @@ async def handle_follow(view: ActorView) -> None:
 				actor = view.actor.id,
 				followid = view.message.id,
 				accept = True
-			)
+			),
+			view.instance
 		)
 
 		# Are Akkoma and Pleroma the only two that expect a follow back?
@@ -133,7 +130,8 @@ async def handle_follow(view: ActorView) -> None:
 				Message.new_follow(
 					host = view.config.domain,
 					actor = view.actor.id
-				)
+				),
+				view.instance
 			)
 
 
@@ -157,7 +155,8 @@ async def handle_undo(view: ActorView) -> None:
 			host = view.config.domain,
 			actor = view.actor.id,
 			follow = view.message
-		)
+		),
+		view.instance
 	)
 
 

@@ -414,7 +414,7 @@ def cli_inbox_follow(ctx: click.Context, actor: str) -> None:
 		actor = actor
 	)
 
-	asyncio.run(http.post(inbox, message))
+	asyncio.run(http.post(inbox, message, None, inbox_data))
 	click.echo(f'Sent follow message to actor: {actor}')
 
 
@@ -455,7 +455,7 @@ def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 				}
 			)
 
-	asyncio.run(http.post(inbox, message))
+	asyncio.run(http.post(inbox, message, inbox_data))
 	click.echo(f'Sent unfollow message to: {actor}')
 
 
