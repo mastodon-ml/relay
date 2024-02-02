@@ -51,6 +51,13 @@ SOFTWARE = (
 )
 
 
+def check_alphanumeric(text: str) -> str:
+	if not text.isalnum():
+		raise click.BadParameter(f'String not alphanumeric')
+
+	return text
+
+
 @click.group('cli', context_settings={'show_default': True}, invoke_without_command=True)
 @click.option('--config', '-c', default='relay.yaml', help='path to the relay\'s config')
 @click.version_option(version=__version__, prog_name='ActivityRelay')
@@ -113,8 +120,9 @@ def cli_setup(ctx: click.Context) -> None:
 		)
 
 		ctx.obj.config.pg_host = click.prompt(
-			'What IP address or hostname does the server listen on?',
-			default = ctx.obj.config.pg_host
+			'What IP address, hostname, or unix socket does the server listen on?',
+			default = ctx.obj.config.pg_host,
+			type = int
 		)
 
 		ctx.obj.config.pg_port = click.prompt(
@@ -134,6 +142,48 @@ def cli_setup(ctx: click.Context) -> None:
 			show_default = False,
 			default = ctx.obj.config.pg_pass or ""
 		) or None
+
+	ctx.obj.config.ca_type = click.prompt(
+		'Which caching backend?',
+		default = ctx.obj.config.ca_type,
+		type = click.Choice(['database', 'redis'], case_sensitive = False)
+	)
+
+	if ctx.obj.config.ca_type == 'redis':
+		ctx.obj.config.rd_host = click.prompt(
+			'What IP address, hostname, or unix socket does the server listen on?',
+			default = ctx.obj.config.rd_host
+		)
+
+		ctx.obj.config.rd_port = click.prompt(
+			'What port does the server listen on?',
+			default = ctx.obj.config.rd_port,
+			type = int
+		)
+
+		ctx.obj.config.rd_user = click.prompt(
+			'Which user will authenticate with the server',
+			default = ctx.obj.config.rd_user
+		)
+
+		ctx.obj.config.rd_pass = click.prompt(
+			'User password',
+			hide_input = True,
+			show_default = False,
+			default = ctx.obj.config.rd_pass or ""
+		) or None
+
+		ctx.obj.config.rd_database = click.prompt(
+			'Which database number to use?',
+			default = ctx.obj.config.rd_database,
+			type = int
+		)
+
+		ctx.obj.config.rd_prefix = click.prompt(
+			'What text should each cache key be prefixed with?',
+			default = ctx.obj.config.rd_database,
+			type = check_alphanumeric
+		)
 
 	ctx.obj.config.save()
 
