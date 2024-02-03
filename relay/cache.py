@@ -69,7 +69,10 @@ class Item:
 	def from_data(cls: type[Item], *args) -> Item:
 		data = cls(*args)
 		data.value = deserialize_value(data.value, data.value_type)
-		data.updated = datetime.fromtimestamp(data.updated, tz = timezone.utc)
+
+		if not isinstance(data.updated, datetime):
+			data.updated = datetime.fromtimestamp(data.updated, tz = timezone.utc)
+
 		return data
 
 
