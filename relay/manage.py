@@ -53,7 +53,7 @@ SOFTWARE = (
 
 def check_alphanumeric(text: str) -> str:
 	if not text.isalnum():
-		raise click.BadParameter(f'String not alphanumeric')
+		raise click.BadParameter('String not alphanumeric')
 
 	return text
 

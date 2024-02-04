@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import subprocess
 import traceback
 import typing
@@ -12,6 +11,7 @@ from pathlib import Path
 
 from . import __version__
 from . import logger as logging
+from .database.connection import Connection
 from .misc import Message, Response, View
 from .processors import run_processor
 
@@ -75,17 +75,16 @@ def register_route(*paths: str) -> Callable:
 
 @register_route('/')
 class HomeView(View):
-	async def get(self, request: Request) -> Response:
-		with self.database.connection() as conn:
-			config = conn.get_config_all()
-			inboxes = conn.execute('SELECT * FROM inboxes').all()
+	async def get(self, request: Request, conn: Connection) -> Response:
+		config = conn.get_config_all()
+		inboxes = conn.execute('SELECT * FROM inboxes').all()
 
-			text = HOME_TEMPLATE.format(
-				host = self.config.domain,
-				note = config['note'],
-				count = len(inboxes),
-				targets = '<br>'.join(inbox['domain'] for inbox in inboxes)
-			)
+		text = HOME_TEMPLATE.format(
+			host = self.config.domain,
+			note = config['note'],
+			count = len(inboxes),
+			targets = '<br>'.join(inbox['domain'] for inbox in inboxes)
+		)
 
 		return Response.new(text, ctype='html')
 
@@ -103,7 +102,7 @@ class ActorView(View):
 		self.signer: Signer = None
 
 
-	async def get(self, request: Request) -> Response:
+	async def get(self, request: Request, conn: Connection) -> Response:
 		data = Message.new_actor(
 			host = self.config.domain,
 			pubkey = self.app.signer.pubkey
@@ -112,37 +111,36 @@ class ActorView(View):
 		return Response.new(data, ctype='activity')
 
 
-	async def post(self, request: Request) -> Response:
+	async def post(self, request: Request, conn: Connection) -> Response:
 		if response := await self.get_post_data():
 			return response
 
-		with self.database.connection() as conn:
-			self.instance = conn.get_inbox(self.actor.shared_inbox)
-			config = conn.get_config_all()
+		self.instance = conn.get_inbox(self.actor.shared_inbox)
+		config = conn.get_config_all()
 
-			## reject if the actor isn't whitelisted while the whiltelist is enabled
-			if config['whitelist-enabled'] and not conn.get_domain_whitelist(self.actor.domain):
-				logging.verbose('Rejected actor for not being in the whitelist: %s', self.actor.id)
-				return Response.new_error(403, 'access denied', 'json')
+		## reject if the actor isn't whitelisted while the whiltelist is enabled
+		if config['whitelist-enabled'] and not conn.get_domain_whitelist(self.actor.domain):
+			logging.verbose('Rejected actor for not being in the whitelist: %s', self.actor.id)
+			return Response.new_error(403, 'access denied', 'json')
 
-			## reject if actor is banned
-			if conn.get_domain_ban(self.actor.domain):
-				logging.verbose('Ignored request from banned actor: %s', self.actor.id)
-				return Response.new_error(403, 'access denied', 'json')
+		## reject if actor is banned
+		if conn.get_domain_ban(self.actor.domain):
+			logging.verbose('Ignored request from banned actor: %s', self.actor.id)
+			return Response.new_error(403, 'access denied', 'json')
 
-			## reject if activity type isn't 'Follow' and the actor isn't following
-			if self.message.type != 'Follow' and not self.instance:
-				logging.verbose(
-					'Rejected actor for trying to post while not following: %s',
-					self.actor.id
-				)
+		## reject if activity type isn't 'Follow' and the actor isn't following
+		if self.message.type != 'Follow' and not self.instance:
+			logging.verbose(
+				'Rejected actor for trying to post while not following: %s',
+				self.actor.id
+			)
 
-				return Response.new_error(401, 'access denied', 'json')
+			return Response.new_error(401, 'access denied', 'json')
 
-			logging.debug('>> payload %s', self.message.to_json(4))
+		logging.debug('>> payload %s', self.message.to_json(4))
 
-			asyncio.ensure_future(run_processor(self))
-			return Response.new(status = 202)
+		await run_processor(self, conn)
+		return Response.new(status = 202)
 
 
 	async def get_post_data(self) -> Response | None:
@@ -232,7 +230,7 @@ class ActorView(View):
 
 @register_route('/.well-known/webfinger')
 class WebfingerView(View):
-	async def get(self, request: Request) -> Response:
+	async def get(self, request: Request, conn: Connection) -> Response:
 		try:
 			subject = request.query['resource']
 
@@ -253,18 +251,18 @@ class WebfingerView(View):
 
 @register_route('/nodeinfo/{niversion:\\d.\\d}.json', '/nodeinfo/{niversion:\\d.\\d}')
 class NodeinfoView(View):
-	async def get(self, request: Request, niversion: str) -> Response:
-		with self.database.connection() as conn:
-			inboxes = conn.execute('SELECT * FROM inboxes').all()
+	# pylint: disable=no-self-use
+	async def get(self, request: Request, conn: Connection, niversion: str) -> Response:
+		inboxes = conn.execute('SELECT * FROM inboxes').all()
 
-			data = {
-				'name': 'activityrelay',
-				'version': VERSION,
-				'protocols': ['activitypub'],
-				'open_regs': not conn.get_config('whitelist-enabled'),
-				'users': 1,
-				'metadata': {'peers': [inbox['domain'] for inbox in inboxes]}
-			}
+		data = {
+			'name': 'activityrelay',
+			'version': VERSION,
+			'protocols': ['activitypub'],
+			'open_regs': not conn.get_config('whitelist-enabled'),
+			'users': 1,
+			'metadata': {'peers': [inbox['domain'] for inbox in inboxes]}
+		}
 
 		if niversion == '2.1':
 			data['repo'] = 'https://git.pleroma.social/pleroma/relay'
@@ -274,6 +272,6 @@ class NodeinfoView(View):
 
 @register_route('/.well-known/nodeinfo')
 class WellknownNodeinfoView(View):
-	async def get(self, request: Request) -> Response:
+	async def get(self, request: Request, conn: Connection) -> Response:
 		data = WellKnownNodeinfo.new_template(self.config.domain)
 		return Response.new(data, ctype = 'json')
