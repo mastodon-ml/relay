@@ -235,9 +235,6 @@ class Response(AiohttpResponse):
 
 
 class View(AbstractView):
-	conn: Connection
-
-
 	def __await__(self) -> Generator[Response]:
 		if (self.request.method) not in METHODS:
 			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods)
@@ -250,7 +247,10 @@ class View(AbstractView):
 
 	async def _run_handler(self, handler: Awaitable) -> Response:
 		with self.database.config.connection_class(self.database) as conn:
-			return await handler(self.request,conn, **self.request.match_info)
+			# todo: remove on next tinysql release
+			conn.open()
+
+			return await handler(self.request, conn, **self.request.match_info)
 
 
 	@cached_property
