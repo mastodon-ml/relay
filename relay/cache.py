@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from redis import Redis
 
+from .database import get_database
 from .misc import Message, boolean
 
 if typing.TYPE_CHECKING:
@@ -141,9 +142,9 @@ class SqlCache(Cache):
 	name: str = 'database'
 
 
-	@property
-	def _db(self) -> Database:
-		return self.app.database
+	def __init__(self, app: Application):
+		self._db = get_database(app.config)
+		Cache.__init__(self, app)
 
 
 	def get(self, namespace: str, key: str) -> Item:
