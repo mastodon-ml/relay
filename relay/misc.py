@@ -14,9 +14,9 @@ from functools import cached_property
 from uuid import uuid4
 
 if typing.TYPE_CHECKING:
-	from collections.abc import Coroutine, Generator
+	from collections.abc import Awaitable, Coroutine, Generator
 	from tinysql import Connection
-	from typing import Any, Awaitable
+	from typing import Any
 	from .application import Application
 	from .cache import Cache
 	from .config import Config
@@ -236,7 +236,7 @@ class Response(AiohttpResponse):
 
 class View(AbstractView):
 	def __await__(self) -> Generator[Response]:
-		if (self.request.method) not in METHODS:
+		if self.request.method not in METHODS:
 			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods)
 
 		if not (handler := self.handlers.get(self.request.method)):

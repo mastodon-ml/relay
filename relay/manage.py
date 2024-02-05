@@ -18,7 +18,7 @@ from .application import Application
 from .compat import RelayConfig, RelayDatabase
 from .database import get_database
 from .database.connection import RELAY_SOFTWARE
-from .misc import IS_DOCKER, Message, check_open_port
+from .misc import IS_DOCKER, Message
 
 if typing.TYPE_CHECKING:
 	from tinysql import Row
@@ -70,6 +70,11 @@ def cli(ctx: click.Context, config: str) -> None:
 			cli_setup.callback()
 
 		else:
+			click.echo(
+				'[DEPRECATED] Running the relay without the "run" command will be removed in the ' +
+				'future.'
+			)
+
 			cli_run.callback()
 
 
@@ -200,8 +205,9 @@ def cli_setup(ctx: click.Context) -> None:
 
 
 @cli.command('run')
+@click.option('--dev', '-d', is_flag = True, help = 'Enable worker reloading on code change')
 @click.pass_context
-def cli_run(ctx: click.Context) -> None:
+def cli_run(ctx: click.Context, dev: bool = False) -> None:
 	'Run the relay'
 
 	if ctx.obj.config.domain.endswith('example.com') or not ctx.obj.signer:
@@ -228,11 +234,7 @@ def cli_run(ctx: click.Context) -> None:
 		click.echo(pip_command)
 		return
 
-	if not check_open_port(ctx.obj.config.listen, ctx.obj.config.port):
-		click.echo(f'Error: A server is already running on port {ctx.obj.config.port}')
-		return
-
-	ctx.obj.run()
+	ctx.obj.run(dev)
 
 
 @cli.command('convert')

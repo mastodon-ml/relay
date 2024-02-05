@@ -70,7 +70,6 @@ error: Callable = logging.error
 critical: Callable = logging.critical
 
 
-logging.addLevelName(LogLevel['VERBOSE'], 'VERBOSE')
 env_log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
 
 try:
@@ -79,22 +78,15 @@ try:
 except KeyError:
 	env_log_file = None
 
-
-try:
-	log_level = LogLevel[env_log_level]
-
-except KeyError:
-	print('Invalid log level:', env_log_level)
-	log_level = LogLevel['INFO']
-
-
 handlers = [logging.StreamHandler()]
 
 if env_log_file:
 	handlers.append(logging.FileHandler(env_log_file))
 
+logging.addLevelName(LogLevel['VERBOSE'], 'VERBOSE')
 logging.basicConfig(
-	level = log_level,
+	level = LogLevel.INFO,
 	format = '[%(asctime)s] %(levelname)s: %(message)s',
+	datefmt = '%Y-%m-%d %H:%M:%S',
 	handlers = handlers
 )
