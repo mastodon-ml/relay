@@ -1,18 +1,13 @@
 from __future__ import annotations
 
-import tinysql
 import typing
 
-from cachetools import LRUCache
-
 from . import logger as logging
+from .database.connection import Connection
 from .misc import Message
 
 if typing.TYPE_CHECKING:
 	from .views import ActorView
-
-
-cache = LRUCache(1024)
 
 
 def person_check(actor: str, software: str) -> bool:
@@ -28,83 +23,87 @@ def person_check(actor: str, software: str) -> bool:
 	return False
 
 
-async def handle_relay(view: ActorView) -> None:
-	if view.message.object_id in cache:
+async def handle_relay(view: ActorView, conn: Connection) -> None:
+	try:
+		view.cache.get('handle-relay', view.message.object_id)
 		logging.verbose('already relayed %s', view.message.object_id)
 		return
 
+	except KeyError:
+		pass
+
 	message = Message.new_announce(view.config.domain, view.message.object_id)
-	cache[view.message.object_id] = message.id
 	logging.debug('>> relay: %s', message)
 
-	with view.database.connection() as conn:
-		for inbox in conn.distill_inboxes(view.message):
-			view.app.push_message(inbox, message)
+	for inbox in conn.distill_inboxes(view.message):
+		view.app.push_message(inbox, message, view.instance)
+
+	view.cache.set('handle-relay', view.message.object_id, message.id, 'str')
 
 
-async def handle_forward(view: ActorView) -> None:
-	if view.message.id in cache:
-		logging.verbose('already forwarded %s', view.message.id)
+async def handle_forward(view: ActorView, conn: Connection) -> None:
+	try:
+		view.cache.get('handle-relay', view.message.object_id)
+		logging.verbose('already forwarded %s', view.message.object_id)
 		return
 
+	except KeyError:
+		pass
+
 	message = Message.new_announce(view.config.domain, view.message)
-	cache[view.message.id] = message.id
 	logging.debug('>> forward: %s', message)
 
-	with view.database.connection() as conn:
-		for inbox in conn.distill_inboxes(view.message):
-			view.app.push_message(inbox, message)
+	for inbox in conn.distill_inboxes(view.message):
+		view.app.push_message(inbox, message, view.instance)
+
+	view.cache.set('handle-relay', view.message.object_id, message.id, 'str')
 
 
-async def handle_follow(view: ActorView) -> None:
+async def handle_follow(view: ActorView, conn: Connection) -> None:
 	nodeinfo = await view.client.fetch_nodeinfo(view.actor.domain)
 	software = nodeinfo.sw_name if nodeinfo else None
 
-	with view.database.connection() as conn:
-		# reject if software used by actor is banned
-		if conn.get_software_ban(software):
-			view.app.push_message(
-				view.actor.shared_inbox,
-				Message.new_response(
-					host = view.config.domain,
-					actor = view.actor.id,
-					followid = view.message.id,
-					accept = False
-				)
+	# reject if software used by actor is banned
+	if conn.get_software_ban(software):
+		view.app.push_message(
+			view.actor.shared_inbox,
+			Message.new_response(
+				host = view.config.domain,
+				actor = view.actor.id,
+				followid = view.message.id,
+				accept = False
 			)
+		)
 
-			logging.verbose(
-				'Rejected follow from actor for using specific software: actor=%s, software=%s',
-				view.actor.id,
-				software
+		logging.verbose(
+			'Rejected follow from actor for using specific software: actor=%s, software=%s',
+			view.actor.id,
+			software
+		)
+
+		return
+
+	## reject if the actor is not an instance actor
+	if person_check(view.actor, software):
+		view.app.push_message(
+			view.actor.shared_inbox,
+			Message.new_response(
+				host = view.config.domain,
+				actor = view.actor.id,
+				followid = view.message.id,
+				accept = False
 			)
+		)
 
-			return
+		logging.verbose('Non-application actor tried to follow: %s', view.actor.id)
+		return
 
-		## reject if the actor is not an instance actor
-		if person_check(view.actor, software):
-			view.app.push_message(
-				view.actor.shared_inbox,
-				Message.new_response(
-					host = view.config.domain,
-					actor = view.actor.id,
-					followid = view.message.id,
-					accept = False
-				)
-			)
+	if conn.get_inbox(view.actor.shared_inbox):
+		view.instance = conn.update_inbox(view.actor.shared_inbox, followid = view.message.id)
 
-			logging.verbose('Non-application actor tried to follow: %s', view.actor.id)
-			return
-
-		if conn.get_inbox(view.actor.shared_inbox):
-			data = {'followid': view.message.id}
-			statement = tinysql.Update('inboxes', data, inbox = view.actor.shared_inbox)
-
-			with conn.query(statement):
-				pass
-
-		else:
-			conn.put_inbox(
+	else:
+		with conn.transaction():
+			view.instance = conn.put_inbox(
 				view.actor.domain,
 				view.actor.shared_inbox,
 				view.actor.id,
@@ -112,35 +111,37 @@ async def handle_follow(view: ActorView) -> None:
 				software
 			)
 
+	view.app.push_message(
+		view.actor.shared_inbox,
+		Message.new_response(
+			host = view.config.domain,
+			actor = view.actor.id,
+			followid = view.message.id,
+			accept = True
+		),
+		view.instance
+	)
+
+	# Are Akkoma and Pleroma the only two that expect a follow back?
+	# Ignoring only Mastodon for now
+	if software != 'mastodon':
 		view.app.push_message(
 			view.actor.shared_inbox,
-			Message.new_response(
+			Message.new_follow(
 				host = view.config.domain,
-				actor = view.actor.id,
-				followid = view.message.id,
-				accept = True
-			)
+				actor = view.actor.id
+			),
+			view.instance
 		)
 
-		# Are Akkoma and Pleroma the only two that expect a follow back?
-		# Ignoring only Mastodon for now
-		if software != 'mastodon':
-			view.app.push_message(
-				view.actor.shared_inbox,
-				Message.new_follow(
-					host = view.config.domain,
-					actor = view.actor.id
-				)
-			)
 
-
-async def handle_undo(view: ActorView) -> None:
+async def handle_undo(view: ActorView, conn: Connection) -> None:
 	## If the object is not a Follow, forward it
 	if view.message.object['type'] != 'Follow':
-		await handle_forward(view)
+		await handle_forward(view, conn)
 		return
 
-	with view.database.connection() as conn:
+	with conn.transaction():
 		if not conn.del_inbox(view.actor.id):
 			logging.verbose(
 				'Failed to delete "%s" with follow ID "%s"',
@@ -154,7 +155,8 @@ async def handle_undo(view: ActorView) -> None:
 			host = view.config.domain,
 			actor = view.actor.id,
 			follow = view.message
-		)
+		),
+		view.instance
 	)
 
 
@@ -168,7 +170,7 @@ processors = {
 }
 
 
-async def run_processor(view: ActorView) -> None:
+async def run_processor(view: ActorView, conn: Connection) -> None:
 	if view.message.type not in processors:
 		logging.verbose(
 			'Message type "%s" from actor cannot be handled: %s',
@@ -179,20 +181,19 @@ async def run_processor(view: ActorView) -> None:
 		return
 
 	if view.instance:
-		if not view.instance['software']:
-			if (nodeinfo := await view.client.fetch_nodeinfo(view.instance['domain'])):
-				with view.database.connection() as conn:
+		with conn.transaction():
+			if not view.instance['software']:
+				if (nodeinfo := await view.client.fetch_nodeinfo(view.instance['domain'])):
 					view.instance = conn.update_inbox(
 						view.instance['inbox'],
 						software = nodeinfo.sw_name
 					)
 
-		if not view.instance['actor']:
-			with view.database.connection() as conn:
+			if not view.instance['actor']:
 				view.instance = conn.update_inbox(
 					view.instance['inbox'],
 					actor = view.actor.id
 				)
 
 	logging.verbose('New "%s" from actor: %s', view.message.type, view.actor.id)
-	await processors[view.message.type](view)
+	await processors[view.message.type](view, conn)

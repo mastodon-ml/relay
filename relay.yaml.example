@@ -7,11 +7,14 @@ listen: 0.0.0.0
 # [integer] Port the relay will listen on
 port: 8080
 
-# [integer] Number of push workers to start (will get removed in a future update)
+# [integer] Number of push workers to start
 workers: 8
 
 # [string] Database backend to use. Valid values: sqlite, postgres
 database_type: sqlite
+
+# [string] Cache backend to use. Valid values: database, redis
+cache_type: database
 
 # [string] Path to the sqlite database file if the sqlite backend is in use
 sqlite_path: relay.sqlite3
@@ -33,3 +36,24 @@ postgres:
 
   # [string] name of the database to use
   name: activityrelay
+
+# settings for the redis caching backend
+redis:
+
+  # [string] hostname or unix socket to connect to
+  host: localhost
+
+  # [integer] port of the server
+  port: 6379
+
+  # [string] username to use when logging into the server
+  user: null
+
+  # [string] password for the server
+  pass: null
+
+  # [integer] database number to use
+  database: 0
+
+  # [string] prefix for keys
+  prefix: activityrelay

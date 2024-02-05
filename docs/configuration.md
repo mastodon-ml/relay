@@ -35,6 +35,13 @@ SQL database backend to use. Valid values are `sqlite` or `postgres`.
 	database_type: sqlite
 
 
+### Cache type
+
+Cache backend to use. Valid values are `database` or `redis`
+
+	cache_type: database
+
+
 ### Sqlite File Path
 
 Path to the sqlite database file. If the path is not absolute, it is relative to the config file.
@@ -47,7 +54,7 @@ directory.
 
 In order to use the Postgresql backend, the user and database need to be created first.
 
-	sudo -u postgres psql -c "CREATE USER activityrelay"
+	sudo -u postgres psql -c "CREATE USER activityrelay WITH PASSWORD SomeSecurePassword"
 	sudo -u postgres psql -c "CREATE DATABASE activityrelay OWNER activityrelay"
 
 
@@ -84,3 +91,47 @@ User to use when logging into the server.
 Password for the specified user.
 
 	pass: null
+
+
+## Redis
+
+### Host
+
+Hostname, IP address, or unix socket the server is hosted on.
+
+	host: /var/run/postgresql
+
+
+### Port
+
+Port number the server is listening on.
+
+	port: 5432
+
+
+### Username
+
+User to use when logging into the server.
+
+	user: null
+
+
+### Password
+
+Password for the specified user.
+
+	pass: null
+
+
+### Database Number
+
+Number of the database to use.
+
+	database: 0
+
+
+### Prefix
+
+Text to prefix every key with. It cannot contain a `:` character.
+
+	prefix: activityrelay

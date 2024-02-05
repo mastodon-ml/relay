@@ -19,12 +19,21 @@ DEFAULTS: dict[str, Any] = {
 	'domain': 'relay.example.com',
 	'workers': len(os.sched_getaffinity(0)),
 	'db_type': 'sqlite',
+	'ca_type': 'database',
 	'sq_path': 'relay.sqlite3',
+
 	'pg_host': '/var/run/postgresql',
 	'pg_port': 5432,
 	'pg_user': getpass.getuser(),
 	'pg_pass': None,
-	'pg_name': 'activityrelay'
+	'pg_name': 'activityrelay',
+
+	'rd_host': 'localhost',
+	'rd_port': 6379,
+	'rd_user': None,
+	'rd_pass': None,
+	'rd_database': 0,
+	'rd_prefix': 'activityrelay'
 }
 
 if IS_DOCKER:
@@ -40,12 +49,21 @@ class Config:
 		self.domain = None
 		self.workers = None
 		self.db_type = None
+		self.ca_type = None
 		self.sq_path = None
+
 		self.pg_host = None
 		self.pg_port = None
 		self.pg_user = None
 		self.pg_pass = None
 		self.pg_name = None
+
+		self.rd_host = None
+		self.rd_port = None
+		self.rd_user = None
+		self.rd_pass = None
+		self.rd_database = None
+		self.rd_prefix = None
 
 		if load:
 			try:
@@ -92,6 +110,7 @@ class Config:
 		with self.path.open('r', encoding = 'UTF-8') as fd:
 			config = yaml.load(fd, **options)
 			pgcfg = config.get('postgresql', {})
+			rdcfg = config.get('redis', {})
 
 		if not config:
 			raise ValueError('Config is empty')
@@ -106,18 +125,25 @@ class Config:
 			self.set('port', config.get('port', DEFAULTS['port']))
 			self.set('sq_path', config.get('sqlite_path', DEFAULTS['sq_path']))
 
+		self.set('workers', config.get('workers', DEFAULTS['workers']))
 		self.set('domain', config.get('domain', DEFAULTS['domain']))
 		self.set('db_type', config.get('database_type', DEFAULTS['db_type']))
+		self.set('ca_type', config.get('cache_type', DEFAULTS['ca_type']))
 
 		for key in DEFAULTS:
-			if not key.startswith('pg'):
-				continue
+			if key.startswith('pg'):
+				try:
+					self.set(key, pgcfg[key[3:]])
 
-			try:
-				self.set(key, pgcfg[key[3:]])
+				except KeyError:
+					continue
 
-			except KeyError:
-				continue
+			elif key.startswith('rd'):
+				try:
+					self.set(key, rdcfg[key[3:]])
+
+				except KeyError:
+					continue
 
 
 	def reset(self) -> None:
@@ -132,7 +158,9 @@ class Config:
 			'listen': self.listen,
 			'port': self.port,
 			'domain': self.domain,
+			'workers': self.workers,
 			'database_type': self.db_type,
+			'cache_type': self.ca_type,
 			'sqlite_path': self.sq_path,
 			'postgres': {
 				'host': self.pg_host,
@@ -140,6 +168,14 @@ class Config:
 				'user': self.pg_user,
 				'pass': self.pg_pass,
 				'name': self.pg_name
+			},
+			'redis': {
+				'host': self.rd_host,
+				'port': self.rd_port,
+				'user': self.rd_user,
+				'pass': self.rd_pass,
+				'database': self.rd_database,
+				'refix': self.rd_prefix
 			}
 		}
 

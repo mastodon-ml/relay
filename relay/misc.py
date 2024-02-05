@@ -14,9 +14,11 @@ from functools import cached_property
 from uuid import uuid4
 
 if typing.TYPE_CHECKING:
-	from collections.abc import Coroutine, Generator
+	from collections.abc import Awaitable, Coroutine, Generator
+	from tinysql import Connection
 	from typing import Any
 	from .application import Application
+	from .cache import Cache
 	from .config import Config
 	from .database import Database
 	from .http_client import HttpClient
@@ -234,13 +236,21 @@ class Response(AiohttpResponse):
 
 class View(AbstractView):
 	def __await__(self) -> Generator[Response]:
-		if (self.request.method) not in METHODS:
+		if self.request.method not in METHODS:
 			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods)
 
 		if not (handler := self.handlers.get(self.request.method)):
 			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods) from None
 
-		return handler(self.request, **self.request.match_info).__await__()
+		return self._run_handler(handler).__await__()
+
+
+	async def _run_handler(self, handler: Awaitable) -> Response:
+		with self.database.config.connection_class(self.database) as conn:
+			# todo: remove on next tinysql release
+			conn.open()
+
+			return await handler(self.request, conn, **self.request.match_info)
 
 
 	@cached_property
@@ -266,6 +276,11 @@ class View(AbstractView):
 	@property
 	def app(self) -> Application:
 		return self.request.app
+
+
+	@property
+	def cache(self) -> Cache:
+		return self.app.cache
 
 
 	@property

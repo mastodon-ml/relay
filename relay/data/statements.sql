@@ -77,3 +77,64 @@ RETURNING *
 -- name: del-domain-whitelist
 DELETE FROM whitelist
 WHERE domain = :domain
+
+
+-- cache functions --
+
+-- name: create-cache-table-sqlite
+CREATE TABLE IF NOT EXISTS cache (
+	id INTEGER PRIMARY KEY UNIQUE,
+	namespace TEXT NOT NULL,
+	key TEXT NOT NULL,
+	"value" TEXT,
+	type TEXT DEFAULT 'str',
+	updated TIMESTAMP NOT NULL,
+	UNIQUE(namespace, key)
+)
+
+-- name: create-cache-table-postgres
+CREATE TABLE IF NOT EXISTS cache (
+	id SERIAL PRIMARY KEY,
+	namespace TEXT NOT NULL,
+	key TEXT NOT NULL,
+	"value" TEXT,
+	type TEXT DEFAULT 'str',
+	updated TIMESTAMP NOT NULL,
+	UNIQUE(namespace, key)
+)
+
+
+-- name: get-cache-item
+SELECT * FROM cache
+WHERE namespace = :namespace and key = :key
+
+
+-- name: get-cache-keys
+SELECT key FROM cache
+WHERE namespace = :namespace
+
+
+-- name: get-cache-namespaces
+SELECT DISTINCT namespace FROM cache
+
+
+-- name: set-cache-item
+INSERT INTO cache (namespace, key, value, type, updated)
+VALUES (:namespace, :key, :value, :type, :date)
+ON CONFLICT (namespace, key) DO
+UPDATE SET value = :value, type = :type, updated = :date
+RETURNING *
+
+
+-- name: del-cache-item
+DELETE FROM cache
+WHERE namespace = :namespace and key = :key
+
+
+-- name: del-cache-namespace
+DELETE FROM cache
+WHERE namespace = :namespace
+
+
+-- name: del-cache-all
+DELETE FROM cache

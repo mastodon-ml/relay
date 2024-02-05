@@ -18,7 +18,7 @@ from .application import Application
 from .compat import RelayConfig, RelayDatabase
 from .database import get_database
 from .database.connection import RELAY_SOFTWARE
-from .misc import IS_DOCKER, Message, check_open_port
+from .misc import IS_DOCKER, Message
 
 if typing.TYPE_CHECKING:
 	from tinysql import Row
@@ -51,6 +51,13 @@ SOFTWARE = (
 )
 
 
+def check_alphanumeric(text: str) -> str:
+	if not text.isalnum():
+		raise click.BadParameter('String not alphanumeric')
+
+	return text
+
+
 @click.group('cli', context_settings={'show_default': True}, invoke_without_command=True)
 @click.option('--config', '-c', default='relay.yaml', help='path to the relay\'s config')
 @click.version_option(version=__version__, prog_name='ActivityRelay')
@@ -63,6 +70,11 @@ def cli(ctx: click.Context, config: str) -> None:
 			cli_setup.callback()
 
 		else:
+			click.echo(
+				'[DEPRECATED] Running the relay without the "run" command will be removed in the ' +
+				'future.'
+			)
+
 			cli_run.callback()
 
 
@@ -113,8 +125,9 @@ def cli_setup(ctx: click.Context) -> None:
 		)
 
 		ctx.obj.config.pg_host = click.prompt(
-			'What IP address or hostname does the server listen on?',
-			default = ctx.obj.config.pg_host
+			'What IP address, hostname, or unix socket does the server listen on?',
+			default = ctx.obj.config.pg_host,
+			type = int
 		)
 
 		ctx.obj.config.pg_port = click.prompt(
@@ -135,6 +148,48 @@ def cli_setup(ctx: click.Context) -> None:
 			default = ctx.obj.config.pg_pass or ""
 		) or None
 
+	ctx.obj.config.ca_type = click.prompt(
+		'Which caching backend?',
+		default = ctx.obj.config.ca_type,
+		type = click.Choice(['database', 'redis'], case_sensitive = False)
+	)
+
+	if ctx.obj.config.ca_type == 'redis':
+		ctx.obj.config.rd_host = click.prompt(
+			'What IP address, hostname, or unix socket does the server listen on?',
+			default = ctx.obj.config.rd_host
+		)
+
+		ctx.obj.config.rd_port = click.prompt(
+			'What port does the server listen on?',
+			default = ctx.obj.config.rd_port,
+			type = int
+		)
+
+		ctx.obj.config.rd_user = click.prompt(
+			'Which user will authenticate with the server',
+			default = ctx.obj.config.rd_user
+		)
+
+		ctx.obj.config.rd_pass = click.prompt(
+			'User password',
+			hide_input = True,
+			show_default = False,
+			default = ctx.obj.config.rd_pass or ""
+		) or None
+
+		ctx.obj.config.rd_database = click.prompt(
+			'Which database number to use?',
+			default = ctx.obj.config.rd_database,
+			type = int
+		)
+
+		ctx.obj.config.rd_prefix = click.prompt(
+			'What text should each cache key be prefixed with?',
+			default = ctx.obj.config.rd_database,
+			type = check_alphanumeric
+		)
+
 	ctx.obj.config.save()
 
 	config = {
@@ -150,8 +205,9 @@ def cli_setup(ctx: click.Context) -> None:
 
 
 @cli.command('run')
+@click.option('--dev', '-d', is_flag = True, help = 'Enable worker reloading on code change')
 @click.pass_context
-def cli_run(ctx: click.Context) -> None:
+def cli_run(ctx: click.Context, dev: bool = False) -> None:
 	'Run the relay'
 
 	if ctx.obj.config.domain.endswith('example.com') or not ctx.obj.signer:
@@ -178,11 +234,7 @@ def cli_run(ctx: click.Context) -> None:
 		click.echo(pip_command)
 		return
 
-	if not check_open_port(ctx.obj.config.listen, ctx.obj.config.port):
-		click.echo(f'Error: A server is already running on port {ctx.obj.config.port}')
-		return
-
-	ctx.obj.run()
+	ctx.obj.run(dev)
 
 
 @cli.command('convert')
@@ -364,7 +416,7 @@ def cli_inbox_follow(ctx: click.Context, actor: str) -> None:
 		actor = actor
 	)
 
-	asyncio.run(http.post(inbox, message))
+	asyncio.run(http.post(inbox, message, None, inbox_data))
 	click.echo(f'Sent follow message to actor: {actor}')
 
 
@@ -405,7 +457,7 @@ def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 				}
 			)
 
-	asyncio.run(http.post(inbox, message))
+	asyncio.run(http.post(inbox, message, inbox_data))
 	click.echo(f'Sent unfollow message to: {actor}')
 
 

@@ -1,8 +1,10 @@
 aiohttp>=3.9.1
 aputils@https://git.barkshark.xyz/barkshark/aputils/archive/0.1.6a.tar.gz
-cachetools>=5.2.0
 click>=8.1.2
+gunicorn==21.1.0
+hiredis==2.3.2
 pyyaml>=6.0
-tinysql[postgres]@https://git.barkshark.xyz/barkshark/tinysql/archive/0.2.3.tar.gz
+redis==5.0.1
+tinysql[postgres]@https://git.barkshark.xyz/barkshark/tinysql/archive/0.2.4.tar.gz
 
 importlib_resources==6.1.1;python_version<'3.9'
