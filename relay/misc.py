@@ -5,12 +5,8 @@ import os
 import socket
 import typing
 
-from aiohttp.abc import AbstractView
-from aiohttp.hdrs import METH_ALL as METHODS
 from aiohttp.web import Response as AiohttpResponse
-from aiohttp.web_exceptions import HTTPMethodNotAllowed
 from aputils.message import Message as ApMessage
-from functools import cached_property
 from uuid import uuid4
 
 if typing.TYPE_CHECKING:
@@ -203,7 +199,7 @@ class Response(AiohttpResponse):
 		if isinstance(body, bytes):
 			kwargs['body'] = body
 
-		elif isinstance(body, dict) and ctype in {'json', 'activity'}:
+		elif isinstance(body, (dict, list, tuple, set)) and ctype in {'json', 'activity'}:
 			kwargs['text'] = json.dumps(body)
 
 		else:
@@ -232,67 +228,3 @@ class Response(AiohttpResponse):
 	@location.setter
 	def location(self, value: str) -> None:
 		self.headers['Location'] = value
-
-
-class View(AbstractView):
-	def __await__(self) -> Generator[Response]:
-		if self.request.method not in METHODS:
-			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods)
-
-		if not (handler := self.handlers.get(self.request.method)):
-			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods) from None
-
-		return self._run_handler(handler).__await__()
-
-
-	async def _run_handler(self, handler: Awaitable) -> Response:
-		with self.database.config.connection_class(self.database) as conn:
-			# todo: remove on next tinysql release
-			conn.open()
-
-			return await handler(self.request, conn, **self.request.match_info)
-
-
-	@cached_property
-	def allowed_methods(self) -> tuple[str]:
-		return tuple(self.handlers.keys())
-
-
-	@cached_property
-	def handlers(self) -> dict[str, Coroutine]:
-		data = {}
-
-		for method in METHODS:
-			try:
-				data[method] = getattr(self, method.lower())
-
-			except AttributeError:
-				continue
-
-		return data
-
-
-	# app components
-	@property
-	def app(self) -> Application:
-		return self.request.app
-
-
-	@property
-	def cache(self) -> Cache:
-		return self.app.cache
-
-
-	@property
-	def client(self) -> HttpClient:
-		return self.app.client
-
-
-	@property
-	def config(self) -> Config:
-		return self.app.config
-
-
-	@property
-	def database(self) -> Database:
-		return self.app.database

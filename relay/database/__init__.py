@@ -52,14 +52,10 @@ def get_database(config: Config, migrate: bool = True) -> tinysql.Database:
 		if (schema_ver := conn.get_config('schema-version')) < get_default_value('schema-version'):
 			logging.info("Migrating database from version '%i'", schema_ver)
 
-			for ver, func in VERSIONS:
+			for ver, func in VERSIONS.items():
 				if schema_ver < ver:
-					conn.begin()
-
 					func(conn)
-
 					conn.put_config('schema-version', ver)
-					conn.commit()
 
 		if (privkey := conn.get_config('private-key')):
 			conn.app.signer = privkey

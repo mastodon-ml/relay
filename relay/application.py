@@ -20,6 +20,7 @@ from .database import get_database
 from .http_client import HttpClient
 from .misc import check_open_port
 from .views import VIEWS
+from .views.api import handle_api_path
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Awaitable
@@ -35,7 +36,11 @@ class Application(web.Application):
 	DEFAULT: Application = None
 
 	def __init__(self, cfgpath: str, gunicorn: bool = False):
-		web.Application.__init__(self)
+		web.Application.__init__(self,
+			middlewares = [
+				handle_api_path
+			]
+		)
 
 		Application.DEFAULT = self
 
@@ -219,6 +224,6 @@ async def main_gunicorn():
 
 	except KeyError:
 		logging.error('Failed to set "CONFIG_FILE" environment. Trying to run without gunicorn?')
-		raise
+		raise RuntimeError from None
 
 	return app

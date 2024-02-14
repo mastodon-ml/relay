@@ -11,8 +11,9 @@ if typing.TYPE_CHECKING:
 
 
 CONFIG_DEFAULTS: dict[str, tuple[str, Any]] = {
-	'schema-version': ('int', 20240119),
+	'schema-version': ('int', 20240206),
 	'log-level': ('loglevel', logging.LogLevel.INFO),
+	'name': ('str', 'ActivityRelay'),
 	'note': ('str', 'Make a note about your instance here.'),
 	'private-key': ('str', None),
 	'whitelist-enabled': ('bool', False)

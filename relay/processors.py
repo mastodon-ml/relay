@@ -170,7 +170,7 @@ processors = {
 }
 
 
-async def run_processor(view: ActorView, conn: Connection) -> None:
+async def run_processor(view: ActorView) -> None:
 	if view.message.type not in processors:
 		logging.verbose(
 			'Message type "%s" from actor cannot be handled: %s',
@@ -180,8 +180,8 @@ async def run_processor(view: ActorView, conn: Connection) -> None:
 
 		return
 
-	if view.instance:
-		with conn.transaction():
+	with view.database.connection(False) as conn:
+		if view.instance:
 			if not view.instance['software']:
 				if (nodeinfo := await view.client.fetch_nodeinfo(view.instance['domain'])):
 					view.instance = conn.update_inbox(
@@ -195,5 +195,5 @@ async def run_processor(view: ActorView, conn: Connection) -> None:
 					actor = view.actor.id
 				)
 
-	logging.verbose('New "%s" from actor: %s', view.message.type, view.actor.id)
-	await processors[view.message.type](view, conn)
+		logging.verbose('New "%s" from actor: %s', view.message.type, view.actor.id)
+		await processors[view.message.type](view, conn)
