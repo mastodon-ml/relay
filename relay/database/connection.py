@@ -3,8 +3,10 @@ from __future__ import annotations
 import tinysql
 import typing
 
+from argon2 import PasswordHasher
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from .config import CONFIG_DEFAULTS, get_default_type, get_default_value, serialize, deserialize
 
@@ -28,6 +30,10 @@ RELAY_SOFTWARE = [
 
 
 class Connection(tinysql.Connection):
+	hasher = PasswordHasher(
+		encoding = 'utf-8'
+	)
+
 	@property
 	def app(self) -> Application:
 		return get_app()
@@ -160,6 +166,59 @@ class Connection(tinysql.Connection):
 				raise ValueError('More than one row was modified')
 
 			return cur.modified_row_count == 1
+
+
+	def get_user(self, value: str) -> Row:
+		with self.exec_statement('get-user', {'value': value}) as cur:
+			return cur.one()
+
+
+	def get_user_by_token(self, code: str) -> Row:
+		with self.exec_statement('get-user-by-token', {'code': code}) as cur:
+			return cur.one()
+
+
+	def put_user(self, username: str, password: str, handle: str | None = None) -> Row:
+		data = {
+			'username': username,
+			'hash': self.hasher.hash(password),
+			'handle': handle,
+			'created': datetime.now(tz = timezone.utc)
+		}
+
+		with self.exec_statement('put-user', data) as cur:
+			return cur.one()
+
+
+	def del_user(self, username: str) -> None:
+		user = self.get_user(username)
+
+		with self.exec_statement('del-user', {'value': user['username']}):
+			pass
+
+		with self.exec_statement('del-token-user', {'username': user['username']}):
+			pass
+
+
+	def get_token(self, code: str) -> Row:
+		with self.exec_statement('get-token', {'code': code}) as cur:
+			return cur.one()
+
+
+	def put_token(self, username: str) -> Row:
+		data = {
+			'code': uuid4().hex,
+			'user': username,
+			'created': datetime.now(tz = timezone.utc)
+		}
+
+		with self.exec_statement('put-token', data) as cur:
+			return cur.one()
+
+
+	def del_token(self, code: str) -> None:
+		with self.exec_statement('del-token', {'code': code}):
+			pass
 
 
 	def get_domain_ban(self, domain: str) -> Row:

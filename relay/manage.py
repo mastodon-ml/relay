@@ -370,6 +370,112 @@ def cli_config_set(ctx: click.Context, key: str, value: Any) -> None:
 	print(f'{key}: {repr(new_value)}')
 
 
+@cli.group('user')
+def cli_user() -> None:
+	'Manage local users'
+
+
+@cli_user.command('list')
+@click.pass_context
+def cli_user_list(ctx: click.Context) -> None:
+	'List all local users'
+
+	click.echo('Users:')
+
+	with ctx.obj.database.connection() as conn:
+		for user in conn.execute('SELECT * FROM users'):
+			click.echo(f'- {user["username"]}')
+
+
+@cli_user.command('create')
+@click.argument('username')
+@click.argument('handle', required = False)
+@click.pass_context
+def cli_user_create(ctx: click.Context, username: str, handle: str) -> None:
+	'Create a new local user'
+
+	with ctx.obj.database.connection() as conn:
+		if conn.get_user(username):
+			click.echo(f'User already exists: {username}')
+			return
+
+		while True:
+			if not (password := click.prompt('New password', hide_input = True)):
+				click.echo('No password provided')
+				continue
+
+			if password != click.prompt('New password again', hide_input = True):
+				click.echo('Passwords do not match')
+				continue
+
+			break
+
+		conn.put_user(username, password, handle)
+
+	click.echo(f'Created user "{username}"')
+
+
+@cli_user.command('delete')
+@click.argument('username')
+@click.pass_context
+def cli_user_delete(ctx: click.Context, username: str) -> None:
+	'Delete a local user'
+
+	with ctx.obj.database.connection() as conn:
+		if not conn.get_user(username):
+			click.echo(f'User does not exist: {username}')
+			return
+
+		conn.del_user(username)
+
+	click.echo(f'Deleted user "{username}"')
+
+
+@cli_user.command('list-tokens')
+@click.argument('username')
+@click.pass_context
+def cli_user_list_tokens(ctx: click.Context, username: str) -> None:
+	'List all API tokens for a user'
+
+	click.echo(f'Tokens for "{username}":')
+
+	with ctx.obj.database.connection() as conn:
+		for token in conn.execute('SELECT * FROM tokens WHERE user = :user', {'user': username}):
+			click.echo(f'- {token["code"]}')
+
+
+@cli_user.command('create-token')
+@click.argument('username')
+@click.pass_context
+def cli_user_create_token(ctx: click.Context, username: str) -> None:
+	'Create a new API token for a user'
+
+	with ctx.obj.database.connection() as conn:
+		if not (user := conn.get_user(username)):
+			click.echo(f'User does not exist: {username}')
+			return
+
+		token = conn.put_token(user['username'])
+
+	click.echo(f'New token for "{username}": {token["code"]}')
+
+
+@cli_user.command('delete-token')
+@click.argument('code')
+@click.pass_context
+def cli_user_delete_token(ctx: click.Context, code: str) -> None:
+	'Delete an API token'
+
+	with ctx.obj.database.connection() as conn:
+		if not conn.get_token(code):
+			click.echo('Token does not exist')
+			return
+
+		conn.del_token(code)
+
+	click.echo('Deleted token')
+
+
 @cli.group('inbox')
 def cli_inbox() -> None:
 	'Manage the inboxes in the database'

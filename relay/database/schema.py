@@ -10,7 +10,7 @@ if typing.TYPE_CHECKING:
 	from collections.abc import Callable
 
 
-VERSIONS: list[Callable] = []
+VERSIONS: dict[int, Callable] = {}
 TABLES: list[Table] = [
 	Table(
 		'config',
@@ -45,12 +45,25 @@ TABLES: list[Table] = [
 		Column('reason', 'text'),
 		Column('note', 'text'),
 		Column('created', 'timestamp', nullable = False)
+	),
+	Table(
+		'users',
+		Column('username', 'text', primary_key = True, unique = True, nullable = False),
+		Column('hash', 'text', nullable = False),
+		Column('handle', 'text'),
+		Column('created', 'timestamp', nullable = False)
+	),
+	Table(
+		'tokens',
+		Column('code', 'text', primary_key = True, unique = True, nullable = False),
+		Column('user', 'text', nullable = False),
+		Column('created', 'timestmap', nullable = False)
 	)
 ]
 
 
-def version(func: Callable) -> Callable:
-	ver = int(func.replace('migrate_', ''))
+def migration(func: Callable) -> Callable:
+	ver = int(func.__name__.replace('migrate_', ''))
 	VERSIONS[ver] = func
 	return func
 
@@ -58,3 +71,8 @@ def version(func: Callable) -> Callable:
 def migrate_0(conn: Connection) -> None:
 	conn.create_tables(TABLES)
 	conn.put_config('schema-version', get_default_value('schema-version'))
+
+
+@migration
+def migrate_20240206(conn: Connection) -> None:
+	conn.create_tables(TABLES)
