@@ -102,14 +102,13 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 		view.instance = conn.update_inbox(view.actor.shared_inbox, followid = view.message.id)
 
 	else:
-		with conn.transaction():
-			view.instance = conn.put_inbox(
-				view.actor.domain,
-				view.actor.shared_inbox,
-				view.actor.id,
-				view.message.id,
-				software
-			)
+		view.instance = conn.put_inbox(
+			view.actor.domain,
+			view.actor.shared_inbox,
+			view.actor.id,
+			view.message.id,
+			software
+		)
 
 	view.app.push_message(
 		view.actor.shared_inbox,
@@ -141,13 +140,16 @@ async def handle_undo(view: ActorView, conn: Connection) -> None:
 		await handle_forward(view, conn)
 		return
 
-	with conn.transaction():
-		if not conn.del_inbox(view.actor.id):
-			logging.verbose(
-				'Failed to delete "%s" with follow ID "%s"',
-				view.actor.id,
-				view.message.object['id']
-			)
+	# prevent past unfollows from removing an instance
+	if view.instance['followid'] and view.instance['followid'] != view.message.object_id:
+		return
+
+	if not conn.del_inbox(view.actor.id):
+		logging.verbose(
+			'Failed to delete "%s" with follow ID "%s"',
+			view.actor.id,
+			view.message.object['id']
+		)
 
 	view.app.push_message(
 		view.actor.shared_inbox,
