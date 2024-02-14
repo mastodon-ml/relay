@@ -180,7 +180,7 @@ async def run_processor(view: ActorView) -> None:
 
 		return
 
-	with view.database.connection(False) as conn:
+	with view.database.connection(True) as conn:
 		if view.instance:
 			if not view.instance['software']:
 				if (nodeinfo := await view.client.fetch_nodeinfo(view.instance['domain'])):
