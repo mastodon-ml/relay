@@ -11,7 +11,6 @@ import typing
 from aiohttp import web
 from aputils.signer import Signer
 from datetime import datetime, timedelta
-from gunicorn.app.wsgiapp import WSGIApplication
 
 from . import logger as logging
 from .cache import get_cache
@@ -23,9 +22,7 @@ from .views import VIEWS
 from .views.api import handle_api_path
 
 if typing.TYPE_CHECKING:
-	from collections.abc import Awaitable
 	from tinysql import Database, Row
-	from typing import Any
 	from .cache import Cache
 	from .misc import Message
 

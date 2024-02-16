@@ -17,7 +17,6 @@ if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
 	from aputils.signer import Signer
 	from tinysql import Row
-	from ..database.connection import Connection
 
 
 # pylint: disable=unused-argument

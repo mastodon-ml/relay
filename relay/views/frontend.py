@@ -4,15 +4,10 @@ import typing
 
 from .base import View, register_route
 
-from .. import __version__
 from ..misc import Response
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
-	from aputils.signer import Signer
-	from collections.abc import Callable
-	from tinysql import Row
-	from ..database.connection import Connection
 
 
 HOME_TEMPLATE = """

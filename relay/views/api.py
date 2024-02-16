@@ -17,7 +17,6 @@ from ..misc import Message, Response
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
 	from collections.abc import Coroutine
-	from ..database.connection import Connection
 
 
 CONFIG_IGNORE = (

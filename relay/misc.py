@@ -10,14 +10,8 @@ from aputils.message import Message as ApMessage
 from uuid import uuid4
 
 if typing.TYPE_CHECKING:
-	from collections.abc import Awaitable, Coroutine, Generator
-	from tinysql import Connection
 	from typing import Any
 	from .application import Application
-	from .cache import Cache
-	from .config import Config
-	from .database import Database
-	from .http_client import HttpClient
 
 
 IS_DOCKER = bool(os.environ.get('DOCKER_RUNNING'))

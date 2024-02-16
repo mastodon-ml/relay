@@ -15,7 +15,6 @@ from .misc import Message, boolean
 if typing.TYPE_CHECKING:
 	from typing import Any
 	from collections.abc import Callable, Iterator
-	from tinysql import Database
 	from .application import Application
 
 

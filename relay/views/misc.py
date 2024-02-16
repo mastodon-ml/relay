@@ -13,7 +13,6 @@ from ..misc import Response
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
-	from ..database.connection import Connection
 
 
 VERSION = __version__
