@@ -57,6 +57,7 @@ class Application(web.Application):
 			return
 
 		self.on_response_prepare.append(handle_access_log)
+		self.on_cleanup.append(handle_cleanup)
 
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
@@ -172,30 +173,8 @@ class Application(web.Application):
 		self.set_signal_handler(False)
 		self['proc'] = None
 
-
-# not used, but keeping just in case
-class GunicornRunner(WSGIApplication):
-	def __init__(self, app: Application):
-		self.app = app
-		self.app_uri = 'relay.application:main_gunicorn'
-		self.options = {
-			'bind': f'{app.config.listen}:{app.config.port}',
-			'worker_class': 'aiohttp.GunicornWebWorker',
-			'workers': app.config.workers,
-			'raw_env': f'CONFIG_FILE={app.config.path}'
-		}
-
-		WSGIApplication.__init__(self)
-
-
-	def load_config(self):
-		for key, value in self.options.items():
-			self.cfg.set(key, value)
-
-
-	def run(self):
-		logging.info('Starting webserver for %s', self.app.config.domain)
-		WSGIApplication.run(self)
+		self.cache.close()
+		self.database.close()
 
 
 async def handle_access_log(request: web.Request, response: web.Response) -> None:
@@ -216,6 +195,12 @@ async def handle_access_log(request: web.Request, response: web.Response) -> Non
 		len(response.body),
 		request.headers.get('User-Agent', 'n/a')
 	)
+
+
+async def handle_cleanup(app: Application) -> None:
+	await app.client.close()
+	app.cache.close()
+	app.database.close()
 
 
 async def main_gunicorn():
