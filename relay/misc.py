@@ -209,7 +209,7 @@ class Response(AiohttpResponse):
 				ctype: str = 'text') -> Response:
 
 		if ctype == 'json':
-			body = json.dumps({'status': status, 'error': body})
+			body = json.dumps({'error': body})
 
 		return cls.new(body=body, status=status, ctype=ctype)
 
