@@ -11,6 +11,7 @@ import typing
 from aiohttp import web
 from aputils.signer import Signer
 from datetime import datetime, timedelta
+from threading import Event, Thread
 
 from . import logger as logging
 from .cache import get_cache
@@ -44,6 +45,7 @@ class Application(web.Application):
 		self['proc'] = None
 		self['signer'] = None
 		self['start_time'] = None
+		self['cleanup_thread'] = None
 
 		self['config'] = Config(cfgpath, load = True)
 		self['database'] = get_database(self.config)
@@ -150,12 +152,15 @@ class Application(web.Application):
 
 		self.set_signal_handler(True)
 		self['proc'] = subprocess.Popen(cmd)  # pylint: disable=consider-using-with
+		self['cleanup_thread'] = CacheCleanupThread(self)
+		self['cleanup_thread'].start()
 
 
 	def stop(self, *_) -> None:
 		if not self['proc']:
 			return
 
+		self['cleanup_thread'].stop()
 		self['proc'].terminate()
 		time_wait = 0.0
 
@@ -172,6 +177,34 @@ class Application(web.Application):
 
 		self.cache.close()
 		self.database.close()
+
+
+class CacheCleanupThread(Thread):
+	def __init__(self, app: Application):
+		Thread.__init__(self)
+
+		self.app = app
+		self.running = Event()
+
+
+	def run(self) -> None:
+		cache = get_cache(self.app)
+
+		while self.running.is_set():
+			time.sleep(3600)
+			logging.verbose("Removing old cache items")
+			cache.delete_old(14)
+
+		cache.close()
+
+
+	def start(self) -> None:
+		self.running.set()
+		Thread.start(self)
+
+
+	def stop(self) -> None:
+		self.running.clear()
 
 
 async def handle_access_log(request: web.Request, response: web.Response) -> None:
