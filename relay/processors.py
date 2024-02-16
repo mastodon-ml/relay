@@ -98,17 +98,18 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 		logging.verbose('Non-application actor tried to follow: %s', view.actor.id)
 		return
 
-	if conn.get_inbox(view.actor.shared_inbox):
-		view.instance = conn.update_inbox(view.actor.shared_inbox, followid = view.message.id)
+	with conn.transaction():
+		if conn.get_inbox(view.actor.shared_inbox):
+			view.instance = conn.update_inbox(view.actor.shared_inbox, followid = view.message.id)
 
-	else:
-		view.instance = conn.put_inbox(
-			view.actor.domain,
-			view.actor.shared_inbox,
-			view.actor.id,
-			view.message.id,
-			software
-		)
+		else:
+			view.instance = conn.put_inbox(
+				view.actor.domain,
+				view.actor.shared_inbox,
+				view.actor.id,
+				view.message.id,
+				software
+			)
 
 	view.app.push_message(
 		view.actor.shared_inbox,
@@ -144,12 +145,13 @@ async def handle_undo(view: ActorView, conn: Connection) -> None:
 	if view.instance['followid'] and view.instance['followid'] != view.message.object_id:
 		return
 
-	if not conn.del_inbox(view.actor.id):
-		logging.verbose(
-			'Failed to delete "%s" with follow ID "%s"',
-			view.actor.id,
-			view.message.object['id']
-		)
+	with conn.transaction():
+		if not conn.del_inbox(view.actor.id):
+			logging.verbose(
+				'Failed to delete "%s" with follow ID "%s"',
+				view.actor.id,
+				view.message.object['id']
+			)
 
 	view.app.push_message(
 		view.actor.shared_inbox,
@@ -182,20 +184,22 @@ async def run_processor(view: ActorView) -> None:
 
 		return
 
-	with view.database.connection(True) as conn:
+	with view.database.connection(False) as conn:
 		if view.instance:
 			if not view.instance['software']:
 				if (nodeinfo := await view.client.fetch_nodeinfo(view.instance['domain'])):
-					view.instance = conn.update_inbox(
-						view.instance['inbox'],
-						software = nodeinfo.sw_name
-					)
+					with conn.transaction():
+						view.instance = conn.update_inbox(
+							view.instance['inbox'],
+							software = nodeinfo.sw_name
+						)
 
 			if not view.instance['actor']:
-				view.instance = conn.update_inbox(
-					view.instance['inbox'],
-					actor = view.actor.id
-				)
+				with conn.transaction():
+					view.instance = conn.update_inbox(
+						view.instance['inbox'],
+						actor = view.actor.id
+					)
 
 		logging.verbose('New "%s" from actor: %s', view.message.type, view.actor.id)
 		await processors[view.message.type](view, conn)
