@@ -67,7 +67,7 @@ async def handle_api_path(request: web.Request, handler: Coroutine) -> web.Respo
 @register_route('/api/v1/token')
 class Login(View):
 	async def get(self, request: Request) -> Response:
-		return Response.new({'message': 'Token valid :3'})
+		return Response.new({'message': 'Token valid'})
 
 
 	async def post(self, request: Request) -> Response:
