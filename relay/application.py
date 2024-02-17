@@ -9,6 +9,7 @@ import time
 import typing
 
 from aiohttp import web
+from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
 from datetime import datetime, timedelta
 from threading import Event, Thread
@@ -21,6 +22,12 @@ from .http_client import HttpClient
 from .misc import check_open_port
 from .views import VIEWS
 from .views.api import handle_api_path
+
+try:
+	from importlib.resources import files as pkgfiles
+
+except ImportError:
+	from importlib_resources import files as pkgfiles
 
 if typing.TYPE_CHECKING:
 	from tinysql import Database, Row
@@ -60,6 +67,11 @@ class Application(web.Application):
 
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
+
+		setup_swagger(self,
+			ui_version = 3,
+			swagger_from_file = pkgfiles('relay').joinpath('data', 'swagger.yaml')
+		)
 
 
 	@property
@@ -144,7 +156,9 @@ class Application(web.Application):
 			'--bind', f'{self.config.listen}:{self.config.port}',
 			'--worker-class', 'aiohttp.GunicornWebWorker',
 			'--workers', str(self.config.workers),
-			'--env', f'CONFIG_FILE={self.config.path}'
+			'--env', f'CONFIG_FILE={self.config.path}',
+			'--reload-extra-file', pkgfiles('relay').joinpath('data', 'swagger.yaml'),
+			'--reload-extra-file', pkgfiles('relay').joinpath('data', 'statements.sql')
 		]
 
 		if dev:
@@ -222,7 +236,7 @@ async def handle_access_log(request: web.Request, response: web.Response) -> Non
 		request.method,
 		request.path,
 		response.status,
-		len(response.body),
+		response.content_length or 0,
 		request.headers.get('User-Agent', 'n/a')
 	)
 

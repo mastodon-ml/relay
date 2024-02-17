@@ -7,5 +7,3 @@ ActivityRelay is a small ActivityPub server that relays messages to subscribed i
 [Configuration](configuration.md)
 
 [Commands](commands.md)
-
-[API](api.md)

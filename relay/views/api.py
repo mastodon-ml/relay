@@ -34,7 +34,7 @@ PUBLIC_API_PATHS: tuple[tuple[str, str]] = (
 
 
 def check_api_path(method: str, path: str) -> bool:
-	if (method, path) in PUBLIC_API_PATHS:
+	if path.startswith('/api/doc') or (method, path) in PUBLIC_API_PATHS:
 		return False
 
 	return path.startswith('/api')
@@ -42,6 +42,8 @@ def check_api_path(method: str, path: str) -> bool:
 
 @web.middleware
 async def handle_api_path(request: web.Request, handler: Coroutine) -> web.Response:
+	print("Authorization:", request.headers.get('Authorization'))
+
 	try:
 		request['token'] = request.headers['Authorization'].replace('Bearer', '').strip()
 
@@ -67,7 +69,7 @@ async def handle_api_path(request: web.Request, handler: Coroutine) -> web.Respo
 @register_route('/api/v1/token')
 class Login(View):
 	async def get(self, request: Request) -> Response:
-		return Response.new({'message': 'Token valid'})
+		return Response.new({'message': 'Token valid'}, ctype = 'json')
 
 
 	async def post(self, request: Request) -> Response:
@@ -213,28 +215,14 @@ class Inbox(View):
 		return Response.new(row, ctype = 'json')
 
 
-@register_route('/api/v1/instance/{domain}')
-class InboxSingle(View):
-	async def get(self, request: Request, domain: str) -> Response:
-		with self.database.connection(False) as conn:
-			if not (row := conn.get_inbox(domain)):
-				return Response.new_error(404, 'Instance with domain not found', 'json')
-
-		row['created'] = datetime.fromtimestamp(row['created'], tz = timezone.utc).isoformat()
-		return Response.new(row, ctype = 'json')
-
-
-	async def patch(self, request: Request, domain: str) -> Response:
+	async def patch(self, request: Request) -> Response:
 		with self.database.connection(True) as conn:
-			if not conn.get_inbox(domain):
-				return Response.new_error(404, 'Instance with domain not found', 'json')
-
-			data = await self.get_api_data([], ['actor', 'software', 'followid'])
+			data = await self.get_api_data(['domain'], ['actor', 'software', 'followid'])
 
 			if isinstance(data, Response):
 				return data
 
-			if not (instance := conn.get_inbox(domain)):
+			if not (instance := conn.get_inbox(data['domain'])):
 				return Response.new_error(404, 'Instance with domain not found', 'json')
 
 			instance = conn.update_inbox(instance['inbox'], **data)
@@ -244,10 +232,15 @@ class InboxSingle(View):
 
 	async def delete(self, request: Request, domain: str) -> Response:
 		with self.database.connection(True) as conn:
-			if not conn.get_inbox(domain):
+			data = await self.get_api_data(['domain'], [])
+
+			if isinstance(data, Response):
+				return data
+
+			if not conn.get_inbox(data['domain']):
 				return Response.new_error(404, 'Instance with domain not found', 'json')
 
-			conn.del_inbox(domain)
+			conn.del_inbox(data['domain'])
 
 		return Response.new({'message': 'Deleted instance'}, ctype = 'json')
 
@@ -276,40 +269,35 @@ class DomainBan(View):
 		return Response.new(ban, ctype = 'json')
 
 
-@register_route('/api/v1/domain_ban/{domain}')
-class DomainBanSingle(View):
-	async def get(self, request: Request, domain: str) -> Response:
-		with self.database.connection(False) as conn:
-			if not (ban := conn.get_domain_ban(domain)):
-				return Response.new_error(404, 'Domain ban not found', 'json')
-
-		return Response.new(ban, ctype = 'json')
-
-
-	async def patch(self, request: Request, domain: str) -> Response:
+	async def patch(self, request: Request) -> Response:
 		with self.database.connection(True) as conn:
-			if not conn.get_domain_ban(domain):
-				return Response.new_error(404, 'Domain not banned', 'json')
-
-			data = await self.get_api_data([], ['note', 'reason'])
+			data = await self.get_api_data(['domain'], ['note', 'reason'])
 
 			if isinstance(data, Response):
 				return data
 
+			if not conn.get_domain_ban(data['domain']):
+				return Response.new_error(404, 'Domain not banned', 'json')
+
 			if not any([data.get('note'), data.get('reason')]):
 				return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
 
-			ban = conn.update_domain_ban(domain, **data)
+			ban = conn.update_domain_ban(data['domain'], **data)
 
 		return Response.new(ban, ctype = 'json')
 
 
-	async def delete(self, request: Request, domain: str) -> Response:
+	async def delete(self, request: Request) -> Response:
 		with self.database.connection(True) as conn:
-			if not conn.get_domain_ban(domain):
+			data = await self.get_api_data(['domain'], [])
+
+			if isinstance(data, Response):
+				return data
+
+			if not conn.get_domain_ban(data['domain']):
 				return Response.new_error(404, 'Domain not banned', 'json')
 
-			conn.del_domain_ban(domain)
+			conn.del_domain_ban(data['domain'])
 
 		return Response.new({'message': 'Unbanned domain'}, ctype = 'json')
 
@@ -338,40 +326,35 @@ class SoftwareBan(View):
 		return Response.new(ban, ctype = 'json')
 
 
-@register_route('/api/v1/software_ban/{name}')
-class SoftwareBanSingle(View):
-	async def get(self, request: Request, name: str) -> Response:
-		with self.database.connection(False) as conn:
-			if not (ban := conn.get_software_ban(name)):
-				return Response.new_error(404, 'Software ban not found', 'json')
+	async def patch(self, request: Request) -> Response:
+		data = await self.get_api_data(['name'], ['note', 'reason'])
 
-		return Response.new(ban, ctype = 'json')
+		if isinstance(data, Response):
+			return data
 
-
-	async def patch(self, request: Request, name: str) -> Response:
 		with self.database.connection(True) as conn:
-			if not conn.get_software_ban(name):
+			if not conn.get_software_ban(data['name']):
 				return Response.new_error(404, 'Software not banned', 'json')
-
-			data = await self.get_api_data([], ['note', 'reason'])
-
-			if isinstance(data, Response):
-				return data
 
 			if not any([data.get('note'), data.get('reason')]):
 				return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
 
-			ban = conn.update_software_ban(name, **data)
+			ban = conn.update_software_ban(data['name'], **data)
 
 		return Response.new(ban, ctype = 'json')
 
 
-	async def delete(self, request: Request, name: str) -> Response:
+	async def delete(self, request: Request) -> Response:
+		data = await self.get_api_data(['name'], [])
+
+		if isinstance(data, Response):
+			return data
+
 		with self.database.connection(True) as conn:
-			if not conn.get_software_ban(name):
+			if not conn.get_software_ban(data['name']):
 				return Response.new_error(404, 'Software not banned', 'json')
 
-			conn.del_software_ban(name)
+			conn.del_software_ban(data['name'])
 
 		return Response.new({'message': 'Unbanned software'}, ctype = 'json')
 
@@ -400,21 +383,16 @@ class Whitelist(View):
 		return Response.new(item, ctype = 'json')
 
 
-@register_route('/api/v1/domain/{domain}')
-class WhitelistSingle(View):
-	async def get(self, request: Request, domain: str) -> Response:
+	async def delete(self, request: Request) -> Response:
+		data = await self.get_api_data(['domain'], [])
+
+		if isinstance(data, Response):
+			return data
+
 		with self.database.connection(False) as conn:
-			if not (item := conn.get_domain_whitelist(domain)):
+			if not conn.get_domain_whitelist(data['domain']):
 				return Response.new_error(404, 'Domain not in whitelist', 'json')
 
-		return Response.new(item, ctype = 'json')
-
-
-	async def delete(self, request: Request, domain: str) -> Response:
-		with self.database.connection(False) as conn:
-			if not conn.get_domain_whitelist(domain):
-				return Response.new_error(404, 'Domain not in whitelist', 'json')
-
-			conn.del_domain_whitelist(domain)
+			conn.del_domain_whitelist(data['domain'])
 
 		return Response.new({'message': 'Removed domain from whitelist'}, ctype = 'json')
