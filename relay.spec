@@ -1,7 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
+import importlib
+from pathlib import Path
 
 
 block_cipher = None
+aiohttp_swagger_path = Path(importlib.import_module('aiohttp_swagger').__file__).parent
 
 
 a = Analysis(
@@ -9,9 +12,13 @@ a = Analysis(
 	pathex=[],
 	binaries=[],
 	datas=[
-		('relay/data', 'relay/data')
+		('relay/data', 'relay/data'),
+		(aiohttp_swagger_path, 'aiohttp_swagger')
 	],
-	hiddenimports=[],
+	hiddenimports=[
+		'gunicorn',
+		'gunicorn.glogging'
+	],
 	hookspath=[],
 	hooksconfig={},
 	runtime_hooks=[],

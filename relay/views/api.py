@@ -42,8 +42,6 @@ def check_api_path(method: str, path: str) -> bool:
 
 @web.middleware
 async def handle_api_path(request: web.Request, handler: Coroutine) -> web.Response:
-	print("Authorization:", request.headers.get('Authorization'))
-
 	try:
 		request['token'] = request.headers['Authorization'].replace('Bearer', '').strip()
 

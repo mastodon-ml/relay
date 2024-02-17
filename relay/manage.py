@@ -4,9 +4,12 @@ import Crypto
 import asyncio
 import click
 import platform
+import subprocess
+import sys
 import typing
 
 from aputils.signer import Signer
+from gunicorn.app.wsgiapp import WSGIApplication
 from pathlib import Path
 from shutil import copyfile
 from urllib.parse import urlparse
@@ -234,7 +237,19 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 		click.echo(pip_command)
 		return
 
+	if getattr(sys, 'frozen', False):
+		subprocess.run([sys.executable, 'run-gunicorn'], check = False)
+		return
+
 	ctx.obj.run(dev)
+
+
+@cli.command('run-gunicorn')
+@click.pass_context
+def cli_run_gunicorn(ctx: click.Context) -> None:
+	runner = GunicornRunner(ctx.obj)
+	runner.run()
+
 
 
 @cli.command('convert')
@@ -901,6 +916,31 @@ def cli_whitelist_import(ctx: click.Context) -> None:
 			conn.put_domain_whitelist(inbox['domain'])
 
 		click.echo('Imported whitelist from inboxes')
+
+
+class GunicornRunner(WSGIApplication):
+	def __init__(self, app: Application):
+		self.app = app
+		self.app_uri = 'relay.application:main_gunicorn'
+		self.options = {
+			'bind': f'{app.config.listen}:{app.config.port}',
+			'worker_class': 'aiohttp.GunicornWebWorker',
+			'workers': app.config.workers,
+			'raw_env': f'CONFIG_FILE={app.config.path}'
+		}
+
+		WSGIApplication.__init__(self)
+
+
+	def load_config(self):
+		for key, value in self.options.items():
+			self.cfg.set(key, value)
+
+
+	def run(self):
+		logging.info('Starting webserver for %s', self.app.config.domain)
+		WSGIApplication.run(self)
+
 
 
 def main() -> None:
