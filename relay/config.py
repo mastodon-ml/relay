@@ -188,9 +188,7 @@ class Config:
 			raise KeyError(key)
 
 		if key in {'port', 'pg_port', 'workers'} and not isinstance(value, int):
-			value = int(value)
-
-			if value < 1:
+			if (value := int(value)) < 1:
 				if key == 'port':
 					value = 8080
 
