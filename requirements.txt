@@ -7,6 +7,6 @@ gunicorn==21.1.0
 hiredis==2.3.2
 pyyaml>=6.0
 redis==5.0.1
-tinysql[postgres]@https://git.barkshark.xyz/barkshark/tinysql/archive/f8db814084dded0a46bd3a9576e09fca860f2166.tar.gz
+tinysql[postgres]@https://git.barkshark.xyz/barkshark/tinysql/archive/main.tar.gz
 
 importlib_resources==6.1.1;python_version<'3.9'
