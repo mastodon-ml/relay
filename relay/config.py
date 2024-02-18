@@ -190,4 +190,14 @@ class Config:
 		if key in {'port', 'pg_port', 'workers'} and not isinstance(value, int):
 			value = int(value)
 
+			if value < 1:
+				if key == 'port':
+					value = 8080
+
+				elif key == 'pg_port':
+					value = 5432
+
+				elif key == 'workers':
+					value = len(os.sched_getaffinity(0))
+
 		setattr(self, key, value)
