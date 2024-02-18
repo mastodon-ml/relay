@@ -19,11 +19,10 @@ proxy is on the same host.
 	port: 8080
 
 
-### Push Workers
+### Web Workers
 
-The relay can be configured to use threads to push messages out. For smaller relays, this isn't
-necessary, but bigger ones (>100 instances) will want to set this to the number of available cpu
-threads.
+The number of processes to spawn for handling web requests. Leave it at 0 to automatically detect
+how many processes should be spawned.
 
 	workers: 0
 
