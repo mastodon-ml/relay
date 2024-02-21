@@ -46,7 +46,7 @@ class ActorView(View):
 		if response := await self.get_post_data():
 			return response
 
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			self.instance = conn.get_inbox(self.actor.shared_inbox)
 			config = conn.get_config_all()
 

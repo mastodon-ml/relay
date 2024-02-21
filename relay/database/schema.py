@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 
-from tinysql import Column, Connection, Table
+from bsql import Column, Connection, Table, Tables
 
 from .config import get_default_value
 
@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
 
 
 VERSIONS: dict[int, Callable] = {}
-TABLES: list[Table] = [
+TABLES: Tables = Tables(
 	Table(
 		'config',
 		Column('key', 'text', primary_key = True, unique = True, nullable = False),
@@ -59,7 +59,7 @@ TABLES: list[Table] = [
 		Column('user', 'text', nullable = False),
 		Column('created', 'timestmap', nullable = False)
 	)
-]
+)
 
 
 def migration(func: Callable) -> Callable:
@@ -69,10 +69,10 @@ def migration(func: Callable) -> Callable:
 
 
 def migrate_0(conn: Connection) -> None:
-	conn.create_tables(TABLES)
+	conn.create_tables()
 	conn.put_config('schema-version', get_default_value('schema-version'))
 
 
 @migration
 def migrate_20240206(conn: Connection) -> None:
-	conn.create_tables(TABLES)
+	conn.create_tables()

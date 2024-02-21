@@ -45,7 +45,7 @@ async def handle_api_path(request: web.Request, handler: Coroutine) -> web.Respo
 	try:
 		request['token'] = request.headers['Authorization'].replace('Bearer', '').strip()
 
-		with request.app.database.connection() as conn:
+		with request.app.database.session() as conn:
 			request['user'] = conn.get_user_by_token(request['token'])
 
 	except (KeyError, ValueError):
@@ -92,7 +92,7 @@ class Login(View):
 
 
 	async def delete(self, request: Request) -> Response:
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			conn.del_token(request['token'])
 
 		return Response.new({'message': 'Token revoked'}, ctype = 'json')
@@ -101,7 +101,7 @@ class Login(View):
 @register_route('/api/v1/relay')
 class RelayInfo(View):
 	async def get(self, request: Request) -> Response:
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			config = conn.get_config_all()
 			inboxes = [row['domain'] for row in conn.execute('SELECT * FROM inboxes')]
 
@@ -123,7 +123,7 @@ class RelayInfo(View):
 @register_route('/api/v1/config')
 class Config(View):
 	async def get(self, request: Request) -> Response:
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			data = conn.get_config_all()
 			data['log-level'] = data['log-level'].name
 
@@ -142,7 +142,7 @@ class Config(View):
 		if data['key'] not in CONFIG_VALID:
 			return Response.new_error(400, 'Invalid key', 'json')
 
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			conn.put_config(data['key'], data['value'])
 
 		return Response.new({'message': 'Updated config'}, ctype = 'json')
@@ -157,7 +157,7 @@ class Config(View):
 		if data['key'] not in CONFIG_VALID:
 			return Response.new_error(400, 'Invalid key', 'json')
 
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			conn.put_config(data['key'], CONFIG_DEFAULTS[data['key']][1])
 
 		return Response.new({'message': 'Updated config'}, ctype = 'json')
@@ -168,15 +168,9 @@ class Inbox(View):
 	async def get(self, request: Request) -> Response:
 		data = []
 
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			for inbox in conn.execute('SELECT * FROM inboxes'):
-				try:
-					created = datetime.fromtimestamp(inbox['created'], tz = timezone.utc)
-
-				except TypeError:
-					created = datetime.fromisoformat(inbox['created'])
-
-				inbox['created'] = created.isoformat()
+				inbox['created'] = inbox['created'].isoformat()
 				data.append(inbox)
 
 		return Response.new(data, ctype = 'json')
@@ -190,7 +184,7 @@ class Inbox(View):
 
 		data['domain'] = urlparse(data["actor"]).netloc
 
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			if conn.get_inbox(data['domain']):
 				return Response.new_error(404, 'Instance already in database', 'json')
 
@@ -214,7 +208,7 @@ class Inbox(View):
 
 
 	async def patch(self, request: Request) -> Response:
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], ['actor', 'software', 'followid'])
 
 			if isinstance(data, Response):
@@ -229,7 +223,7 @@ class Inbox(View):
 
 
 	async def delete(self, request: Request, domain: str) -> Response:
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], [])
 
 			if isinstance(data, Response):
@@ -246,7 +240,7 @@ class Inbox(View):
 @register_route('/api/v1/domain_ban')
 class DomainBan(View):
 	async def get(self, request: Request) -> Response:
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			bans = conn.execute('SELECT * FROM domain_bans').all()
 
 		return Response.new(bans, ctype = 'json')
@@ -258,7 +252,7 @@ class DomainBan(View):
 		if isinstance(data, Response):
 			return data
 
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			if conn.get_domain_ban(data['domain']):
 				return Response.new_error(400, 'Domain already banned', 'json')
 
@@ -268,7 +262,7 @@ class DomainBan(View):
 
 
 	async def patch(self, request: Request) -> Response:
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], ['note', 'reason'])
 
 			if isinstance(data, Response):
@@ -286,7 +280,7 @@ class DomainBan(View):
 
 
 	async def delete(self, request: Request) -> Response:
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], [])
 
 			if isinstance(data, Response):
@@ -303,7 +297,7 @@ class DomainBan(View):
 @register_route('/api/v1/software_ban')
 class SoftwareBan(View):
 	async def get(self, request: Request) -> Response:
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			bans = conn.execute('SELECT * FROM software_bans').all()
 
 		return Response.new(bans, ctype = 'json')
@@ -315,7 +309,7 @@ class SoftwareBan(View):
 		if isinstance(data, Response):
 			return data
 
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			if conn.get_software_ban(data['name']):
 				return Response.new_error(400, 'Domain already banned', 'json')
 
@@ -330,7 +324,7 @@ class SoftwareBan(View):
 		if isinstance(data, Response):
 			return data
 
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			if not conn.get_software_ban(data['name']):
 				return Response.new_error(404, 'Software not banned', 'json')
 
@@ -348,7 +342,7 @@ class SoftwareBan(View):
 		if isinstance(data, Response):
 			return data
 
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			if not conn.get_software_ban(data['name']):
 				return Response.new_error(404, 'Software not banned', 'json')
 
@@ -360,7 +354,7 @@ class SoftwareBan(View):
 @register_route('/api/v1/whitelist')
 class Whitelist(View):
 	async def get(self, request: Request) -> Response:
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			items = conn.execute('SELECT * FROM whitelist').all()
 
 		return Response.new(items, ctype = 'json')
@@ -372,7 +366,7 @@ class Whitelist(View):
 		if isinstance(data, Response):
 			return data
 
-		with self.database.connection(True) as conn:
+		with self.database.session() as conn:
 			if conn.get_domain_whitelist(data['domain']):
 				return Response.new_error(400, 'Domain already added to whitelist', 'json')
 
@@ -387,7 +381,7 @@ class Whitelist(View):
 		if isinstance(data, Response):
 			return data
 
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			if not conn.get_domain_whitelist(data['domain']):
 				return Response.new_error(404, 'Domain not in whitelist', 'json')
 

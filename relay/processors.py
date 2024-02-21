@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 
 from . import logger as logging
-from .database.connection import Connection
+from .database import Connection
 from .misc import Message
 
 if typing.TYPE_CHECKING:
@@ -43,8 +43,8 @@ async def handle_relay(view: ActorView, conn: Connection) -> None:
 
 async def handle_forward(view: ActorView, conn: Connection) -> None:
 	try:
-		view.cache.get('handle-relay', view.message.object_id)
-		logging.verbose('already forwarded %s', view.message.object_id)
+		view.cache.get('handle-relay', view.message.id)
+		logging.verbose('already forwarded %s', view.message.id)
 		return
 
 	except KeyError:
@@ -56,7 +56,7 @@ async def handle_forward(view: ActorView, conn: Connection) -> None:
 	for inbox in conn.distill_inboxes(view.message):
 		view.app.push_message(inbox, message, view.instance)
 
-	view.cache.set('handle-relay', view.message.object_id, message.id, 'str')
+	view.cache.set('handle-relay', view.message.id, message.id, 'str')
 
 
 async def handle_follow(view: ActorView, conn: Connection) -> None:
@@ -184,7 +184,7 @@ async def run_processor(view: ActorView) -> None:
 
 		return
 
-	with view.database.connection(False) as conn:
+	with view.database.session() as conn:
 		if view.instance:
 			if not view.instance['software']:
 				if (nodeinfo := await view.client.fetch_nodeinfo(view.instance['domain'])):

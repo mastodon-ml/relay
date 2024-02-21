@@ -44,9 +44,9 @@ HOME_TEMPLATE = """
 @register_route('/')
 class HomeView(View):
 	async def get(self, request: Request) -> Response:
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			config = conn.get_config_all()
-			inboxes = conn.execute('SELECT * FROM inboxes').all()
+			inboxes = tuple(conn.execute('SELECT * FROM inboxes').all())
 
 		text = HOME_TEMPLATE.format(
 			host = self.config.domain,

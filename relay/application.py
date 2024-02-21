@@ -190,7 +190,7 @@ class Application(web.Application):
 		self['proc'] = None
 
 		self.cache.close()
-		self.database.close()
+		self.database.disconnect()
 
 
 class CacheCleanupThread(Thread):
@@ -202,14 +202,10 @@ class CacheCleanupThread(Thread):
 
 
 	def run(self) -> None:
-		cache = get_cache(self.app)
-
 		while self.running.is_set():
 			time.sleep(3600)
 			logging.verbose("Removing old cache items")
-			cache.delete_old(14)
-
-		cache.close()
+			self.app.cache.delete_old(14)
 
 
 	def start(self) -> None:
@@ -244,7 +240,7 @@ async def handle_access_log(request: web.Request, response: web.Response) -> Non
 async def handle_cleanup(app: Application) -> None:
 	await app.client.close()
 	app.cache.close()
-	app.database.close()
+	app.database.disconnect()
 
 
 async def main_gunicorn():

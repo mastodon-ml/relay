@@ -33,7 +33,7 @@ if Path(__file__).parent.parent.joinpath('.git').exists():
 class NodeinfoView(View):
 	# pylint: disable=no-self-use
 	async def get(self, request: Request, niversion: str) -> Response:
-		with self.database.connection(False) as conn:
+		with self.database.session() as conn:
 			inboxes = conn.execute('SELECT * FROM inboxes').all()
 
 			data = {

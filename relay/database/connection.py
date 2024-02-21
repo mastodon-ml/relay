@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import tinysql
 import typing
 
 from argon2 import PasswordHasher
+from bsql import Connection as SqlConnection, Update
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -15,7 +15,7 @@ from ..misc import get_app
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Iterator
-	from tinysql import Cursor, Row
+	from bsql import Row
 	from typing import Any
 	from .application import Application
 	from ..misc import Message
@@ -29,7 +29,7 @@ RELAY_SOFTWARE = [
 ]
 
 
-class Connection(tinysql.Connection):
+class Connection(SqlConnection):
 	hasher = PasswordHasher(
 		encoding = 'utf-8'
 	)
@@ -50,15 +50,11 @@ class Connection(tinysql.Connection):
 				yield inbox['inbox']
 
 
-	def exec_statement(self, name: str, params: dict[str, Any] | None = None) -> Cursor:
-		return self.execute(self.database.prepared_statements[name], params)
-
-
 	def get_config(self, key: str) -> Any:
 		if key not in CONFIG_DEFAULTS:
 			raise KeyError(key)
 
-		with self.exec_statement('get-config', {'key': key}) as cur:
+		with self.run('get-config', {'key': key}) as cur:
 			if not (row := cur.one()):
 				return get_default_value(key)
 
@@ -69,7 +65,7 @@ class Connection(tinysql.Connection):
 
 
 	def get_config_all(self) -> dict[str, Any]:
-		with self.exec_statement('get-config-all') as cur:
+		with self.run('get-config-all', None) as cur:
 			db_config = {row['key']: row['value'] for row in cur}
 
 		config = {}
@@ -105,12 +101,12 @@ class Connection(tinysql.Connection):
 			'type': get_default_type(key)
 		}
 
-		with self.exec_statement('put-config', params):
+		with self.run('put-config', params):
 			return value
 
 
 	def get_inbox(self, value: str) -> Row:
-		with self.exec_statement('get-inbox', {'value': value}) as cur:
+		with self.run('get-inbox', {'value': value}) as cur:
 			return cur.one()
 
 
@@ -130,7 +126,7 @@ class Connection(tinysql.Connection):
 			'created': datetime.now(tz = timezone.utc)
 		}
 
-		with self.exec_statement('put-inbox', params) as cur:
+		with self.run('put-inbox', params) as cur:
 			return cur.one()
 
 
@@ -154,27 +150,28 @@ class Connection(tinysql.Connection):
 		if software:
 			data['software'] = software
 
-		statement = tinysql.Update('inboxes', data, inbox = inbox)
+		statement = Update('inboxes', data)
+		statement.set_where("inbox", inbox)
 
 		with self.query(statement):
 			return self.get_inbox(inbox)
 
 
 	def del_inbox(self, value: str) -> bool:
-		with self.exec_statement('del-inbox', {'value': value}) as cur:
-			if cur.modified_row_count > 1:
+		with self.run('del-inbox', {'value': value}) as cur:
+			if cur.row_count > 1:
 				raise ValueError('More than one row was modified')
 
-			return cur.modified_row_count == 1
+			return cur.row_count == 1
 
 
 	def get_user(self, value: str) -> Row:
-		with self.exec_statement('get-user', {'value': value}) as cur:
+		with self.run('get-user', {'value': value}) as cur:
 			return cur.one()
 
 
 	def get_user_by_token(self, code: str) -> Row:
-		with self.exec_statement('get-user-by-token', {'code': code}) as cur:
+		with self.run('get-user-by-token', {'code': code}) as cur:
 			return cur.one()
 
 
@@ -186,22 +183,22 @@ class Connection(tinysql.Connection):
 			'created': datetime.now(tz = timezone.utc)
 		}
 
-		with self.exec_statement('put-user', data) as cur:
+		with self.run('put-user', data) as cur:
 			return cur.one()
 
 
 	def del_user(self, username: str) -> None:
 		user = self.get_user(username)
 
-		with self.exec_statement('del-user', {'value': user['username']}):
+		with self.run('del-user', {'value': user['username']}):
 			pass
 
-		with self.exec_statement('del-token-user', {'username': user['username']}):
+		with self.run('del-token-user', {'username': user['username']}):
 			pass
 
 
 	def get_token(self, code: str) -> Row:
-		with self.exec_statement('get-token', {'code': code}) as cur:
+		with self.run('get-token', {'code': code}) as cur:
 			return cur.one()
 
 
@@ -212,12 +209,12 @@ class Connection(tinysql.Connection):
 			'created': datetime.now(tz = timezone.utc)
 		}
 
-		with self.exec_statement('put-token', data) as cur:
+		with self.run('put-token', data) as cur:
 			return cur.one()
 
 
 	def del_token(self, code: str) -> None:
-		with self.exec_statement('del-token', {'code': code}):
+		with self.run('del-token', {'code': code}):
 			pass
 
 
@@ -225,7 +222,7 @@ class Connection(tinysql.Connection):
 		if domain.startswith('http'):
 			domain = urlparse(domain).netloc
 
-		with self.exec_statement('get-domain-ban', {'domain': domain}) as cur:
+		with self.run('get-domain-ban', {'domain': domain}) as cur:
 			return cur.one()
 
 
@@ -241,14 +238,14 @@ class Connection(tinysql.Connection):
 			'created': datetime.now(tz = timezone.utc)
 		}
 
-		with self.exec_statement('put-domain-ban', params) as cur:
+		with self.run('put-domain-ban', params) as cur:
 			return cur.one()
 
 
 	def update_domain_ban(self,
 						domain: str,
 						reason: str | None = None,
-						note: str | None = None) -> tinysql.Row:
+						note: str | None = None) -> Row:
 
 		if not (reason or note):
 			raise ValueError('"reason" and/or "note" must be specified')
@@ -261,25 +258,26 @@ class Connection(tinysql.Connection):
 		if note:
 			params['note'] = note
 
-		statement = tinysql.Update('domain_bans', params, domain = domain)
+		statement = Update('domain_bans', params)
+		statement.set_where("domain", domain)
 
 		with self.query(statement) as cur:
-			if cur.modified_row_count > 1:
+			if cur.row_count > 1:
 				raise ValueError('More than one row was modified')
 
 		return self.get_domain_ban(domain)
 
 
 	def del_domain_ban(self, domain: str) -> bool:
-		with self.exec_statement('del-domain-ban', {'domain': domain}) as cur:
-			if cur.modified_row_count > 1:
+		with self.run('del-domain-ban', {'domain': domain}) as cur:
+			if cur.row_count > 1:
 				raise ValueError('More than one row was modified')
 
-			return cur.modified_row_count == 1
+			return cur.row_count == 1
 
 
 	def get_software_ban(self, name: str) -> Row:
-		with self.exec_statement('get-software-ban', {'name': name}) as cur:
+		with self.run('get-software-ban', {'name': name}) as cur:
 			return cur.one()
 
 
@@ -295,14 +293,14 @@ class Connection(tinysql.Connection):
 			'created': datetime.now(tz = timezone.utc)
 		}
 
-		with self.exec_statement('put-software-ban', params) as cur:
+		with self.run('put-software-ban', params) as cur:
 			return cur.one()
 
 
 	def update_software_ban(self,
 						name: str,
 						reason: str | None = None,
-						note: str | None = None) -> tinysql.Row:
+						note: str | None = None) -> Row:
 
 		if not (reason or note):
 			raise ValueError('"reason" and/or "note" must be specified')
@@ -315,25 +313,26 @@ class Connection(tinysql.Connection):
 		if note:
 			params['note'] = note
 
-		statement = tinysql.Update('software_bans', params, name = name)
+		statement = Update('software_bans', params)
+		statement.set_where("name", name)
 
 		with self.query(statement) as cur:
-			if cur.modified_row_count > 1:
+			if cur.row_count > 1:
 				raise ValueError('More than one row was modified')
 
 		return self.get_software_ban(name)
 
 
 	def del_software_ban(self, name: str) -> bool:
-		with self.exec_statement('del-software-ban', {'name': name}) as cur:
-			if cur.modified_row_count > 1:
+		with self.run('del-software-ban', {'name': name}) as cur:
+			if cur.row_count > 1:
 				raise ValueError('More than one row was modified')
 
-			return cur.modified_row_count == 1
+			return cur.row_count == 1
 
 
 	def get_domain_whitelist(self, domain: str) -> Row:
-		with self.exec_statement('get-domain-whitelist', {'domain': domain}) as cur:
+		with self.run('get-domain-whitelist', {'domain': domain}) as cur:
 			return cur.one()
 
 
@@ -343,13 +342,13 @@ class Connection(tinysql.Connection):
 			'created': datetime.now(tz = timezone.utc)
 		}
 
-		with self.exec_statement('put-domain-whitelist', params) as cur:
+		with self.run('put-domain-whitelist', params) as cur:
 			return cur.one()
 
 
 	def del_domain_whitelist(self, domain: str) -> bool:
-		with self.exec_statement('del-domain-whitelist', {'domain': domain}) as cur:
-			if cur.modified_row_count > 1:
+		with self.run('del-domain-whitelist', {'domain': domain}) as cur:
+			if cur.row_count > 1:
 				raise ValueError('More than one row was modified')
 
-			return cur.modified_row_count == 1
+			return cur.row_count == 1

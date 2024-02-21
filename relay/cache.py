@@ -168,8 +168,8 @@ class SqlCache(Cache):
 			'key': key
 		}
 
-		with self._db.connection() as conn:
-			with conn.exec_statement('get-cache-item', params) as cur:
+		with self._db.session(False) as conn:
+			with conn.run('get-cache-item', params) as cur:
 				if not (row := cur.one()):
 					raise KeyError(f'{namespace}:{key}')
 
@@ -178,14 +178,14 @@ class SqlCache(Cache):
 
 
 	def get_keys(self, namespace: str) -> Iterator[str]:
-		with self._db.connection() as conn:
-			for row in conn.exec_statement('get-cache-keys', {'namespace': namespace}):
+		with self._db.session(False) as conn:
+			for row in conn.run('get-cache-keys', {'namespace': namespace}):
 				yield row['key']
 
 
 	def get_namespaces(self) -> Iterator[str]:
-		with self._db.connection() as conn:
-			for row in conn.exec_statement('get-cache-namespaces', None):
+		with self._db.session(False) as conn:
+			for row in conn.run('get-cache-namespaces', None):
 				yield row['namespace']
 
 
@@ -198,8 +198,8 @@ class SqlCache(Cache):
 			'date': datetime.now(tz = timezone.utc)
 		}
 
-		with self._db.connection() as conn:
-			with conn.exec_statement('set-cache-item', params) as conn:
+		with self._db.session(True) as conn:
+			with conn.run('set-cache-item', params) as conn:
 				row = conn.one()
 				row.pop('id', None)
 				return Item.from_data(*tuple(row.values()))
@@ -211,8 +211,8 @@ class SqlCache(Cache):
 			'key': key
 		}
 
-		with self._db.connection() as conn:
-			with conn.exec_statement('del-cache-item', params):
+		with self._db.session(True) as conn:
+			with conn.run('del-cache-item', params):
 				pass
 
 
@@ -220,25 +220,27 @@ class SqlCache(Cache):
 		limit = datetime.now(tz = timezone.utc) - timedelta(days = days)
 		params = {"limit": limit.timestamp()}
 
-		with self._db.connection() as conn:
+		with self._db.session(True) as conn:
 			with conn.execute("DELETE FROM cache WHERE updated < :limit", params):
 				pass
 
 
 	def clear(self) -> None:
-		with self._db.connection() as conn:
+		with self._db.session(True) as conn:
 			with conn.execute("DELETE FROM cache"):
 				pass
 
 
 	def setup(self) -> None:
-		with self._db.connection() as conn:
-			with conn.exec_statement(f'create-cache-table-{self._db.type.name.lower()}', None):
+		self._db.connect()
+
+		with self._db.session(True) as conn:
+			with conn.run(f'create-cache-table-{self._db.backend_type.value}', None):
 				pass
 
 
 	def close(self) -> None:
-		self._db.close()
+		self._db.disconnect()
 		self._db = None
 
 
