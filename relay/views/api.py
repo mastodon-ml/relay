@@ -166,12 +166,8 @@ class Config(View):
 @register_route('/api/v1/instance')
 class Inbox(View):
 	async def get(self, request: Request) -> Response:
-		data = []
-
 		with self.database.session() as conn:
-			for inbox in conn.execute('SELECT * FROM inboxes'):
-				inbox['created'] = inbox['created'].isoformat()
-				data.append(inbox)
+			data = tuple(conn.execute('SELECT * FROM inboxes').all())
 
 		return Response.new(data, ctype = 'json')
 
@@ -241,7 +237,7 @@ class Inbox(View):
 class DomainBan(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			bans = conn.execute('SELECT * FROM domain_bans').all()
+			bans = tuple(conn.execute('SELECT * FROM domain_bans').all())
 
 		return Response.new(bans, ctype = 'json')
 
@@ -298,7 +294,7 @@ class DomainBan(View):
 class SoftwareBan(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			bans = conn.execute('SELECT * FROM software_bans').all()
+			bans = tuple(conn.execute('SELECT * FROM software_bans').all())
 
 		return Response.new(bans, ctype = 'json')
 
@@ -355,7 +351,7 @@ class SoftwareBan(View):
 class Whitelist(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			items = conn.execute('SELECT * FROM whitelist').all()
+			items = tuple(conn.execute('SELECT * FROM whitelist').all())
 
 		return Response.new(items, ctype = 'json')
 

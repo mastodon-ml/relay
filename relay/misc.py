@@ -7,6 +7,7 @@ import typing
 
 from aiohttp.web import Response as AiohttpResponse
 from aputils.message import Message as ApMessage
+from datetime import datetime
 from uuid import uuid4
 
 if typing.TYPE_CHECKING:
@@ -72,6 +73,14 @@ def get_app() -> Application:
 		raise ValueError('No default application set')
 
 	return Application.DEFAULT
+
+
+class JsonEncoder(json.JSONEncoder):
+	def default(self, obj: Any) -> str:
+		if isinstance(obj, datetime):
+			return obj.isoformat()
+
+		return JSONEncoder.default(self, obj)
 
 
 class Message(ApMessage):
@@ -193,8 +202,8 @@ class Response(AiohttpResponse):
 		if isinstance(body, bytes):
 			kwargs['body'] = body
 
-		elif isinstance(body, (dict, list, tuple, set)) and ctype in {'json', 'activity'}:
-			kwargs['text'] = json.dumps(body)
+		elif isinstance(body, (dict, list, tuple, set)) or ctype in {'json', 'activity'}:
+			kwargs['text'] = json.dumps(body, cls = JsonEncoder)
 
 		else:
 			kwargs['text'] = body
@@ -209,7 +218,7 @@ class Response(AiohttpResponse):
 				ctype: str = 'text') -> Response:
 
 		if ctype == 'json':
-			body = json.dumps({'error': body})
+			body = {'error': body}
 
 		return cls.new(body=body, status=status, ctype=ctype)
 
