@@ -111,7 +111,7 @@ class HttpClient:
 					return loads(item.value)
 
 			except KeyError:
-				logging.verbose('Failed to fetch cached data for url: %s', url)
+				logging.verbose('No cached data for url: %s', url)
 
 		headers = {}
 

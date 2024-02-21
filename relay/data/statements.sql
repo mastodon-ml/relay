@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS cache (
 	UNIQUE(namespace, key)
 );
 
--- name: create-cache-table-postgres
+-- name: create-cache-table-postgresql
 CREATE TABLE IF NOT EXISTS cache (
 	id SERIAL PRIMARY KEY,
 	namespace TEXT NOT NULL,

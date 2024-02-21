@@ -3,6 +3,7 @@ from __future__ import annotations
 import Crypto
 import asyncio
 import click
+import os
 import platform
 import subprocess
 import sys
@@ -19,8 +20,7 @@ from . import http_client as http
 from . import logger as logging
 from .application import Application
 from .compat import RelayConfig, RelayDatabase
-from .database import get_database
-from .database.connection import RELAY_SOFTWARE
+from .database import RELAY_SOFTWARE, get_database
 from .misc import IS_DOCKER, Message
 
 if typing.TYPE_CHECKING:
@@ -199,7 +199,7 @@ def cli_setup(ctx: click.Context) -> None:
 		'private-key': Signer.new('n/a').export()
 	}
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for key, value in config.items():
 			conn.put_config(key, value)
 
@@ -239,9 +239,12 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 
 	if getattr(sys, 'frozen', False):
 		subprocess.run([sys.executable, 'run-gunicorn'], check = False)
-		return
 
-	ctx.obj.run(dev)
+	else:
+		ctx.obj.run(dev)
+
+	# todo: figure out why the relay doesn't quit properly without this
+	os._exit(0)
 
 
 @cli.command('run-gunicorn')
@@ -279,7 +282,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 	ctx.obj.config.save()
 
 	with get_database(ctx.obj.config) as db:
-		with db.connection() as conn:
+		with db.session(True) as conn:
 			conn.put_config('private-key', database['private-key'])
 			conn.put_config('note', config['note'])
 			conn.put_config('whitelist-enabled', config['whitelist_enabled'])
@@ -365,7 +368,7 @@ def cli_config_list(ctx: click.Context) -> None:
 
 	click.echo('Relay Config:')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for key, value in conn.get_config_all().items():
 			if key not in CONFIG_IGNORE:
 				key = f'{key}:'.ljust(20)
@@ -379,7 +382,7 @@ def cli_config_list(ctx: click.Context) -> None:
 def cli_config_set(ctx: click.Context, key: str, value: Any) -> None:
 	'Set a config value'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		new_value = conn.put_config(key, value)
 
 	print(f'{key}: {repr(new_value)}')
@@ -397,7 +400,7 @@ def cli_user_list(ctx: click.Context) -> None:
 
 	click.echo('Users:')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for user in conn.execute('SELECT * FROM users'):
 			click.echo(f'- {user["username"]}')
 
@@ -409,7 +412,7 @@ def cli_user_list(ctx: click.Context) -> None:
 def cli_user_create(ctx: click.Context, username: str, handle: str) -> None:
 	'Create a new local user'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if conn.get_user(username):
 			click.echo(f'User already exists: {username}')
 			return
@@ -436,7 +439,7 @@ def cli_user_create(ctx: click.Context, username: str, handle: str) -> None:
 def cli_user_delete(ctx: click.Context, username: str) -> None:
 	'Delete a local user'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if not conn.get_user(username):
 			click.echo(f'User does not exist: {username}')
 			return
@@ -454,7 +457,7 @@ def cli_user_list_tokens(ctx: click.Context, username: str) -> None:
 
 	click.echo(f'Tokens for "{username}":')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for token in conn.execute('SELECT * FROM tokens WHERE user = :user', {'user': username}):
 			click.echo(f'- {token["code"]}')
 
@@ -465,7 +468,7 @@ def cli_user_list_tokens(ctx: click.Context, username: str) -> None:
 def cli_user_create_token(ctx: click.Context, username: str) -> None:
 	'Create a new API token for a user'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if not (user := conn.get_user(username)):
 			click.echo(f'User does not exist: {username}')
 			return
@@ -481,7 +484,7 @@ def cli_user_create_token(ctx: click.Context, username: str) -> None:
 def cli_user_delete_token(ctx: click.Context, code: str) -> None:
 	'Delete an API token'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if not conn.get_token(code):
 			click.echo('Token does not exist')
 			return
@@ -503,7 +506,7 @@ def cli_inbox_list(ctx: click.Context) -> None:
 
 	click.echo('Connected to the following instances or relays:')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for inbox in conn.execute('SELECT * FROM inboxes'):
 			click.echo(f'- {inbox["inbox"]}')
 
@@ -514,7 +517,7 @@ def cli_inbox_list(ctx: click.Context) -> None:
 def cli_inbox_follow(ctx: click.Context, actor: str) -> None:
 	'Follow an actor (Relay must be running)'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if conn.get_domain_ban(actor):
 			click.echo(f'Error: Refusing to follow banned actor: {actor}')
 			return
@@ -549,7 +552,7 @@ def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 
 	inbox_data: Row = None
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if conn.get_domain_ban(actor):
 			click.echo(f'Error: Refusing to follow banned actor: {actor}')
 			return
@@ -617,7 +620,7 @@ def cli_inbox_add(
 		except KeyError:
 			pass
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if conn.get_domain_ban(domain):
 			click.echo(f'Refusing to add banned inbox: {inbox}')
 			return
@@ -637,7 +640,7 @@ def cli_inbox_add(
 def cli_inbox_remove(ctx: click.Context, inbox: str) -> None:
 	'Remove an inbox from the database'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if not conn.del_inbox(inbox):
 			click.echo(f'Inbox not in database: {inbox}')
 			return
@@ -657,7 +660,7 @@ def cli_instance_list(ctx: click.Context) -> None:
 
 	click.echo('Banned domains:')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for instance in conn.execute('SELECT * FROM domain_bans'):
 			if instance['reason']:
 				click.echo(f'- {instance["domain"]} ({instance["reason"]})')
@@ -674,7 +677,7 @@ def cli_instance_list(ctx: click.Context) -> None:
 def cli_instance_ban(ctx: click.Context, domain: str, reason: str, note: str) -> None:
 	'Ban an instance and remove the associated inbox if it exists'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if conn.get_domain_ban(domain):
 			click.echo(f'Domain already banned: {domain}')
 			return
@@ -690,7 +693,7 @@ def cli_instance_ban(ctx: click.Context, domain: str, reason: str, note: str) ->
 def cli_instance_unban(ctx: click.Context, domain: str) -> None:
 	'Unban an instance'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if not conn.del_domain_ban(domain):
 			click.echo(f'Instance wasn\'t banned: {domain}')
 			return
@@ -709,7 +712,7 @@ def cli_instance_update(ctx: click.Context, domain: str, reason: str, note: str)
 	if not (reason or note):
 		ctx.fail('Must pass --reason or --note')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if not (row := conn.update_domain_ban(domain, reason, note)):
 			click.echo(f'Failed to update domain ban: {domain}')
 			return
@@ -735,7 +738,7 @@ def cli_software_list(ctx: click.Context) -> None:
 
 	click.echo('Banned software:')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for software in conn.execute('SELECT * FROM software_bans'):
 			if software['reason']:
 				click.echo(f'- {software["name"]} ({software["reason"]})')
@@ -761,7 +764,7 @@ def cli_software_ban(ctx: click.Context,
 					fetch_nodeinfo: bool) -> None:
 	'Ban software. Use RELAYS for NAME to ban relays'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if name == 'RELAYS':
 			for software in RELAY_SOFTWARE:
 				if conn.get_software_ban(software):
@@ -804,7 +807,7 @@ def cli_software_ban(ctx: click.Context,
 def cli_software_unban(ctx: click.Context, name: str, fetch_nodeinfo: bool) -> None:
 	'Ban software. Use RELAYS for NAME to unban relays'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if name == 'RELAYS':
 			for software in RELAY_SOFTWARE:
 				if not conn.del_software_ban(software):
@@ -838,7 +841,7 @@ def cli_software_update(ctx: click.Context, name: str, reason: str, note: str) -
 	if not (reason or note):
 		ctx.fail('Must pass --reason or --note')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if not (row := conn.update_software_ban(name, reason, note)):
 			click.echo(f'Failed to update software ban: {name}')
 			return
@@ -864,7 +867,7 @@ def cli_whitelist_list(ctx: click.Context) -> None:
 
 	click.echo('Current whitelisted domains:')
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for domain in conn.execute('SELECT * FROM whitelist'):
 			click.echo(f'- {domain["domain"]}')
 
@@ -875,7 +878,7 @@ def cli_whitelist_list(ctx: click.Context) -> None:
 def cli_whitelist_add(ctx: click.Context, domain: str) -> None:
 	'Add a domain to the whitelist'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if conn.get_domain_whitelist(domain):
 			click.echo(f'Instance already in the whitelist: {domain}')
 			return
@@ -890,7 +893,7 @@ def cli_whitelist_add(ctx: click.Context, domain: str) -> None:
 def cli_whitelist_remove(ctx: click.Context, domain: str) -> None:
 	'Remove an instance from the whitelist'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		if not conn.del_domain_whitelist(domain):
 			click.echo(f'Domain not in the whitelist: {domain}')
 			return
@@ -907,7 +910,7 @@ def cli_whitelist_remove(ctx: click.Context, domain: str) -> None:
 def cli_whitelist_import(ctx: click.Context) -> None:
 	'Add all current inboxes to the whitelist'
 
-	with ctx.obj.database.connection() as conn:
+	with ctx.obj.database.session() as conn:
 		for inbox in conn.execute('SELECT * FROM inboxes').all():
 			if conn.get_domain_whitelist(inbox['domain']):
 				click.echo(f'Domain already in whitelist: {inbox["domain"]}')

@@ -1,49 +1,51 @@
 from __future__ import annotations
 
-import tinysql
+import bsql
 import typing
 
 from .config import get_default_value
-from .connection import Connection
-from .schema import VERSIONS, migrate_0
+from .connection import RELAY_SOFTWARE, Connection
+from .schema import TABLES, VERSIONS, migrate_0
 
 from .. import logger as logging
 
 try:
 	from importlib.resources import files as pkgfiles
 
-except ImportError:
+except ImportError:  # pylint: disable=duplicate-code
 	from importlib_resources import files as pkgfiles
 
 if typing.TYPE_CHECKING:
 	from .config import Config
 
 
-def get_database(config: Config, migrate: bool = True) -> tinysql.Database:
+def get_database(config: Config, migrate: bool = True) -> bsql.Database:
+	options = {
+		"connection_class": Connection,
+		"pool_size": 5,
+		"tables": TABLES
+	}
+
 	if config.db_type == "sqlite":
-		db = tinysql.Database.sqlite(
-			config.sqlite_path,
-			connection_class = Connection,
-			min_connections = 2,
-			max_connections = 10
-		)
+		db = bsql.Database.sqlite(config.sqlite_path, **options)
 
 	elif config.db_type == "postgres":
-		db = tinysql.Database.postgres(
+		db = bsql.Database.postgresql(
 			config.pg_name,
 			config.pg_host,
 			config.pg_port,
 			config.pg_user,
 			config.pg_pass,
-			connection_class = Connection
+			**options
 		)
 
 	db.load_prepared_statements(pkgfiles("relay").joinpath("data", "statements.sql"))
+	db.connect()
 
 	if not migrate:
 		return db
 
-	with db.connection() as conn:
+	with db.session(True) as conn:
 		if 'config' not in conn.get_tables():
 			logging.info("Creating database tables")
 			migrate_0(conn)
