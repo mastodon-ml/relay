@@ -10,7 +10,6 @@ import sys
 import typing
 
 from aputils.signer import Signer
-from gunicorn.app.wsgiapp import WSGIApplication
 from pathlib import Path
 from shutil import copyfile
 from urllib.parse import urlparse
@@ -208,9 +207,8 @@ def cli_setup(ctx: click.Context) -> None:
 
 
 @cli.command('run')
-@click.option('--dev', '-d', is_flag = True, help = 'Enable worker reloading on code change')
 @click.pass_context
-def cli_run(ctx: click.Context, dev: bool = False) -> None:
+def cli_run(ctx: click.Context) -> None:
 	'Run the relay'
 
 	if ctx.obj.config.domain.endswith('example.com') or not ctx.obj.signer:
@@ -237,21 +235,10 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 		click.echo(pip_command)
 		return
 
-	if getattr(sys, 'frozen', False):
-		subprocess.run([sys.executable, 'run-gunicorn'], check = False)
-
-	else:
-		ctx.obj.run(dev)
+	ctx.obj.run()
 
 	# todo: figure out why the relay doesn't quit properly without this
 	os._exit(0)
-
-
-@cli.command('run-gunicorn')
-@click.pass_context
-def cli_run_gunicorn(ctx: click.Context) -> None:
-	runner = GunicornRunner(ctx.obj)
-	runner.run()
 
 
 
@@ -919,30 +906,6 @@ def cli_whitelist_import(ctx: click.Context) -> None:
 			conn.put_domain_whitelist(inbox['domain'])
 
 		click.echo('Imported whitelist from inboxes')
-
-
-class GunicornRunner(WSGIApplication):
-	def __init__(self, app: Application):
-		self.app = app
-		self.app_uri = 'relay.application:main_gunicorn'
-		self.options = {
-			'bind': f'{app.config.listen}:{app.config.port}',
-			'worker_class': 'aiohttp.GunicornWebWorker',
-			'workers': app.config.workers,
-			'raw_env': f'CONFIG_FILE={app.config.path}'
-		}
-
-		WSGIApplication.__init__(self)
-
-
-	def load_config(self):
-		for key, value in self.options.items():
-			self.cfg.set(key, value)
-
-
-	def run(self):
-		logging.info('Starting webserver for %s', self.app.config.domain)
-		WSGIApplication.run(self)
 
 
 

@@ -19,10 +19,10 @@ proxy is on the same host.
 	port: 8080
 
 
-### Web Workers
+### Push Workers
 
-The number of processes to spawn for handling web requests. Leave it at 0 to automatically detect
-how many processes should be spawned.
+The number of processes to spawn for pushing messages to subscribed instances. Leave it at 0 to
+automatically detect how many processes should be spawned.
 
 	workers: 0
 
