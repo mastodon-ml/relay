@@ -22,15 +22,9 @@ from .cache import get_cache
 from .config import Config
 from .database import get_database
 from .http_client import HttpClient
-from .misc import check_open_port
+from .misc import check_open_port, get_resource
 from .views import VIEWS
 from .views.api import handle_api_path
-
-try:
-	from importlib.resources import files as pkgfiles
-
-except ImportError:
-	from importlib_resources import files as pkgfiles
 
 if typing.TYPE_CHECKING:
 	from tinysql import Database, Row
@@ -75,7 +69,7 @@ class Application(web.Application):
 
 		setup_swagger(self,
 			ui_version = 3,
-			swagger_from_file = pkgfiles('relay').joinpath('data', 'swagger.yaml')
+			swagger_from_file = get_resource('data/swagger.yaml')
 		)
 
 

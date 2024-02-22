@@ -10,7 +10,14 @@ from aputils.message import Message as ApMessage
 from datetime import datetime
 from uuid import uuid4
 
+try:
+	from importlib.resources import files as pkgfiles
+
+except ImportError:
+	from importlib_resources import files as pkgfiles
+
 if typing.TYPE_CHECKING:
+	from pathlib import Path
 	from typing import Any
 	from .application import Application
 
@@ -73,6 +80,10 @@ def get_app() -> Application:
 		raise ValueError('No default application set')
 
 	return Application.DEFAULT
+
+
+def get_resource(path: str) -> Path:
+	return pkgfiles('relay').joinpath(path)
 
 
 class JsonEncoder(json.JSONEncoder):
