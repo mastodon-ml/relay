@@ -16,8 +16,8 @@ a = Analysis(
 		(aiohttp_swagger_path, 'aiohttp_swagger')
 	],
 	hiddenimports=[
-		'gunicorn',
-		'gunicorn.glogging'
+		'pg8000',
+		'sqlite3'
 	],
 	hookspath=[],
 	hooksconfig={},

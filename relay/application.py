@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 import typing
 
 from aiohttp import web

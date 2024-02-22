@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import getpass
 import os
+import platform
 import typing
 import yaml
 
@@ -13,11 +14,19 @@ if typing.TYPE_CHECKING:
 	from typing import Any
 
 
+if platform.system() == 'Windows':
+	import multiprocessing
+	CORE_COUNT = multiprocessing.cpu_count()
+
+else:
+	CORE_COUNT = len(os.sched_getaffinity(0))
+
+
 DEFAULTS: dict[str, Any] = {
 	'listen': '0.0.0.0',
 	'port': 8080,
 	'domain': 'relay.example.com',
-	'workers': len(os.sched_getaffinity(0)),
+	'workers': CORE_COUNT,
 	'db_type': 'sqlite',
 	'ca_type': 'database',
 	'sq_path': 'relay.sqlite3',
