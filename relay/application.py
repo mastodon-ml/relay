@@ -61,8 +61,11 @@ class Application(web.Application):
 		self['database'] = get_database(self.config)
 		self['client'] = HttpClient()
 		self['cache'] = get_cache(self)
+		self['cache'].setup()
 		self['push_queue'] = multiprocessing.Queue()
 		self['workers'] = []
+
+		self.cache.setup()
 
 		self.on_response_prepare.append(handle_access_log)
 		self.on_cleanup.append(handle_cleanup)

@@ -231,7 +231,7 @@ class SqlCache(Cache):
 
 
 	def setup(self) -> None:
-		if self._db.connected:
+		if self._db and self._db.connected:
 			return
 
 		self._db = get_database(self.app.config)
@@ -243,6 +243,9 @@ class SqlCache(Cache):
 
 
 	def close(self) -> None:
+		if not self._db:
+			return
+
 		self._db.disconnect()
 		self._db = None
 
@@ -351,5 +354,8 @@ class RedisCache(Cache):
 
 
 	def close(self) -> None:
+		if not self._rd:
+			return
+
 		self._rd.close()
 		self._rd = None
