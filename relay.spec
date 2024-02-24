@@ -13,6 +13,7 @@ a = Analysis(
 	binaries=[],
 	datas=[
 		('relay/data', 'relay/data'),
+		('relay/frontend', 'relay/frontend'),
 		(aiohttp_swagger_path, 'aiohttp_swagger')
 	],
 	hiddenimports=[

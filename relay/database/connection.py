@@ -8,7 +8,14 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from .config import CONFIG_DEFAULTS, get_default_type, get_default_value, serialize, deserialize
+from .config import (
+	CONFIG_DEFAULTS,
+	THEMES,
+	get_default_type,
+	get_default_value,
+	serialize,
+	deserialize
+)
 
 from .. import logger as logging
 from ..misc import get_app
@@ -94,6 +101,13 @@ class Connection(SqlConnection):
 		elif key == 'log-level':
 			value = logging.LogLevel.parse(value)
 			logging.set_level(value)
+
+		elif key == 'whitelist-enabled':
+			value = boolean(value)
+
+		elif key == 'theme':
+			if value not in THEMES:
+				raise ValueError(f'"{value}" is not a valid theme')
 
 		params = {
 			'key': key,

@@ -23,6 +23,7 @@ from .config import Config
 from .database import get_database
 from .http_client import HttpClient
 from .misc import check_open_port, get_resource
+from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
 
@@ -56,12 +57,13 @@ class Application(web.Application):
 		self['client'] = HttpClient()
 		self['cache'] = get_cache(self)
 		self['cache'].setup()
+		self['template'] = Template(self)
 		self['push_queue'] = multiprocessing.Queue()
 		self['workers'] = []
 
 		self.cache.setup()
 
-		self.on_response_prepare.append(handle_access_log)
+		# self.on_response_prepare.append(handle_access_log)
 		self.on_cleanup.append(handle_cleanup)
 
 		for path, view in VIEWS:

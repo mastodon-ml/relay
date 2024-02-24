@@ -1,0 +1,34 @@
+-extends "base.haml"
+-set page = "Home"
+-block content
+	.section
+		=config.note
+
+	.section
+		%p
+			This is an Activity Relay for fediverse instances.
+
+		%p
+			You may subscribe to this relay with the address:
+			%a(href="https://{{domain}}/actor") << https://{{domain}}/actor</a>
+		%p
+			To host your own relay, you may download the code at
+			%a(href="https://git.pleroma.social/pleroma/relay") << git.pleroma.social/pleroma/relay
+
+	-if config["whitelist-enabled"]
+		%p.section.message
+			Note: The whitelist is enabled on this instance. Ask the admin to add your instance
+			before joining.
+
+	#instances.section
+		%table
+			%thead
+				%tr
+					%td.instance << Instance
+					%td.date << Joined
+
+			%tbody
+				-for instance in instances
+					%tr
+						%td.instance -> %a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain
+						%td.date -> =instance.created.strftime("%Y-%m-%d")

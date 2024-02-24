@@ -1,2 +1,5 @@
 include data/statements.sql
 include data/swagger.yaml
+include frontend/page/home.haml
+include frontend/base.haml
+include frontend/style.css

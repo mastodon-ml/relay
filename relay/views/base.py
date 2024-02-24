@@ -17,6 +17,7 @@ if typing.TYPE_CHECKING:
 	from ..cache import Cache
 	from ..config import Config
 	from ..http_client import HttpClient
+	from ..template import Template
 
 
 VIEWS = []
@@ -89,6 +90,11 @@ class View(AbstractView):
 	@property
 	def database(self) -> Database:
 		return self.app.database
+
+
+	@property
+	def template(self) -> Template:
+		return self.app['template']
 
 
 	async def get_api_data(self,

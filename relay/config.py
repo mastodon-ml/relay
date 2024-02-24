@@ -163,7 +163,30 @@ class Config:
 	def save(self) -> None:
 		self.path.parent.mkdir(exist_ok = True, parents = True)
 
-		config = {
+		with self.path.open('w', encoding = 'utf-8') as fd:
+			yaml.dump(self.to_dict(), fd, sort_keys = False)
+
+
+	def set(self, key: str, value: Any) -> None:
+		if key not in DEFAULTS:
+			raise KeyError(key)
+
+		if key in {'port', 'pg_port', 'workers'} and not isinstance(value, int):
+			if (value := int(value)) < 1:
+				if key == 'port':
+					value = 8080
+
+				elif key == 'pg_port':
+					value = 5432
+
+				elif key == 'workers':
+					value = len(os.sched_getaffinity(0))
+
+		setattr(self, key, value)
+
+
+	def to_dict(self) -> dict[str, Any]:
+		return {
 			'listen': self.listen,
 			'port': self.port,
 			'domain': self.domain,
@@ -187,24 +210,3 @@ class Config:
 				'refix': self.rd_prefix
 			}
 		}
-
-		with self.path.open('w', encoding = 'utf-8') as fd:
-			yaml.dump(config, fd, sort_keys = False)
-
-
-	def set(self, key: str, value: Any) -> None:
-		if key not in DEFAULTS:
-			raise KeyError(key)
-
-		if key in {'port', 'pg_port', 'workers'} and not isinstance(value, int):
-			if (value := int(value)) < 1:
-				if key == 'port':
-					value = 8080
-
-				elif key == 'pg_port':
-					value = 5432
-
-				elif key == 'workers':
-					value = len(os.sched_getaffinity(0))
-
-		setattr(self, key, value)

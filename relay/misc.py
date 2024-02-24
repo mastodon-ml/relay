@@ -25,6 +25,7 @@ if typing.TYPE_CHECKING:
 IS_DOCKER = bool(os.environ.get('DOCKER_RUNNING'))
 MIMETYPES = {
 	'activity': 'application/activity+json',
+	'css': 'text/css',
 	'html': 'text/html',
 	'json': 'application/json',
 	'text': 'text/plain'

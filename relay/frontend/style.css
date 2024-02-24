@@ -1,0 +1,151 @@
+:root {
+	--text: {{theme["text"]}};
+	--background: {{theme["background"]}};
+	--primary: {{theme["primary"]}};
+	--primary-hover: {{theme["primary-hover"]}};
+	--section-background: {{theme["section-background"]}};
+	--table-background: {{theme["table-background"]}};
+	--border: {{theme["border"]}};
+	--message-text: {{theme["message-text"]}};
+	--message-background: {{theme["message-background"]}};
+	--message-border: {{theme["message-border"]}};
+	--spacing: 10px;
+}
+
+body {
+	color: var(--text);
+	background-color: #222;
+	margin: var(--spacing);
+	font-family: sans serif;
+}
+
+a {
+	color: var(--primary);
+	text-decoration: none;
+}
+
+a:hover {
+	color: var(--primary-hover);
+	text-decoration: underline;
+}
+
+p {
+	line-height: 1em;
+	margin: 0px;
+}
+
+p:not(:first-child) {
+	margin-top: 1em;
+}
+
+p:not(:last-child) {
+	margin-bottom: 1em;
+}
+
+table {
+	border-spacing: 0px;
+/* 	border-radius: 10px; */
+	border-collapse: collapse;
+}
+
+td {
+	border: 1px solid var(--primary);
+}
+
+/*thead td:first-child {
+	border-top-left-radius: 10px;
+}
+
+thead td:last-child {
+	border-top-right-radius: 10px;
+}
+
+tbody tr:last-child td:first-child {
+	border-bottom-left-radius: 10px;
+}
+
+tbody tr:last-child td:last-child {
+	border-bottom-right-radius: 10px;
+}*/
+
+table td {
+	padding: 5px;
+}
+
+table thead td {
+	background-color: var(--primary);
+	color: var(--table-background)
+}
+
+table tbody td {
+	background-color: var(--table-background);
+}
+
+#container {
+	width: 1024px;
+	margin: 0px auto;
+}
+
+#header {
+	text-align: center;
+}
+
+#header a {
+	font-size: 3em;
+}
+
+#instances table {
+	width: 100%;
+}
+
+#instances .instance {
+	width: 100%;
+}
+
+#instances .date {
+	width: max-content;
+	text-align: right;
+}
+
+#instances thead td {
+	text-align: center !important;
+}
+
+
+.message {
+	color: var(--message-text) !important;
+	background-color: var(--message-background) !important;
+	border: 1px solid var(--message-border) !important;
+}
+
+.section {
+	background-color: var(--section-background);
+	padding: var(--spacing);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+}
+
+.section:not(:first-child) {
+	margin-top: var(--spacing);
+}
+
+.section:not(:last-child) {
+	margin-bottom: var(--spacing);
+}
+
+
+@media (max-width: 1026px) {
+	body {
+		margin: 0px;
+	}
+
+	#container {
+		width: unset;
+		margin: unset;
+	}
+
+	.section {
+		border-width: 0px;
+		border-radius: 0px;
+	}
+}

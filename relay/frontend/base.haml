@@ -1,0 +1,16 @@
+!!!
+%html
+	%head
+		%title << {{config.name}}: {{page}}
+		%meta(charset="UTF-8")
+		%meta(name="viewport" content="width=device-width, initial-scale=1")
+		%link(rel="stylesheet" type="text/css" href="/style.css")
+		-block head
+
+	%body
+		#container
+			#header.section
+				%a(href="https://{{domain}}/") -> =config.name
+
+			#content
+				-block content
