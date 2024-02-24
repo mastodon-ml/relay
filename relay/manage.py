@@ -5,8 +5,6 @@ import asyncio
 import click
 import os
 import platform
-import subprocess
-import sys
 import typing
 
 from aputils.signer import Signer

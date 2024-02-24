@@ -4,7 +4,6 @@ import typing
 
 from aiohttp import web
 from argon2.exceptions import VerifyMismatchError
-from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from .base import View, register_route

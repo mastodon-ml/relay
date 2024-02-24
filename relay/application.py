@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import multiprocessing
-import os
 import signal
-import subprocess
-import sys
 import time
 import traceback
 import typing
@@ -127,10 +124,15 @@ class Application(web.Application):
 		if self["running"]:
 			return
 
-		if not check_open_port(self.config.listen, self.config.port):
-			return logging.error(f'A server is already running on port {self.config.port}')
+		domain = self.config.domain
+		host = self.config.listen
+		port = self.config.port
 
-		logging.info(f'Starting webserver at {self.config.domain} ({self.config.listen}:{self.config.port})')
+		if not check_open_port(host, port):
+			logging.error(f'A server is already running on {host}:{port}')
+			return
+
+		logging.info(f'Starting webserver at {domain} ({host}:{port})')
 		asyncio.run(self.handle_run())
 
 
@@ -158,7 +160,7 @@ class Application(web.Application):
 		self['cleanup_thread'] = CacheCleanupThread(self)
 		self['cleanup_thread'].start()
 
-		for i in range(self.config.workers):
+		for _ in range(self.config.workers):
 			worker = PushWorker(self['push_queue'])
 			worker.start()
 
@@ -181,7 +183,7 @@ class Application(web.Application):
 
 		await site.stop()
 
-		for worker in self['workers']:
+		for worker in self['workers']: # pylint: disable=not-an-iterable
 			worker.stop()
 
 		self.set_signal_handler(False)

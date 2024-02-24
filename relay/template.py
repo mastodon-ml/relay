@@ -5,8 +5,6 @@ import typing
 from hamlish_jinja.extension import HamlishExtension
 from jinja2 import Environment, FileSystemLoader
 
-from pathlib import Path
-
 from .database.config import THEMES
 from .misc import get_resource
 

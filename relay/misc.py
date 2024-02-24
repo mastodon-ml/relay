@@ -88,11 +88,11 @@ def get_resource(path: str) -> Path:
 
 
 class JsonEncoder(json.JSONEncoder):
-	def default(self, obj: Any) -> str:
-		if isinstance(obj, datetime):
-			return obj.isoformat()
+	def default(self, o: Any) -> str:
+		if isinstance(o, datetime):
+			return o.isoformat()
 
-		return JSONEncoder.default(self, obj)
+		return json.JSONEncoder.default(self, o)
 
 
 class Message(ApMessage):

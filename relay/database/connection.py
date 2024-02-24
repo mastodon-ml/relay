@@ -18,7 +18,7 @@ from .config import (
 )
 
 from .. import logger as logging
-from ..misc import get_app
+from ..misc import boolean, get_app
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Iterator
