@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import aputils
 import subprocess
 import typing
 
-from aputils.objects import Nodeinfo, WellKnownNodeinfo
 from pathlib import Path
 
 from .base import View, register_route
@@ -48,12 +48,12 @@ class NodeinfoView(View):
 		if niversion == '2.1':
 			data['repo'] = 'https://git.pleroma.social/pleroma/relay'
 
-		return Response.new(Nodeinfo.new(**data), ctype = 'json')
+		return Response.new(aputils.Nodeinfo.new(**data), ctype = 'json')
 
 
 @register_route('/.well-known/nodeinfo')
 class WellknownNodeinfoView(View):
 	async def get(self, request: Request) -> Response:
-		data = WellKnownNodeinfo.new_template(self.config.domain)
+		data = aputils.WellKnownNodeinfo.new_template(self.config.domain)
 
 		return Response.new(data, ctype = 'json')

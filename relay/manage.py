@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import Crypto
+import aputils
 import asyncio
 import click
 import os
 import platform
 import typing
 
-from aputils.signer import Signer
 from pathlib import Path
 from shutil import copyfile
 from urllib.parse import urlparse
@@ -193,7 +193,7 @@ def cli_setup(ctx: click.Context) -> None:
 	ctx.obj.config.save()
 
 	config = {
-		'private-key': Signer.new('n/a').export()
+		'private-key': aputils.Signer.new('n/a').export()
 	}
 
 	with ctx.obj.database.session() as conn:

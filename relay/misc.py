@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import aputils
 import json
 import os
 import socket
 import typing
 
 from aiohttp.web import Response as AiohttpResponse
-from aputils.message import Message as ApMessage
 from datetime import datetime
 from uuid import uuid4
 
@@ -95,7 +95,7 @@ class JsonEncoder(json.JSONEncoder):
 		return json.JSONEncoder.default(self, o)
 
 
-class Message(ApMessage):
+class Message(aputils.Message):
 	@classmethod
 	def new_actor(cls: type[Message],  # pylint: disable=arguments-differ
 				host: str,
@@ -180,16 +180,6 @@ class Message(ApMessage):
 				'actor': actor
 			}
 		})
-
-
-	# todo: remove when fixed in aputils
-	@property
-	def object_id(self) -> str:
-		try:
-			return self["object"]["id"]
-
-		except (KeyError, TypeError):
-			return self["object"]
 
 
 class Response(AiohttpResponse):
