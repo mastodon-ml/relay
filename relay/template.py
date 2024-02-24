@@ -5,6 +5,7 @@ import typing
 from hamlish_jinja.extension import HamlishExtension
 from jinja2 import Environment, FileSystemLoader
 
+from . import __version__
 from .database.config import THEMES
 from .misc import get_resource
 
@@ -41,6 +42,7 @@ class Template(Environment):
 		new_context = {
 			'view': view,
 			'domain': self.app.config.domain,
+			'version': __version__,
 			'config': config,
 			'theme': THEMES.get(config['theme'], THEMES['default']),
 			**(context or {})
