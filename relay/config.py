@@ -7,6 +7,7 @@ import typing
 import yaml
 
 from pathlib import Path
+from platformdirs import user_config_dir
 
 from .misc import IS_DOCKER
 
@@ -51,7 +52,7 @@ if IS_DOCKER:
 
 class Config:
 	def __init__(self, path: str, load: bool = False):
-		self.path = Path(path).expanduser().resolve()
+		self.path = Config.get_config_dir()
 
 		self.listen = None
 		self.port = None
@@ -80,6 +81,24 @@ class Config:
 
 			except FileNotFoundError:
 				self.save()
+
+
+	@staticmethod
+	def get_config_dir(path: str | None = None) -> Path:
+		if path:
+			return Path(path).expanduser().resolve()
+
+		dirs = (
+			Path("relay.yaml").resolve(),
+			Path(user_config_dir("activityrelay"), "relay.yaml"),
+			Path("/etc/activityrelay/relay.yaml")
+		)
+
+		for directory in dirs:
+			if directory.exists():
+				return directory
+
+		return dirs[0]
 
 
 	@property

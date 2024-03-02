@@ -35,7 +35,7 @@ if typing.TYPE_CHECKING:
 class Application(web.Application):
 	DEFAULT: Application = None
 
-	def __init__(self, cfgpath: str):
+	def __init__(self, cfgpath: str | None):
 		web.Application.__init__(self,
 			middlewares = [
 				handle_api_path

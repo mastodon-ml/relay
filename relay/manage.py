@@ -59,10 +59,10 @@ def check_alphanumeric(text: str) -> str:
 
 
 @click.group('cli', context_settings={'show_default': True}, invoke_without_command=True)
-@click.option('--config', '-c', default='relay.yaml', help='path to the relay\'s config')
+@click.option('--config', '-c', help='path to the relay\'s config')
 @click.version_option(version=__version__, prog_name='ActivityRelay')
 @click.pass_context
-def cli(ctx: click.Context, config: str) -> None:
+def cli(ctx: click.Context, config: str | None) -> None:
 	ctx.obj = Application(config)
 
 	if not ctx.invoked_subcommand:
