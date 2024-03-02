@@ -1,0 +1,16 @@
+#instances table {
+	width: 100%;
+}
+
+#instances .instance {
+	width: 100%;
+}
+
+#instances .date {
+	width: max-content;
+	text-align: right;
+}
+
+#instances thead td {
+	text-align: center !important;
+}

@@ -22,7 +22,10 @@ THEMES = {
 		'border': '#444',
 		'message-text': '#DDD',
 		'message-background': '#335',
-		'message-border': '#446'
+		'message-border': '#446',
+		'error-text': '#DDD',
+		'error-background': '#533',
+		'error-border': '#644'
 	},
 	'pink': {
 		'text': '#DDD',
@@ -34,7 +37,10 @@ THEMES = {
 		'border': '#444',
 		'message-text': '#DDD',
 		'message-background': '#335',
-		'message-border': '#446'
+		'message-border': '#446',
+		'error-text': '#DDD',
+		'error-background': '#533',
+		'error-border': '#644'
 	},
 	'blue': {
 		'text': '#DDD',
@@ -46,7 +52,10 @@ THEMES = {
 		'border': '#444',
 		'message-text': '#DDD',
 		'message-background': '#335',
-		'message-border': '#446'
+		'message-border': '#446',
+		'error-text': '#DDD',
+		'error-background': '#533',
+		'error-border': '#644'
 	}
 }
 

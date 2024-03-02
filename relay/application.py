@@ -23,6 +23,7 @@ from .misc import check_open_port, get_resource
 from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
+from .views.frontend import handle_frontend_path
 
 if typing.TYPE_CHECKING:
 	from tinysql import Database, Row
@@ -38,7 +39,8 @@ class Application(web.Application):
 	def __init__(self, cfgpath: str | None):
 		web.Application.__init__(self,
 			middlewares = [
-				handle_api_path
+				handle_api_path,
+				handle_frontend_path
 			]
 		)
 

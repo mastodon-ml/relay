@@ -9,6 +9,9 @@
 	--message-text: {{theme["message-text"]}};
 	--message-background: {{theme["message-background"]}};
 	--message-border: {{theme["message-border"]}};
+	--error-text: {{theme["error-text"]}};
+	--error-background: {{theme["error-background"]}};
+	--error-border: {{theme["error-border"]}};
 	--spacing: 10px;
 }
 
@@ -84,31 +87,76 @@ table tbody td {
 #container {
 	width: 1024px;
 	margin: 0px auto;
+	height: 100vh;
 }
 
 #header {
-	text-align: center;
+	display: grid;
+	grid-template-columns: 50px auto 50px;
+	justify-items: center;
+	align-items: center;
 }
 
-#header a {
-	font-size: 3em;
+#header > * {
+	font-size: 2em;
 }
 
-#instances table {
-	width: 100%;
+#header > *:nth-child(2) {
+	font-weight: bold;
 }
 
-#instances .instance {
-	width: 100%;
-}
-
-#instances .date {
+#menu {
+	padding: 0px;
+	position: fixed;
+	top: 0px;
+	left: 0px;
+	margin: 0px;
+	height: 100%;
 	width: max-content;
-	text-align: right;
+	z-index: 1;
+	font-size: 1.5em;
+	min-width: 300px;
 }
 
-#instances thead td {
-	text-align: center !important;
+#menu[visible="false"] {
+	visibility: hidden;
+}
+
+#menu > a {
+	margin: var(--spacing);
+	display: block;
+	border-radius: 5px;
+	padding: 5px;
+}
+
+#menu > a[active="true"] {
+	cursor: default;
+	background-color: var(--background);
+	color: var(--primary);
+	border-color: transparent;
+}
+
+#menu .menu-head {
+	display: grid;
+	grid-template-columns: auto max-content;
+	margin: var(--spacing);
+}
+
+#menu .menu-head > * {
+	font-weight: bold;
+}
+
+#menu .menu-title {
+	color: var(--primary);
+}
+
+#menu-open, #menu-close {
+	cursor: pointer;
+}
+
+#menu-close, #menu-open {
+	min-width: 35px;
+	text-align: center;
 }
 
 #footer {
@@ -120,6 +168,34 @@ table tbody td {
 	text-align: right
 }
 
+
+.button {
+	background-color: var(--primary);
+	border: 1px solid var(--primary);
+	color: var(--background);
+	border-radius: 5px;
+}
+
+.button:hover {
+	background-color: var(--background);
+	color: var(--primary);
+	text-decoration: None;
+}
+
+.container {
+	display: grid;
+	grid-template-columns: max-content auto;
+}
+
+.error, .message {
+	text-align: center;
+}
+
+.error{
+	color: var(--error-text) !important;
+	background-color: var(--error-background) !important;
+	border: 1px solid var(--error-border) !important;
+}
 
 .message {
 	color: var(--message-text) !important;
@@ -143,14 +219,35 @@ table tbody td {
 }
 
 
+{% if page %}
+	{% include "style/" + page.lower().replace(" ", "_") + ".css" %}
+{% endif %}
+
+
 @media (max-width: 1026px) {
 	body {
 		margin: 0px;
 	}
 
+	#menu {
+		width: 100%;
+	}
+
+	#menu > a {
+		text-align: center;
+	}
+
 	#container {
 		width: unset;
 		margin: unset;
+	}
+
+	.container {
+		grid-template-columns: auto;
+	}
+
+	.content {
+		grid-template-columns: auto;
 	}
 
 	.section {

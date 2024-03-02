@@ -225,6 +225,12 @@ class Response(AiohttpResponse):
 		return cls.new(body=body, status=status, ctype=ctype)
 
 
+	@classmethod
+	def new_redir(cls: type[Response], path: str) -> Response:
+		body = f'Redirect to <a href="{path}">{path}</a>'
+		return cls.new(body, 302, {'Location': path})
+
+
 	@property
 	def location(self) -> str:
 		return self.headers.get('Location')
