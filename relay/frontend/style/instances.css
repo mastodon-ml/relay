@@ -1,0 +1,33 @@
+form input[type="submit"] {
+	display: block;
+	margin: 0 auto;
+}
+
+#instances table {
+	width: 100%;
+}
+
+#instances .instance {
+	width: 100%;
+}
+
+#instances .software {
+	text-align: center;
+}
+
+#instances .date {
+	width: max-content;
+	text-align: right;
+}
+
+#instances thead td {
+	text-align: center !important;
+}
+
+#add-instance {
+	display: grid;
+	grid-template-columns: max-content auto;
+	grid-gap: var(--spacing);
+	margin-top: var(--spacing);
+	margin-bottom: var(--spacing);
+}

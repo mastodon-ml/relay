@@ -36,6 +36,23 @@ NODEINFO_NS = {
 	'21': 'http://nodeinfo.diaspora.software/ns/schema/2.1'
 }
 
+ACTOR_FORMATS = {
+	'mastodon': 'https://{domain}/actor',
+	'akkoma': 'https://{domain}/relay',
+	'pleroma': 'https://{domain}/relay'
+}
+
+SOFTWARE = (
+	'mastodon',
+	'akkoma',
+	'pleroma',
+	'misskey',
+	'friendica',
+	'hubzilla',
+	'firefish',
+	'gotosocial'
+)
+
 
 def boolean(value: Any) -> bool:
 	if isinstance(value, str):

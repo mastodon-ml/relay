@@ -18,7 +18,7 @@ from . import logger as logging
 from .application import Application
 from .compat import RelayConfig, RelayDatabase
 from .database import RELAY_SOFTWARE, get_database
-from .misc import IS_DOCKER, Message
+from .misc import ACTOR_FORMATS, SOFTWARE, IS_DOCKER, Message
 
 if typing.TYPE_CHECKING:
 	from tinysql import Row
@@ -31,23 +31,6 @@ if typing.TYPE_CHECKING:
 CONFIG_IGNORE = (
 	'schema-version',
 	'private-key'
-)
-
-ACTOR_FORMATS = {
-	'mastodon': 'https://{domain}/actor',
-	'akkoma': 'https://{domain}/relay',
-	'pleroma': 'https://{domain}/relay'
-}
-
-SOFTWARE = (
-	'mastodon',
-	'akkoma',
-	'pleroma',
-	'misskey',
-	'friendica',
-	'hubzilla',
-	'firefish',
-	'gotosocial'
 )
 
 

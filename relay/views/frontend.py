@@ -7,21 +7,10 @@ from argon2.exceptions import VerifyMismatchError
 
 from .base import View, register_route
 
-from ..misc import Response
+from ..misc import ACTOR_FORMATS, Message, Response
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
-
-
-AUTH_ROUTES = {
-	'/admin',
-	'/admin/instances',
-	'/admin/domain_bans',
-	'/admin/software_bans',
-	'/admin/whitelist',
-	'/admin/config',
-	'/logout'
-}
 
 
 UNAUTH_ROUTES = {
@@ -29,12 +18,10 @@ UNAUTH_ROUTES = {
 	'/login'
 }
 
-ALL_ROUTES = {*AUTH_ROUTES, *UNAUTH_ROUTES}
-
 
 @web.middleware
 async def handle_frontend_path(request: web.Request, handler: Coroutine) -> Response:
-	if request.path in ALL_ROUTES:
+	if request.path in UNAUTH_ROUTES or request.path.startswith('/admin'):
 		request['token'] = request.cookies.get('user-token')
 		request['user'] = None
 
@@ -57,16 +44,11 @@ async def handle_frontend_path(request: web.Request, handler: Coroutine) -> Resp
 class HomeView(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			instances = tuple(conn.execute('SELECT * FROM inboxes').all())
+			context = {
+				'instances': tuple(conn.execute('SELECT * FROM inboxes').all())
+			}
 
-		# text = HOME_TEMPLATE.format(
-		# 	host = self.config.domain,
-		# 	note = config['note'],
-		# 	count = len(inboxes),
-		# 	targets = '<br>'.join(inbox['domain'] for inbox in inboxes)
-		# )
-
-		data = self.template.render('page/home.haml', self, instances = instances)
+		data = self.template.render('page/home.haml', self, **context)
 		return Response.new(data, ctype='html')
 
 
@@ -137,9 +119,62 @@ class Admin(View):
 
 @register_route('/admin/instances')
 class AdminInstances(View):
-	async def get(self, request: Request) -> Response:
-		data = self.template.render('page/admin-instances.haml', self)
+	async def get(self,
+				request: Request,
+				error: str | None = None,
+				message: str | None = None) -> Response:
+
+		with self.database.session() as conn:
+			context = {
+				'instances': tuple(conn.execute('SELECT * FROM inboxes').all())
+			}
+
+			if error:
+				context['error'] = error
+
+			if message:
+				context['message'] = message
+
+		data = self.template.render('page/admin-instances.haml', self, **context)
 		return Response.new(data, ctype = 'html')
+
+
+	async def post(self, request: Request) -> Response:
+		data = {key: value for key, value in (await request.post()).items()}
+
+		if not data['actor'] and not data['domain']:
+			return await self.get(request, error = 'Missing actor and/or domain')
+
+		if not data['domain']:
+			data['domain'] = urlparse(data['actor']).netloc
+
+		if not data['software']:
+			nodeinfo = await self.client.fetch_nodeinfo(data['domain'])
+			data['software'] = nodeinfo.sw_name
+
+		if not data['actor'] and data['software'] in ACTOR_FORMATS:
+			data['actor'] = ACTOR_FORMATS[data['software']].format(domain = data['domain'])
+
+		if not data['inbox'] and data['actor']:
+			actor = await self.client.get(data['actor'], sign_headers = True, loads = Message.parse)
+			data['inbox'] = actor.shared_inbox
+
+		with self.database.session(True) as conn:
+			conn.put_inbox(**data)
+
+		return await self.get(request, message = "Added new inbox")
+
+
+@register_route('/admin/instances/delete/{domain}')
+class AdminInstancesDelete(View):
+	async def get(self, request: Request, domain: str) -> Response:
+		with self.database.session() as conn:
+			if not (conn.get_inbox(domain)):
+				return await AdminInstances(request).get(request, message = 'Instance not found')
+
+			conn.del_inbox(domain)
+
+		return await AdminInstances(request).get(request, message = 'Removed instance')
 
 
 @register_route('/admin/whitelist')
