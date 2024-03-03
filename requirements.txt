@@ -2,7 +2,7 @@ aiohttp>=3.9.1
 aiohttp-swagger[performance]==1.0.16
 aputils@https://git.barkshark.xyz/barkshark/aputils/archive/0.1.7.tar.gz
 argon2-cffi==23.1.0
-barkshark-sql@https://git.barkshark.xyz/barkshark/bsql/archive/0.1.1.tar.gz
+barkshark-sql@https://git.barkshark.xyz/barkshark/bsql/archive/499649a736fd22eb3752ce38fd7304a9b8432ab9.tar.gz
 click>=8.1.2
 hamlish-jinja@https://git.barkshark.xyz/barkshark/hamlish-jinja/archive/0.3.5.tar.gz
 hiredis==2.3.2
