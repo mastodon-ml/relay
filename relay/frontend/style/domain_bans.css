@@ -14,10 +14,6 @@ table .items {
 	margin-top: var(--spacing);
 }
 
-#domains table {
-	width: 100%;
-}
-
 #domains .domain {
 	width: 100%;
 }
@@ -25,10 +21,6 @@ table .items {
 #domains .date {
 	width: max-content;
 	text-align: right;
-}
-
-#domains thead td {
-	text-align: center !important;
 }
 
 #add-domain {

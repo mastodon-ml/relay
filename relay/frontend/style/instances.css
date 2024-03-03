@@ -3,10 +3,6 @@ form input[type="submit"] {
 	margin: 0 auto;
 }
 
-#instances table {
-	width: 100%;
-}
-
 #instances .instance {
 	width: 100%;
 }
@@ -18,10 +14,6 @@ form input[type="submit"] {
 #instances .date {
 	width: max-content;
 	text-align: right;
-}
-
-#instances thead td {
-	text-align: center !important;
 }
 
 #add-instance {

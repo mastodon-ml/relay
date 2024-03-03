@@ -35,8 +35,13 @@
 
 		#container
 			#header.section
-				%span#menu-open.button << &#8286;
-				%a(href="https://{{domain}}/") -> =config.name
+				%span#menu-open << &#8286;
+				%span.title-container
+					%a.title(href="/") -> =config.name
+
+					-if view.request.path not in ["/", "/login"]
+						.page -> =page
+
 				.empty
 
 			-if error

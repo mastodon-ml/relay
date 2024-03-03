@@ -53,6 +53,7 @@ table {
 	border: 1px solid var(--primary);
 	border-radius: 5px;
 	border-spacing: 0px;
+	width: 100%;
 }
 
 table tbody tr:nth-child(even) td {
@@ -81,7 +82,8 @@ table td {
 
 table thead td {
 	background-color: var(--primary);
-	color: var(--table-background)
+	color: var(--background);
+	text-align: center;
 }
 
 table tbody td {
@@ -105,8 +107,17 @@ table tbody td {
 	font-size: 2em;
 }
 
-#header > *:nth-child(2) {
+#header .title-container {
+	text-align: center;
+}
+
+#header .title {
 	font-weight: bold;
+	line-height: 0.75em;
+}
+
+#header .page {
+	font-size: 0.5em;
 }
 
 #menu {
@@ -153,11 +164,19 @@ table tbody td {
 	color: var(--primary);
 }
 
+#menu-open {
+	color: var(--primary);
+}
+
+#menu-open:hover {
+	color: var(--primary-hover);
+}
+
 #menu-open, #menu-close {
 	cursor: pointer;
 }
 
-#menu-close, #menu-open {
+#menu-open, #menu-close {
 	min-width: 35px;
 	text-align: center;
 }

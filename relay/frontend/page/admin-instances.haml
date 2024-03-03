@@ -7,10 +7,13 @@
 			#add-instance
 				%label(for="domain") << Domain
 				%input(type="domain", id="domain" name="domain", placeholder="Domain")
+
 				%label(for="actor") << Actor URL
 				%input(type="url", id="actor" name="actor", placeholder="Actor URL")
+
 				%label(for="inbox") << Inbox URL
 				%input(type="url", id="inbox" name="inbox", placeholder="Inbox URL")
+
 				%label(for="software") << Software
 				%input(name="software", id="software" placeholder="software")
 
@@ -22,7 +25,7 @@
 				%tr
 					%td.instance << Instance
 					%td.software << Software
-					%td.date << Joined
+					%td << Joined
 					%td.remove
 
 			%tbody
