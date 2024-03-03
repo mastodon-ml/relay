@@ -186,16 +186,83 @@ class AdminInstancesDelete(View):
 
 @register_route('/admin/whitelist')
 class AdminWhitelist(View):
-	async def get(self, request: Request) -> Response:
-		data = self.template.render('page/admin-whitelist.haml', self)
+	async def get(self,
+				request: Request,
+				error: str | None = None,
+				message: str | None = None) -> Response:
+
+		with self.database.session() as conn:
+			context = {
+				'domains': tuple(conn.execute('SELECT * FROM whitelist').all())
+			}
+
+			if error:
+				context['error'] = error
+
+			if message:
+				context['message'] = message
+
+		data = self.template.render('page/admin-whitelist.haml', self, **context)
 		return Response.new(data, ctype = 'html')
 
 
 @register_route('/admin/domain_bans')
 class AdminDomainBans(View):
-	async def get(self, request: Request) -> Response:
-		data = self.template.render('page/admin-domain_bans.haml', self)
+	async def get(self,
+				request: Request,
+				error: str | None = None,
+				message: str | None = None) -> Response:
+
+		with self.database.session() as conn:
+			context = {
+				'bans': tuple(conn.execute('SELECT * FROM domain_bans ORDER BY domain ASC').all())
+			}
+
+			if error:
+				context['error'] = error
+
+			if message:
+				context['message'] = message
+
+		data = self.template.render('page/admin-domain_bans.haml', self, **context)
 		return Response.new(data, ctype = 'html')
+
+
+	async def post(self, request: Request) -> Response:
+		data = await request.post()
+		print(data)
+
+		if not data['domain']:
+			return await self.get(request, error = 'Missing domain')
+
+		with self.database.session(True) as conn:
+			if (ban := conn.get_domain_ban(data['domain'])):
+				conn.update_domain_ban(
+					data['domain'],
+					data.get('reason'),
+					data.get('note')
+				)
+
+			else:
+				conn.put_domain_ban(
+					data['domain'],
+					data.get('reason'),
+					data.get('note')
+				)
+
+		return await self.get(request, message = "Added/updated domain ban")
+
+
+@register_route('/admin/domain_bans/delete/{domain}')
+class AdminDomainBansDelete(View):
+	async def get(self, request: Request, domain: str) -> Response:
+		with self.database.session() as conn:
+			if not (conn.get_domain_ban(domain)):
+				return await AdminDomainBans.run("GET", request, message = 'Domain ban not found')
+
+			conn.del_domain_ban(domain)
+
+		return await AdminDomainBans.run("GET", request, message = 'Unbanned domain')
 
 
 @register_route('/admin/software_bans')

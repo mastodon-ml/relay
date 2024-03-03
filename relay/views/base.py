@@ -12,7 +12,8 @@ from ..misc import Response
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Callable, Coroutine, Generator
-	from tinysql import Database
+	from bsql import Database
+	from typing import Self
 	from ..application import Application
 	from ..cache import Cache
 	from ..config import Config
@@ -28,7 +29,7 @@ def register_route(*paths: str) -> Callable:
 		for path in paths:
 			VIEWS.append([path, view])
 
-		return View
+		return view
 	return wrapper
 
 
@@ -43,8 +44,14 @@ class View(AbstractView):
 		return self._run_handler(handler).__await__()
 
 
-	async def _run_handler(self, handler: Coroutine) -> Response:
-		return await handler(self.request, **self.request.match_info)
+	@classmethod
+	async def run(cls: type[Self], method: str, request: Request, **kwargs: Any) -> Self:
+		view = cls(request)
+		return await view.handlers[method](request, **kwargs)
+
+
+	async def _run_handler(self, handler: Coroutine, **kwargs: Any) -> Response:
+		return await handler(self.request, **self.request.match_info, **kwargs)
 
 
 	@cached_property

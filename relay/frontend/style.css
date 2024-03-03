@@ -133,9 +133,8 @@ table tbody td {
 	padding: 5px;
 }
 
-#menu > a[active="true"] {
-	cursor: default;
-	background-color: var(--background);
+#menu > a[active="true"]:not(:hover) {
+	background-color: var(--primary-hover);
 	color: var(--primary);
 	border-color: transparent;
 }

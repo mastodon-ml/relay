@@ -266,10 +266,10 @@ class Connection(SqlConnection):
 
 		params = {}
 
-		if reason:
+		if reason is not None:
 			params['reason'] = reason
 
-		if note:
+		if note is not None:
 			params['note'] = note
 
 		statement = Update('domain_bans', params)
@@ -321,10 +321,10 @@ class Connection(SqlConnection):
 
 		params = {}
 
-		if reason:
+		if reason is not None:
 			params['reason'] = reason
 
-		if note:
+		if note is not None:
 			params['note'] = note
 
 		statement = Update('software_bans', params)

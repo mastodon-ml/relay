@@ -1,0 +1,40 @@
+form input[type="submit"] {
+	display: block;
+	margin: 0 auto;
+}
+
+textarea {
+	height: calc(5em);
+}
+
+table .items {
+	display: grid;
+	grid-template-columns: max-content auto;
+	grid-gap: var(--spacing);
+	margin-top: var(--spacing);
+}
+
+#domains table {
+	width: 100%;
+}
+
+#domains .domain {
+	width: 100%;
+}
+
+#domains .date {
+	width: max-content;
+	text-align: right;
+}
+
+#domains thead td {
+	text-align: center !important;
+}
+
+#add-domain {
+	display: grid;
+	grid-template-columns: max-content auto;
+	grid-gap: var(--spacing);
+	margin-top: var(--spacing);
+	margin-bottom: var(--spacing);
+}
