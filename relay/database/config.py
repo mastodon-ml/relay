@@ -61,10 +61,10 @@ THEMES = {
 
 CONFIG_DEFAULTS: dict[str, tuple[str, Any]] = {
 	'schema-version': ('int', 20240206),
+	'private-key': ('str', None),
 	'log-level': ('loglevel', logging.LogLevel.INFO),
 	'name': ('str', 'ActivityRelay'),
 	'note': ('str', 'Make a note about your instance here.'),
-	'private-key': ('str', None),
 	'theme': ('str', 'default'),
 	'whitelist-enabled': ('bool', False)
 }

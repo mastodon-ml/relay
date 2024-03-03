@@ -2,7 +2,9 @@
 -set page = "Home"
 -block content
 	.section
-		=config.note
+		-for line in config.note.splitlines()
+			-if line
+				%p -> =line
 
 	.section
 		%p

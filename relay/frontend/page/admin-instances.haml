@@ -6,13 +6,13 @@
 		%form(target="/admin/instances", method="POST")
 			#add-instance
 				%label(for="domain") << Domain
-				%input(type="domain", name="domain", placeholder="Domain")
+				%input(type="domain", id="domain" name="domain", placeholder="Domain")
 				%label(for="actor") << Actor URL
-				%input(type="url", name="actor", placeholder="Actor URL")
+				%input(type="url", id="actor" name="actor", placeholder="Actor URL")
 				%label(for="inbox") << Inbox URL
-				%input(type="url", name="inbox", placeholder="Inbox URL")
+				%input(type="url", id="inbox" name="inbox", placeholder="Inbox URL")
 				%label(for="software") << Software
-				%input(name="software", placeholder="software")
+				%input(name="software", id="software" placeholder="software")
 
 			%input(type="submit" value="Add Instance")
 

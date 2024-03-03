@@ -7,6 +7,8 @@ from argon2.exceptions import VerifyMismatchError
 
 from .base import View, register_route
 
+from ..database import CONFIG_DEFAULTS, THEMES
+from ..logger import LogLevel
 from ..misc import ACTOR_FORMATS, Message, Response
 
 if typing.TYPE_CHECKING:
@@ -17,6 +19,11 @@ UNAUTH_ROUTES = {
 	'/',
 	'/login'
 }
+
+CONFIG_IGNORE = (
+	'schema-version',
+	'private-key'
+)
 
 
 @web.middleware
@@ -200,9 +207,35 @@ class AdminSoftwareBans(View):
 
 @register_route('/admin/config')
 class AdminConfig(View):
-	async def get(self, request: Request) -> Response:
-		data = self.template.render('page/admin-config.haml', self)
+	async def get(self, request: Request, message: str | None = None) -> Response:
+		context = {
+			'themes': tuple(THEMES.keys()),
+			'LogLevel': LogLevel,
+			'message': message
+		}
+		data = self.template.render('page/admin-config.haml', self, **context)
 		return Response.new(data, ctype = 'html')
+
+
+	async def post(self, request: Request) -> Response:
+		form = dict(await request.post())
+
+		with self.database.session(True) as conn:
+			for key in CONFIG_DEFAULTS:
+				value = form.get(key)
+
+				if key == 'whitelist-enabled':
+					value = bool(value)
+
+				elif key.lower() in CONFIG_IGNORE:
+					continue
+
+				if value is None:
+					continue
+
+				conn.put_config(key, value)
+
+		return await self.get(request, message = 'Updated config')
 
 
 @register_route('/style.css')

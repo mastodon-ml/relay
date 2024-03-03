@@ -1,0 +1,20 @@
+#config-options {
+	display: grid;
+	grid-template-columns: max-content auto;
+	grid-gap: var(--spacing);
+	margin-bottom: var(--spacing);
+	align-items: center;
+}
+
+form input[type="submit"] {
+	display: block;
+	margin: 0 auto;
+}
+
+form input[type="checkbox"] {
+	justify-self: left;
+}
+
+textarea {
+	height: 4em;
+}

@@ -3,7 +3,7 @@ from __future__ import annotations
 import bsql
 import typing
 
-from .config import get_default_value
+from .config import CONFIG_DEFAULTS, THEMES, get_default_value
 from .connection import RELAY_SOFTWARE, Connection
 from .schema import TABLES, VERSIONS, migrate_0
 
