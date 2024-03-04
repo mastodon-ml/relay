@@ -94,7 +94,7 @@ def cli_run():
 
 class WatchHandler(PatternMatchingEventHandler):
 	patterns = ['*.py']
-	cmd = [sys.executable, '-m', 'relay', 'run']
+	cmd = [sys.executable, '-m', 'relay', 'run', '-d']
 
 
 	def __init__(self):

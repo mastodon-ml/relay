@@ -28,7 +28,7 @@ from .views.frontend import handle_frontend_path
 if typing.TYPE_CHECKING:
 	from tinysql import Database, Row
 	from .cache import Cache
-	from .misc import Message
+	from .misc import Message, Response
 
 
 # pylint: disable=unsubscriptable-object
@@ -36,11 +36,12 @@ if typing.TYPE_CHECKING:
 class Application(web.Application):
 	DEFAULT: Application = None
 
-	def __init__(self, cfgpath: str | None):
+	def __init__(self, cfgpath: str | None, dev: bool = False):
 		web.Application.__init__(self,
 			middlewares = [
 				handle_api_path,
-				handle_frontend_path
+				handle_frontend_path,
+				handle_response_headers
 			]
 		)
 
@@ -50,6 +51,7 @@ class Application(web.Application):
 		self['signer'] = None
 		self['start_time'] = None
 		self['cleanup_thread'] = None
+		self['dev'] = dev
 
 		self['config'] = Config(cfgpath, load = True)
 		self['database'] = get_database(self.config)
@@ -255,25 +257,18 @@ class PushWorker(multiprocessing.Process):
 		await client.close()
 
 
+@web.middleware
+async def handle_response_headers(request: web.Request, handler: Coroutine) -> Response:
+	resp = await handler(request)
+	resp.headers['Server'] = 'ActivityRelay'
 
-async def handle_access_log(request: web.Request, response: web.Response) -> None:
-	address = request.headers.get(
-		'X-Forwarded-For',
-		request.headers.get(
-			'X-Real-Ip',
-			request.remote
-		)
-	)
+	if request.app['dev'] and request.path.endswith(('.css', '.js')):
+		resp.headers['Cache-Control'] = 'public,max-age=2628000,immutable'
 
-	logging.info(
-		'%s "%s %s" %i %i "%s"',
-		address,
-		request.method,
-		request.path,
-		response.status,
-		response.content_length or 0,
-		request.headers.get('User-Agent', 'n/a')
-	)
+	else:
+		resp.headers['Cache-Control'] = 'no-store'
+
+	return resp
 
 
 async def handle_cleanup(app: Application) -> None:

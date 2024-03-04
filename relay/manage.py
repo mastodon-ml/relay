@@ -188,8 +188,9 @@ def cli_setup(ctx: click.Context) -> None:
 
 
 @cli.command('run')
+@click.option('--dev', '-d', is_flag=True, help='Enable developer mode')
 @click.pass_context
-def cli_run(ctx: click.Context) -> None:
+def cli_run(ctx: click.Context, dev: bool = False) -> None:
 	'Run the relay'
 
 	if ctx.obj.config.domain.endswith('example.com') or not ctx.obj.signer:
@@ -216,6 +217,7 @@ def cli_run(ctx: click.Context) -> None:
 		click.echo(pip_command)
 		return
 
+	ctx.obj['dev'] = True
 	ctx.obj.run()
 
 	# todo: figure out why the relay doesn't quit properly without this
