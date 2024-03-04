@@ -52,7 +52,11 @@ if IS_DOCKER:
 
 class Config:
 	def __init__(self, path: str, load: bool = False):
-		self.path = Config.get_config_dir()
+		if path:
+			self.path = Path(path).expanduser().resolve()
+
+		else:
+			self.path = Config.get_config_dir()
 
 		self.listen = None
 		self.port = None

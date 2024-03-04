@@ -26,6 +26,7 @@ from .views.api import handle_api_path
 from .views.frontend import handle_frontend_path
 
 if typing.TYPE_CHECKING:
+	from collections.abc import Coroutine
 	from tinysql import Database, Row
 	from .cache import Cache
 	from .misc import Message, Response
@@ -264,7 +265,7 @@ async def handle_response_headers(request: web.Request, handler: Coroutine) -> R
 
 #	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
 #		resp.headers['Cache-Control'] = 'public,max-age=2628000,immutable'
-#
+
 #	else:
 #		resp.headers['Cache-Control'] = 'no-store'
 

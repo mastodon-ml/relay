@@ -11,9 +11,10 @@ from json.decoder import JSONDecodeError
 from ..misc import Response
 
 if typing.TYPE_CHECKING:
+	from aiohttp.web import Request
 	from collections.abc import Callable, Coroutine, Generator
 	from bsql import Database
-	from typing import Self
+	from typing import Any, Self
 	from ..application import Application
 	from ..cache import Cache
 	from ..config import Config
