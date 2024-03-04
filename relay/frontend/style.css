@@ -159,7 +159,6 @@ textarea {
 
 #menu > a[active="true"]:not(:hover) {
 	background-color: var(--primary-hover);
-	color: var(--primary);
 	border-color: transparent;
 }
 
