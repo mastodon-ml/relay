@@ -350,6 +350,60 @@ class AdminSoftwareBansDelete(View):
 		return await AdminSoftwareBans.run("GET", request, message = 'Unbanned software')
 
 
+@register_route('/admin/users')
+class AdminUsers(View):
+	async def get(self,
+				request: Request,
+				error: str | None = None,
+				message: str | None = None) -> Response:
+
+		with self.database.session() as conn:
+			context = {
+				'users': tuple(conn.execute('SELECT * FROM users').all())
+			}
+
+			if error:
+				context['error'] = error
+
+			if message:
+				context['message'] = message
+
+		data = self.template.render('page/admin-users.haml', self, **context)
+		return Response.new(data, ctype = 'html')
+
+
+	async def post(self, request: Request) -> Response:
+		data = await request.post()
+		required_fields = {'username', 'password', 'password2'}
+		print(data)
+
+		if not all(map(data.get, required_fields)):
+			return await self.get(request, error = 'Missing username and/or password')
+
+		if data['password'] != data['password2']:
+			return await self.get(request, error = 'Passwords do not match')
+
+		with self.database.session(True) as conn:
+			if conn.get_user(data['username']):
+				return await self.get(request, message = "User already exists")
+
+			conn.put_user(data['username'], data['password'], data['handle'])
+
+		return await self.get(request, message = "Added user")
+
+
+@register_route('/admin/users/delete/{name}')
+class AdminUsersDelete(View):
+	async def get(self, request: Request, name: str) -> Response:
+		with self.database.session() as conn:
+			if not (conn.get_user(name)):
+				return await AdminUsers.run("GET", request, message = 'User not found')
+
+			conn.del_user(name)
+
+		return await AdminUsers.run("GET", request, message = 'User deleted')
+
+
 @register_route('/admin/config')
 class AdminConfig(View):
 	async def get(self, request: Request, message: str | None = None) -> Response:
