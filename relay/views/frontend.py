@@ -445,3 +445,18 @@ class StyleCss(View):
 	async def get(self, request: Request) -> Response:
 		data = self.template.render('style.css', self)
 		return Response.new(data, ctype = 'css')
+
+
+@register_route('/theme/{theme}.css')
+class ThemeCss(View):
+	async def get(self, request: Request, theme: str) -> Response:
+		try:
+			context = {
+				'theme': THEMES[theme]
+			}
+
+		except KeyError:
+			return Response.new('Invalid theme', 404)
+
+		data = self.template.render('variables.css', self, **context)
+		return Response.new(data, ctype = 'css')

@@ -263,11 +263,12 @@ async def handle_response_headers(request: web.Request, handler: Coroutine) -> R
 	resp = await handler(request)
 	resp.headers['Server'] = 'ActivityRelay'
 
-#	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
-#		resp.headers['Cache-Control'] = 'public,max-age=2628000,immutable'
+	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
+		# cache for 2 weeks
+		resp.headers['Cache-Control'] = 'public,max-age=1209600,immutable'
 
-#	else:
-#		resp.headers['Cache-Control'] = 'no-store'
+	else:
+		resp.headers['Cache-Control'] = 'no-store'
 
 	return resp
 

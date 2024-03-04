@@ -44,7 +44,7 @@ class Template(Environment):
 			'domain': self.app.config.domain,
 			'version': __version__,
 			'config': config,
-			'theme': THEMES.get(config['theme'], THEMES['default']),
+			'theme_name': config['theme'] or 'Default',
 			**(context or {})
 		}
 
