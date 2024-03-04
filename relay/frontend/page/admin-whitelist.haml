@@ -1,5 +1,31 @@
 -extends "base.haml"
 -set page="Whitelist"
 -block content
-	.section
-		UvU
+	%details.section
+		%summary << Add Domain
+		%form(target="/admin/whitelist", method="POST")
+			#add-domain
+				%label(for="domain") << Domain
+				%input(type="domain", id="domain" name="domain", placeholder="Domain")
+
+			%input(type="submit" value="Add Domain")
+
+	#whitelist.section
+		%table
+			%thead
+				%tr
+					%td.domain << Domain
+					%td.date << Added
+					%td.remove
+
+			%tbody
+				-for item in whitelist
+					%tr
+						%td.domain
+							=item.domain
+
+						%td.date
+							=item.created.strftime("%Y-%m-%d")
+
+						%td.remove
+							%a(href="/admin/whitelist/delete/{{item.domain}}" title="Remove whitlisted domain") << &#10006;

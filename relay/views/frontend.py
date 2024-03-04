@@ -193,7 +193,7 @@ class AdminWhitelist(View):
 
 		with self.database.session() as conn:
 			context = {
-				'domains': tuple(conn.execute('SELECT * FROM whitelist').all())
+				'whitelist': tuple(conn.execute('SELECT * FROM whitelist').all())
 			}
 
 			if error:
@@ -204,6 +204,34 @@ class AdminWhitelist(View):
 
 		data = self.template.render('page/admin-whitelist.haml', self, **context)
 		return Response.new(data, ctype = 'html')
+
+
+	async def post(self, request: Request) -> Response:
+		data = await request.post()
+
+		if not data['domain']:
+			return await self.get(request, error = 'Missing domain')
+
+		with self.database.session(True) as conn:
+			if (ban := conn.get_domain_whitelist(data['domain'])):
+				return await self.get(request, message = "Domain already in whitelist")
+
+			conn.put_domain_whitelist(data['domain'])
+
+		return await self.get(request, message = "Added/updated domain ban")
+
+
+@register_route('/admin/whitelist/delete/{domain}')
+class AdminWhitlistDelete(View):
+	async def get(self, request: Request, domain: str) -> Response:
+		with self.database.session() as conn:
+			if not (conn.get_domain_whitelist(domain)):
+				msg = 'Whitelisted domain not found'
+				return await AdminWhitelist.run("GET", request, message = msg)
+
+			conn.del_domain_whitelist(domain)
+
+		return await AdminWhitelist.run("GET", request, message = 'Removed domain from whitelist')
 
 
 @register_route('/admin/domain_bans')
