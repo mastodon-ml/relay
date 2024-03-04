@@ -230,7 +230,6 @@ class AdminDomainBans(View):
 
 	async def post(self, request: Request) -> Response:
 		data = await request.post()
-		print(data)
 
 		if not data['domain']:
 			return await self.get(request, error = 'Missing domain')
@@ -267,9 +266,60 @@ class AdminDomainBansDelete(View):
 
 @register_route('/admin/software_bans')
 class AdminSoftwareBans(View):
-	async def get(self, request: Request) -> Response:
-		data = self.template.render('page/admin-software_bans.haml', self)
+	async def get(self,
+				request: Request,
+				error: str | None = None,
+				message: str | None = None) -> Response:
+
+		with self.database.session() as conn:
+			context = {
+				'bans': tuple(conn.execute('SELECT * FROM software_bans ORDER BY name ASC').all())
+			}
+
+			if error:
+				context['error'] = error
+
+			if message:
+				context['message'] = message
+
+		data = self.template.render('page/admin-software_bans.haml', self, **context)
 		return Response.new(data, ctype = 'html')
+
+
+	async def post(self, request: Request) -> Response:
+		data = await request.post()
+
+		if not data['name']:
+			return await self.get(request, error = 'Missing name')
+
+		with self.database.session(True) as conn:
+			if (ban := conn.get_software_ban(data['name'])):
+				conn.update_software_ban(
+					data['name'],
+					data.get('reason'),
+					data.get('note')
+				)
+
+			else:
+				conn.put_software_ban(
+					data['name'],
+					data.get('reason'),
+					data.get('note')
+				)
+
+		return await self.get(request, message = "Added/updated software ban")
+
+
+@register_route('/admin/software_bans/delete/{name}')
+class AdminSoftwareBansDelete(View):
+	async def get(self, request: Request, name: str) -> Response:
+		with self.database.session() as conn:
+			if not (conn.get_software_ban(name)):
+				return await AdminSoftwareBans.run("GET", request, message = 'Software ban not found')
+
+			conn.del_software_ban(name)
+
+		return await AdminSoftwareBans.run("GET", request, message = 'Unbanned software')
 
 
 @register_route('/admin/config')

@@ -1,5 +1,48 @@
 -extends "base.haml"
 -set page="Software Bans"
 -block content
-	.section
-		UvU
+	%details.section
+		%summary << Ban Software
+		%form(action="/admin/software_bans", method="POST")
+			#add-software
+				%label(for="name") << Name
+				%input(id="name" name="name" placeholder="Name")
+
+				%label(for="reason") << Ban Reason
+				%textarea(id="reason" name="reason") << {{""}}
+
+				%label(for="note") << Admin Note
+				%textarea(id="note" name="note") << {{""}}
+
+			%input(type="submit" value="Ban Software")
+
+	#software.section
+		%table
+			%thead
+				%tr
+					%td.name << Instance
+					%td << Date
+					%td.remove
+
+			%tbody
+				-for ban in bans
+					%tr
+						%td.name
+							%details
+								%summary -> =ban.name
+								%form(action="/admin/software_bans" method="POST")
+									.items
+										.reason << Reason
+										%textarea.reason(id="reason" name="reason") << {{ban.reason or ""}}
+
+										.note << Note
+										%textarea.note(id="note" name="note") << {{ban.note or ""}}
+
+									%input(type="hidden" name="name", value="{{ban.name}}")
+									%input(type="submit" value="Update")
+
+						%td.date
+							=ban.created.strftime("%Y-%m-%d")
+
+						%td.remove
+							%a(href="/admin/software_bans/delete/{{ban.name}}" title="Unban software") << &#10006;
