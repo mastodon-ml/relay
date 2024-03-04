@@ -217,7 +217,7 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 		click.echo(pip_command)
 		return
 
-	ctx.obj['dev'] = True
+	ctx.obj['dev'] = dev
 	ctx.obj.run()
 
 	# todo: figure out why the relay doesn't quit properly without this
