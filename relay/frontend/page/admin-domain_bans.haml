@@ -4,7 +4,7 @@
 	%details.section
 		%summary << Ban Domain
 		%form(action="/admin/domain_bans" method="POST")
-			#add-domain
+			#add-item
 				%label(for="domain") << Domain
 				%input(type="domain" id="domain" name="domain" placeholder="Domain")
 
@@ -16,7 +16,7 @@
 
 			%input(type="submit" value="Ban Domain")
 
-	#domains.section
+	#data-table.section
 		%table
 			%thead
 				%tr
@@ -31,7 +31,7 @@
 							%details
 								%summary -> =ban.domain
 								%form(action="/admin/domain_bans" method="POST")
-									.items
+									.grid-2col
 										.reason << Reason
 										%textarea.reason(id="reason" name="reason") << {{ban.reason or ""}}
 

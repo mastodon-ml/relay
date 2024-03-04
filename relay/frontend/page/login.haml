@@ -2,8 +2,11 @@
 -set page="Login"
 -block content
 	%form.section(action="/login" method="post")
-		%label(for="username") << Username
-		%input(id="username" name="username" placeholder="Username" value="{{username or ''}}")
-		%label(for="password") << Password
-		%input(id="password" name="password" placeholder="Password" type="password")
+		.grid-2col
+			%label(for="username") << Username
+			%input(id="username" name="username" placeholder="Username" value="{{username or ''}}")
+
+			%label(for="password") << Password
+			%input(id="password" name="password" placeholder="Password" type="password")
+
 		%input(type="submit" value="Login")

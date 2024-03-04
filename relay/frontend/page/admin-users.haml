@@ -4,7 +4,7 @@
 	%details.section
 		%summary << Add User
 		%form(target="/admin/users", method="POST")
-			#add-user
+			#add-item
 				%label(for="username") << Username
 				%input(id="username" name="username" placeholder="Username")
 
@@ -19,7 +19,7 @@
 
 			%input(type="submit" value="Add User")
 
-	#users.section
+	#data-table.section
 		%table
 			%thead
 				%tr

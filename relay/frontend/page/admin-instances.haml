@@ -4,7 +4,7 @@
 	%details.section
 		%summary << Add Instance
 		%form(target="/admin/instances" method="POST")
-			#add-instance
+			#add-item
 				%label(for="domain") << Domain
 				%input(type="domain" id="domain" name="domain" placeholder="Domain")
 
@@ -19,7 +19,7 @@
 
 			%input(type="submit" value="Add Instance")
 
-	#instances.section
+	#data-table.section
 		%table
 			%thead
 				%tr

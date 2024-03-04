@@ -15,13 +15,6 @@
 	--spacing: 10px;
 }
 
-body {
-	color: var(--text);
-	background-color: #222;
-	margin: var(--spacing);
-	font-family: sans serif;
-}
-
 a {
 	color: var(--primary);
 	text-decoration: none;
@@ -32,8 +25,24 @@ a:hover {
 	text-decoration: underline;
 }
 
+body {
+	color: var(--text);
+	background-color: #222;
+	margin: var(--spacing);
+	font-family: sans serif;
+}
+
+details *:nth-child(2) {
+	margin-top: 5px;
+}
+
 details summary {
 	cursor: pointer;
+}
+
+form input[type="submit"] {
+	display: block;
+	margin: 0 auto;
 }
 
 p {
@@ -88,6 +97,10 @@ table thead td {
 
 table tbody td {
 	background-color: var(--table-background);
+}
+
+textarea {
+	height: calc(5em);
 }
 
 #container {
@@ -190,6 +203,23 @@ table tbody td {
 	text-align: right
 }
 
+#add-item {
+	display: grid;
+	grid-template-columns: max-content auto;
+	grid-gap: var(--spacing);
+	margin-top: var(--spacing);
+	margin-bottom: var(--spacing);
+	align-items: center;
+}
+
+#data-table td:first-child {
+	width: 100%;
+}
+
+#data-table .date {
+	width: max-content;
+	text-align: right;
+}
 
 .button {
 	background-color: var(--primary);
@@ -219,6 +249,15 @@ table tbody td {
 	border: 1px solid var(--error-border) !important;
 }
 
+.grid-2col {
+	display: grid;
+	grid-template-columns: max-content auto;
+	grid-gap: var(--spacing);
+	margin-bottom: var(--spacing);
+	align-items: center;
+	
+}
+
 .message {
 	color: var(--message-text) !important;
 	background-color: var(--message-background) !important;
@@ -241,9 +280,10 @@ table tbody td {
 }
 
 
-{% if page %}
-	{% include "style/" + page.lower().replace(" ", "_") + ".css" %}
-{% endif %}
+/* config */
+#content.page-config input[type="checkbox"] {
+	justify-self: left;
+}
 
 
 @media (max-width: 1026px) {
@@ -273,7 +313,8 @@ table tbody td {
 	}
 
 	.section {
-		border-width: 0px;
+		border-left-width: 0px;
+		border-right-width: 0px;
 		border-radius: 0px;
 	}
 }

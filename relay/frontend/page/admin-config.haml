@@ -2,7 +2,7 @@
 -set page="Config"
 -block content
 	%form.section(action="/admin/config" method="POST")
-		#config-options
+		.grid-2col
 			%label(for="name") << Name
 			%input(id = "name" name="name" placeholder="Relay Name" value="{{config.name or ''}}")
 

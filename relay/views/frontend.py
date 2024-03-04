@@ -440,5 +440,5 @@ class AdminConfig(View):
 @register_route('/style.css')
 class StyleCss(View):
 	async def get(self, request: Request) -> Response:
-		data = self.template.render('style.css', self, page = request.query.getone('page', ""))
+		data = self.template.render('style.css', self)
 		return Response.new(data, ctype = 'css')

@@ -19,7 +19,7 @@
 			Note: The whitelist is enabled on this instance. Ask the admin to add your instance
 			before joining.
 
-	#instances.section
+	#data-table.section
 		%table
 			%thead
 				%tr
@@ -29,5 +29,8 @@
 			%tbody
 				-for instance in instances
 					%tr
-						%td.instance -> %a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain
-						%td.date -> =instance.created.strftime("%Y-%m-%d")
+						%td.instance -> %a(href="https://{{instance.domain}}/" target="_new")
+							=instance.domain
+
+						%td.date
+							=instance.created.strftime("%Y-%m-%d")

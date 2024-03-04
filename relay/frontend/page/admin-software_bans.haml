@@ -4,7 +4,7 @@
 	%details.section
 		%summary << Ban Software
 		%form(action="/admin/software_bans" method="POST")
-			#add-software
+			#add-item
 				%label(for="name") << Name
 				%input(id="name" name="name" placeholder="Name")
 
@@ -16,7 +16,7 @@
 
 			%input(type="submit" value="Ban Software")
 
-	#software.section
+	#data-table.section
 		%table
 			%thead
 				%tr
@@ -31,7 +31,7 @@
 							%details
 								%summary -> =ban.name
 								%form(action="/admin/software_bans" method="POST")
-									.items
+									.grid-2col
 										.reason << Reason
 										%textarea.reason(id="reason" name="reason") << {{ban.reason or ""}}
 

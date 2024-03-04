@@ -11,7 +11,7 @@
 		%title << {{config.name}}: {{page}}
 		%meta(charset="UTF-8")
 		%meta(name="viewport" content="width=device-width, initial-scale=1")
-		%link(rel="stylesheet" type="text/css" href="/style.css?page={{page}}")
+		%link(rel="stylesheet" type="text/css" href="/style.css")
 		-block head
 
 	%body
@@ -51,7 +51,7 @@
 			-if message
 				.message.section -> =message
 
-			#content
+			#content(class="page-{{page.lower().replace(' ', '_')}}")
 				-block content
 
 			#footer.section

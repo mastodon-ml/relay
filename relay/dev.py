@@ -145,7 +145,6 @@ class WatchHandler(PatternMatchingEventHandler):
 		if event.event_type not in ['modified', 'created', 'deleted']:
 			return
 
-		print(event.src_path)
 		self.run_proc(restart = True)
 
 
