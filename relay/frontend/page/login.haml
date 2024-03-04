@@ -1,7 +1,7 @@
 -extends "base.haml"
 -set page="Login"
 -block content
-	%form.section(action="/login" method="post")
+	%form.section(action="/login" method="POST")
 		.grid-2col
 			%label(for="username") << Username
 			%input(id="username" name="username" placeholder="Username" value="{{username or ''}}")

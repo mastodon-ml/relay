@@ -3,7 +3,7 @@
 -block content
 	%details.section
 		%summary << Add Instance
-		%form(target="/admin/instances" method="POST")
+		%form(action="/admin/instances" method="POST")
 			#add-item
 				%label(for="domain") << Domain
 				%input(type="domain" id="domain" name="domain" placeholder="Domain")

@@ -3,7 +3,7 @@
 -block content
 	%details.section
 		%summary << Add User
-		%form(target="/admin/users", method="POST")
+		%form(action="/admin/users", method="POST")
 			#add-item
 				%label(for="username") << Username
 				%input(id="username" name="username" placeholder="Username")
