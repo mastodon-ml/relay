@@ -3,7 +3,7 @@
 -block content
 	%details.section
 		%summary << Ban Software
-		%form(action="/admin/software_bans", method="POST")
+		%form(action="/admin/software_bans" method="POST")
 			#add-software
 				%label(for="name") << Name
 				%input(id="name" name="name" placeholder="Name")
@@ -38,7 +38,7 @@
 										.note << Note
 										%textarea.note(id="note" name="note") << {{ban.note or ""}}
 
-									%input(type="hidden" name="name", value="{{ban.name}}")
+									%input(type="hidden" name="name" value="{{ban.name}}")
 									%input(type="submit" value="Update")
 
 						%td.date

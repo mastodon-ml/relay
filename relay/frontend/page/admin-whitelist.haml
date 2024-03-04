@@ -3,10 +3,10 @@
 -block content
 	%details.section
 		%summary << Add Domain
-		%form(target="/admin/whitelist", method="POST")
+		%form(target="/admin/whitelist" method="POST")
 			#add-domain
 				%label(for="domain") << Domain
-				%input(type="domain", id="domain" name="domain", placeholder="Domain")
+				%input(type="domain" id="domain" name="domain" placeholder="Domain")
 
 			%input(type="submit" value="Add Domain")
 

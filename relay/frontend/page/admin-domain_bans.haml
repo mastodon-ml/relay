@@ -3,7 +3,7 @@
 -block content
 	%details.section
 		%summary << Ban Domain
-		%form(action="/admin/domain_bans", method="POST")
+		%form(action="/admin/domain_bans" method="POST")
 			#add-domain
 				%label(for="domain") << Domain
 				%input(type="domain" id="domain" name="domain" placeholder="Domain")
@@ -38,7 +38,7 @@
 										.note << Note
 										%textarea.note(id="note" name="note") << {{ban.note or ""}}
 
-									%input(type="hidden" name="domain", value="{{ban.domain}}")
+									%input(type="hidden" name="domain" value="{{ban.domain}}")
 									%input(type="submit" value="Update")
 
 						%td.date
