@@ -1,10 +1,14 @@
 import click
+import platform
 import subprocess
 import sys
 import time
 
 from datetime import datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from . import __version__
 
 try:
 	from watchdog.observers import Observer
@@ -46,25 +50,33 @@ def cli_lint(path):
 	subprocess.run([sys.executable, '-m', 'pylint', path], check = False)
 
 
-@cli.command('manifest-gen')
-def cli_manifest_install():
-	paths = []
-
-	for path in SCRIPT.rglob('*'):
-		if path.suffix.lower() in IGNORE_EXT or not path.is_file():
-			continue
-
-		paths.append(path)
-
-	with REPO.joinpath('MANIFEST.in').open('w', encoding = 'utf-8') as fd:
-		for path in paths:
-			fd.write(f'include {str(path.relative_to(SCRIPT))}\n')
-
-
 @cli.command('build')
 def cli_build():
-	cmd = [sys.executable, '-m', 'PyInstaller', 'relay.spec']
-	subprocess.run(cmd, check = False)
+	with TemporaryDirectory() as tmp:
+		arch = 'amd64' if sys.maxsize >= 2**32 else 'i386'
+		cmd = [
+			sys.executable, '-m', 'PyInstaller',
+			'--collect-data', 'relay',
+			'--collect-data', 'aiohttp_swagger',
+			'--hidden-import', 'pg8000',
+			'--hidden-import', 'sqlite3',
+			'--name', f'activityrelay-{__version__}-{platform.system().lower()}-{arch}',
+			'--workpath', tmp,
+			'--onefile', 'relay/__main__.py',
+		]
+
+		if platform.system() == 'Windows':
+			cmd.append('--console')
+
+			# putting the spec path on a different drive than the source dir breaks
+			if str(SCRIPT)[0] == tmp[0]:
+				cmd.extend(['--specpath', tmp])
+
+		else:
+			cmd.append('--strip')
+			cmd.extend(['--specpath', tmp])
+
+		subprocess.run(cmd, check = False)
 
 
 @cli.command('run')
