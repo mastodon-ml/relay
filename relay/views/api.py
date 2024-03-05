@@ -75,7 +75,7 @@ class Login(View):
 		if isinstance(data, Response):
 			return data
 
-		with self.database.connction(True) as conn:
+		with self.database.session(True) as conn:
 			if not (user := conn.get_user(data['username'])):
 				return Response.new_error(401, 'User not found', 'json')
 
