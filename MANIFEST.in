@@ -1,2 +1,0 @@
-include data/statements.sql
-include data/swagger.yaml

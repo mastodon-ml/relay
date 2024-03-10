@@ -1,0 +1,94 @@
+-macro menu_item(name, path)
+	-if view.request.path == path or (path != "/" and view.request.path.startswith(path))
+		%a.button(href="{{path}}" active="true") -> =name
+
+	-else
+		%a.button(href="{{path}}") -> =name
+
+!!!
+%html
+	%head
+		%title << {{config.name}}: {{page}}
+		%meta(charset="UTF-8")
+		%meta(name="viewport" content="width=device-width, initial-scale=1")
+		%link(rel="stylesheet" type="text/css" href="/theme/{{theme_name}}.css")
+		%link(rel="stylesheet" type="text/css" href="/style.css")
+		-block head
+
+	%body
+		#menu.section(visible="false")
+			.menu-head
+				%span.menu-title << Menu
+				%span#menu-close.button << &#10006;
+			
+			{{menu_item("Home", "/")}}
+
+			-if view.request["user"]
+				{{menu_item("Instances", "/admin/instances")}}
+				{{menu_item("Whitelist", "/admin/whitelist")}}
+				{{menu_item("Domain Bans", "/admin/domain_bans")}}
+				{{menu_item("Software Bans", "/admin/software_bans")}}
+				{{menu_item("Users", "/admin/users")}}
+				{{menu_item("Config", "/admin/config")}}
+				{{menu_item("Logout", "/logout")}}
+
+			-else
+				{{menu_item("Login", "/login")}}
+
+		#container
+			#header.section
+				%span#menu-open << &#8286;
+				%span.title-container
+					%a.title(href="/") -> =config.name
+
+					-if view.request.path not in ["/", "/login"]
+						.page -> =page
+
+				.empty
+
+			-if error
+				.error.section -> =error
+
+			-if message
+				.message.section -> =message
+
+			#content(class="page-{{page.lower().replace(' ', '_')}}")
+				-block content
+
+			#footer.section
+				.col1
+					-if not view.request["user"]
+						%a(href="/login") << Login
+
+					-else
+						=view.request["user"]["username"]
+						(
+						%a(href="/logout") << Logout
+						)
+
+				.version
+					%a(href="https://git.pleroma.social/pleroma/relay")
+						ActivityRelay/{{version}}
+
+	%script(type="application/javascript")
+		const body = document.getElementById("container")
+		const menu = document.getElementById("menu");
+		const menu_open = document.getElementById("menu-open");
+		const menu_close = document.getElementById("menu-close");
+
+		menu_open.addEventListener("click", (event) => {
+			var new_value = menu.attributes.visible.nodeValue === "true" ? "false" : "true";
+			menu.attributes.visible.nodeValue = new_value;
+		});
+
+		menu_close.addEventListener("click", (event) => {
+			menu.attributes.visible.nodeValue = "false"
+		});
+
+		body.addEventListener("click", (event) => {
+			if (event.target === menu_open) {
+				return;
+			}
+
+			menu.attributes.visible.nodeValue = "false";
+		});

@@ -3,17 +3,12 @@ from __future__ import annotations
 import bsql
 import typing
 
-from .config import get_default_value
+from .config import CONFIG_DEFAULTS, THEMES, get_default_value
 from .connection import RELAY_SOFTWARE, Connection
 from .schema import TABLES, VERSIONS, migrate_0
 
 from .. import logger as logging
-
-try:
-	from importlib.resources import files as pkgfiles
-
-except ImportError:  # pylint: disable=duplicate-code
-	from importlib_resources import files as pkgfiles
+from ..misc import get_resource
 
 if typing.TYPE_CHECKING:
 	from .config import Config
@@ -21,15 +16,15 @@ if typing.TYPE_CHECKING:
 
 def get_database(config: Config, migrate: bool = True) -> bsql.Database:
 	options = {
-		"connection_class": Connection,
-		"pool_size": 5,
-		"tables": TABLES
+		'connection_class': Connection,
+		'pool_size': 5,
+		'tables': TABLES
 	}
 
-	if config.db_type == "sqlite":
+	if config.db_type == 'sqlite':
 		db = bsql.Database.sqlite(config.sqlite_path, **options)
 
-	elif config.db_type == "postgres":
+	elif config.db_type == 'postgres':
 		db = bsql.Database.postgresql(
 			config.pg_name,
 			config.pg_host,
@@ -39,7 +34,7 @@ def get_database(config: Config, migrate: bool = True) -> bsql.Database:
 			**options
 		)
 
-	db.load_prepared_statements(pkgfiles("relay").joinpath("data", "statements.sql"))
+	db.load_prepared_statements(get_resource('data/statements.sql'))
 	db.connect()
 
 	if not migrate:

@@ -1,11 +1,8 @@
 from __future__ import annotations
 
+import aputils
 import traceback
 import typing
-
-from aputils.errors import SignatureFailureError
-from aputils.misc import Digest, HttpDate, Signature
-from aputils.objects import Webfinger
 
 from .base import View, register_route
 
@@ -15,7 +12,6 @@ from ..processors import run_processor
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
-	from aputils.signer import Signer
 	from tinysql import Row
 
 
@@ -26,11 +22,11 @@ class ActorView(View):
 	def __init__(self, request: Request):
 		View.__init__(self, request)
 
-		self.signature: Signature = None
+		self.signature: aputils.Signature = None
 		self.message: Message = None
 		self.actor: Message = None
 		self.instance: Row = None
-		self.signer: Signer = None
+		self.signer: aputils.Signer = None
 
 
 	async def get(self, request: Request) -> Response:
@@ -77,7 +73,7 @@ class ActorView(View):
 
 	async def get_post_data(self) -> Response | None:
 		try:
-			self.signature = Signature.new_from_signature(self.request.headers['signature'])
+			self.signature = aputils.Signature.new_from_signature(self.request.headers['signature'])
 
 		except KeyError:
 			logging.verbose('Missing signature header')
@@ -124,7 +120,7 @@ class ActorView(View):
 		try:
 			self.validate_signature(await self.request.read())
 
-		except SignatureFailureError as e:
+		except aputils.SignatureFailureError as e:
 			logging.verbose('signature validation failed for "%s": %s', self.actor.id, e)
 			return Response.new_error(401, str(e), 'json')
 
@@ -133,31 +129,31 @@ class ActorView(View):
 		headers = {key.lower(): value for key, value in self.request.headers.items()}
 		headers["(request-target)"] = " ".join([self.request.method.lower(), self.request.path])
 
-		if (digest := Digest.new_from_digest(headers.get("digest"))):
+		if (digest := aputils.Digest.new_from_digest(headers.get("digest"))):
 			if not body:
-				raise SignatureFailureError("Missing body for digest verification")
+				raise aputils.SignatureFailureError("Missing body for digest verification")
 
 			if not digest.validate(body):
-				raise SignatureFailureError("Body digest does not match")
+				raise aputils.SignatureFailureError("Body digest does not match")
 
 		if self.signature.algorithm_type == "hs2019":
 			if "(created)" not in self.signature.headers:
-				raise SignatureFailureError("'(created)' header not used")
+				raise aputils.SignatureFailureError("'(created)' header not used")
 
-			current_timestamp = HttpDate.new_utc().timestamp()
+			current_timestamp = aputils.HttpDate.new_utc().timestamp()
 
 			if self.signature.created > current_timestamp:
-				raise SignatureFailureError("Creation date after current date")
+				raise aputils.SignatureFailureError("Creation date after current date")
 
 			if current_timestamp > self.signature.expires:
-				raise SignatureFailureError("Expiration date before current date")
+				raise aputils.SignatureFailureError("Expiration date before current date")
 
 			headers["(created)"] = self.signature.created
 			headers["(expires)"] = self.signature.expires
 
 		# pylint: disable=protected-access
 		if not self.signer._validate_signature(headers, self.signature):
-			raise SignatureFailureError("Signature does not match")
+			raise aputils.SignatureFailureError("Signature does not match")
 
 
 @register_route('/.well-known/webfinger')
@@ -172,7 +168,7 @@ class WebfingerView(View):
 		if subject != f'acct:relay@{self.config.domain}':
 			return Response.new_error(404, 'user not found', 'json')
 
-		data = Webfinger.new(
+		data = aputils.Webfinger.new(
 			handle = 'relay',
 			domain = self.config.domain,
 			actor = self.config.actor

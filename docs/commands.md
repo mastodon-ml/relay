@@ -9,7 +9,7 @@ use `python3 -m relay` if installed via pip or `~/.local/bin/activityrelay` if i
 
 ## Run
 
-Run the relay. Optionally add `-d` or `--dev` to enable auto-reloading on code changes.
+Run the relay.
 
 	activityrelay run
 

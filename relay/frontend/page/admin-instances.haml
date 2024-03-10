@@ -1,0 +1,44 @@
+-extends "base.haml"
+-set page="Instances"
+-block content
+	%details.section
+		%summary << Add Instance
+		%form(action="/admin/instances" method="POST")
+			#add-item
+				%label(for="domain") << Domain
+				%input(type="domain" id="domain" name="domain" placeholder="Domain")
+
+				%label(for="actor") << Actor URL
+				%input(type="url" id="actor" name="actor" placeholder="Actor URL")
+
+				%label(for="inbox") << Inbox URL
+				%input(type="url" id="inbox" name="inbox" placeholder="Inbox URL")
+
+				%label(for="software") << Software
+				%input(name="software" id="software" placeholder="software")
+
+			%input(type="submit" value="Add Instance")
+
+	#data-table.section
+		%table
+			%thead
+				%tr
+					%td.instance << Instance
+					%td.software << Software
+					%td.date << Joined
+					%td.remove
+
+			%tbody
+				-for instance in instances
+					%tr
+						%td.instance
+							%a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain
+
+						%td.software
+							=instance.software or "n/a"
+
+						%td.date
+							=instance.created.strftime("%Y-%m-%d")
+
+						%td.remove
+							%a(href="/admin/instances/delete/{{instance.domain}}" title="Remove Instance") << &#10006;

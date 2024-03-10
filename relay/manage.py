@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import Crypto
+import aputils
 import asyncio
 import click
 import os
 import platform
-import subprocess
-import sys
 import typing
 
-from aputils.signer import Signer
-from gunicorn.app.wsgiapp import WSGIApplication
 from pathlib import Path
 from shutil import copyfile
 from urllib.parse import urlparse
@@ -21,7 +18,7 @@ from . import logger as logging
 from .application import Application
 from .compat import RelayConfig, RelayDatabase
 from .database import RELAY_SOFTWARE, get_database
-from .misc import IS_DOCKER, Message
+from .misc import ACTOR_FORMATS, SOFTWARE, IS_DOCKER, Message
 
 if typing.TYPE_CHECKING:
 	from tinysql import Row
@@ -36,23 +33,6 @@ CONFIG_IGNORE = (
 	'private-key'
 )
 
-ACTOR_FORMATS = {
-	'mastodon': 'https://{domain}/actor',
-	'akkoma': 'https://{domain}/relay',
-	'pleroma': 'https://{domain}/relay'
-}
-
-SOFTWARE = (
-	'mastodon',
-	'akkoma',
-	'pleroma',
-	'misskey',
-	'friendica',
-	'hubzilla',
-	'firefish',
-	'gotosocial'
-)
-
 
 def check_alphanumeric(text: str) -> str:
 	if not text.isalnum():
@@ -62,10 +42,10 @@ def check_alphanumeric(text: str) -> str:
 
 
 @click.group('cli', context_settings={'show_default': True}, invoke_without_command=True)
-@click.option('--config', '-c', default='relay.yaml', help='path to the relay\'s config')
+@click.option('--config', '-c', help='path to the relay\'s config')
 @click.version_option(version=__version__, prog_name='ActivityRelay')
 @click.pass_context
-def cli(ctx: click.Context, config: str) -> None:
+def cli(ctx: click.Context, config: str | None) -> None:
 	ctx.obj = Application(config)
 
 	if not ctx.invoked_subcommand:
@@ -196,7 +176,7 @@ def cli_setup(ctx: click.Context) -> None:
 	ctx.obj.config.save()
 
 	config = {
-		'private-key': Signer.new('n/a').export()
+		'private-key': aputils.Signer.new('n/a').export()
 	}
 
 	with ctx.obj.database.session() as conn:
@@ -208,7 +188,7 @@ def cli_setup(ctx: click.Context) -> None:
 
 
 @cli.command('run')
-@click.option('--dev', '-d', is_flag = True, help = 'Enable worker reloading on code change')
+@click.option('--dev', '-d', is_flag=True, help='Enable developer mode')
 @click.pass_context
 def cli_run(ctx: click.Context, dev: bool = False) -> None:
 	'Run the relay'
@@ -237,21 +217,11 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 		click.echo(pip_command)
 		return
 
-	if getattr(sys, 'frozen', False):
-		subprocess.run([sys.executable, 'run-gunicorn'], check = False)
-
-	else:
-		ctx.obj.run(dev)
+	ctx.obj['dev'] = dev
+	ctx.obj.run()
 
 	# todo: figure out why the relay doesn't quit properly without this
 	os._exit(0)
-
-
-@cli.command('run-gunicorn')
-@click.pass_context
-def cli_run_gunicorn(ctx: click.Context) -> None:
-	runner = GunicornRunner(ctx.obj)
-	runner.run()
 
 
 
@@ -919,30 +889,6 @@ def cli_whitelist_import(ctx: click.Context) -> None:
 			conn.put_domain_whitelist(inbox['domain'])
 
 		click.echo('Imported whitelist from inboxes')
-
-
-class GunicornRunner(WSGIApplication):
-	def __init__(self, app: Application):
-		self.app = app
-		self.app_uri = 'relay.application:main_gunicorn'
-		self.options = {
-			'bind': f'{app.config.listen}:{app.config.port}',
-			'worker_class': 'aiohttp.GunicornWebWorker',
-			'workers': app.config.workers,
-			'raw_env': f'CONFIG_FILE={app.config.path}'
-		}
-
-		WSGIApplication.__init__(self)
-
-
-	def load_config(self):
-		for key, value in self.options.items():
-			self.cfg.set(key, value)
-
-
-	def run(self):
-		logging.info('Starting webserver for %s', self.app.config.domain)
-		WSGIApplication.run(self)
 
 
 

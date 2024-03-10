@@ -91,7 +91,6 @@ class Cache(ABC):
 
 	def __init__(self, app: Application):
 		self.app = app
-		self.setup()
 
 
 	@abstractmethod
@@ -158,8 +157,8 @@ class SqlCache(Cache):
 
 
 	def __init__(self, app: Application):
-		self._db = get_database(app.config)
 		Cache.__init__(self, app)
+		self._db = None
 
 
 	def get(self, namespace: str, key: str) -> Item:
@@ -232,6 +231,10 @@ class SqlCache(Cache):
 
 
 	def setup(self) -> None:
+		if self._db and self._db.connected:
+			return
+
+		self._db = get_database(self.app.config)
 		self._db.connect()
 
 		with self._db.session(True) as conn:
@@ -240,6 +243,9 @@ class SqlCache(Cache):
 
 
 	def close(self) -> None:
+		if not self._db:
+			return
+
 		self._db.disconnect()
 		self._db = None
 
@@ -247,7 +253,11 @@ class SqlCache(Cache):
 @register_cache
 class RedisCache(Cache):
 	name: str = 'redis'
-	_rd: Redis
+
+
+	def __init__(self, app: Application):
+		Cache.__init__(self, app)
+		self._rd = None
 
 
 	@property
@@ -322,6 +332,9 @@ class RedisCache(Cache):
 
 
 	def setup(self) -> None:
+		if self._rd:
+			return
+
 		options = {
 			'client_name': f'ActivityRelay_{self.app.config.domain}',
 			'decode_responses': True,
@@ -341,5 +354,8 @@ class RedisCache(Cache):
 
 
 	def close(self) -> None:
+		if not self._rd:
+			return
+
 		self._rd.close()
 		self._rd = None

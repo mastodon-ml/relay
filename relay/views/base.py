@@ -11,12 +11,15 @@ from json.decoder import JSONDecodeError
 from ..misc import Response
 
 if typing.TYPE_CHECKING:
+	from aiohttp.web import Request
 	from collections.abc import Callable, Coroutine, Generator
-	from tinysql import Database
+	from bsql import Database
+	from typing import Any, Self
 	from ..application import Application
 	from ..cache import Cache
 	from ..config import Config
 	from ..http_client import HttpClient
+	from ..template import Template
 
 
 VIEWS = []
@@ -27,7 +30,7 @@ def register_route(*paths: str) -> Callable:
 		for path in paths:
 			VIEWS.append([path, view])
 
-		return View
+		return view
 	return wrapper
 
 
@@ -42,8 +45,14 @@ class View(AbstractView):
 		return self._run_handler(handler).__await__()
 
 
-	async def _run_handler(self, handler: Coroutine) -> Response:
-		return await handler(self.request, **self.request.match_info)
+	@classmethod
+	async def run(cls: type[Self], method: str, request: Request, **kwargs: Any) -> Self:
+		view = cls(request)
+		return await view.handlers[method](request, **kwargs)
+
+
+	async def _run_handler(self, handler: Coroutine, **kwargs: Any) -> Response:
+		return await handler(self.request, **self.request.match_info, **kwargs)
 
 
 	@cached_property
@@ -89,6 +98,11 @@ class View(AbstractView):
 	@property
 	def database(self) -> Database:
 		return self.app.database
+
+
+	@property
+	def template(self) -> Template:
+		return self.app['template']
 
 
 	async def get_api_data(self,

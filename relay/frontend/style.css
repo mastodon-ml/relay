@@ -1,0 +1,301 @@
+a {
+	color: var(--primary);
+	text-decoration: none;
+}
+
+a:hover {
+	color: var(--primary-hover);
+	text-decoration: underline;
+}
+
+body {
+	color: var(--text);
+	background-color: #222;
+	margin: var(--spacing);
+	font-family: sans serif;
+}
+
+details *:nth-child(2) {
+	margin-top: 5px;
+}
+
+details summary {
+	cursor: pointer;
+}
+
+form input[type="submit"] {
+	display: block;
+	margin: 0 auto;
+}
+
+p {
+	line-height: 1em;
+	margin: 0px;
+}
+
+p:not(:first-child) {
+	margin-top: 1em;
+}
+
+p:not(:last-child) {
+	margin-bottom: 1em;
+}
+
+table {
+	border: 1px solid var(--primary);
+	border-radius: 5px;
+	border-spacing: 0px;
+	width: 100%;
+}
+
+table tbody tr:nth-child(even) td {
+	background-color: var(--section-background);
+}
+
+thead td:first-child {
+	border-top-left-radius: 3px;
+}
+
+thead td:last-child {
+	border-top-right-radius: 3px;
+}
+
+tbody tr:last-child td:first-child {
+	border-bottom-left-radius: 5px;
+}
+
+tbody tr:last-child td:last-child {
+	border-bottom-right-radius: 5px;
+}
+
+table td {
+	padding: 5px;
+}
+
+table thead td {
+	background-color: var(--primary);
+	color: var(--background);
+	text-align: center;
+}
+
+table tbody td {
+	background-color: var(--table-background);
+}
+
+textarea {
+	height: calc(5em);
+}
+
+#container {
+	width: 1024px;
+	margin: 0px auto;
+}
+
+#header {
+	display: grid;
+	grid-template-columns: 50px auto 50px;
+	justify-items: center;
+	align-items: center;
+}
+
+#header > * {
+	font-size: 2em;
+}
+
+#header .title-container {
+	text-align: center;
+}
+
+#header .title {
+	font-weight: bold;
+	line-height: 0.75em;
+}
+
+#header .page {
+	font-size: 0.5em;
+}
+
+#menu {
+	padding: 0px;
+	position: fixed;
+	top: 0px;
+	left: 0px;
+	margin: 0px;
+	height: 100%;
+	width: max-content;
+	z-index: 1;
+	font-size: 1.5em;
+	min-width: 300px;
+}
+
+#menu[visible="false"] {
+	visibility: hidden;
+}
+
+#menu > a {
+	margin: var(--spacing);
+	display: block;
+	border-radius: 5px;
+	padding: 5px;
+}
+
+#menu > a[active="true"]:not(:hover) {
+	background-color: var(--primary-hover);
+	border-color: transparent;
+}
+
+#menu .menu-head {
+	display: grid;
+	grid-template-columns: auto max-content;
+	margin: var(--spacing);
+}
+
+#menu .menu-head > * {
+	font-weight: bold;
+}
+
+#menu .menu-title {
+	color: var(--primary);
+}
+
+#menu-open {
+	color: var(--primary);
+}
+
+#menu-open:hover {
+	color: var(--primary-hover);
+}
+
+#menu-open, #menu-close {
+	cursor: pointer;
+}
+
+#menu-open, #menu-close {
+	min-width: 35px;
+	text-align: center;
+}
+
+#footer {
+	display: grid;
+	grid-template-columns: auto auto;
+}
+
+#footer .version {
+	text-align: right
+}
+
+#add-item {
+	display: grid;
+	grid-template-columns: max-content auto;
+	grid-gap: var(--spacing);
+	margin-top: var(--spacing);
+	margin-bottom: var(--spacing);
+	align-items: center;
+}
+
+#data-table td:first-child {
+	width: 100%;
+}
+
+#data-table .date {
+	width: max-content;
+	text-align: right;
+}
+
+.button {
+	background-color: var(--primary);
+	border: 1px solid var(--primary);
+	color: var(--background);
+	border-radius: 5px;
+}
+
+.button:hover {
+	background-color: var(--background);
+	color: var(--primary);
+	text-decoration: None;
+}
+
+.container {
+	display: grid;
+	grid-template-columns: max-content auto;
+}
+
+.error, .message {
+	text-align: center;
+}
+
+.error{
+	color: var(--error-text) !important;
+	background-color: var(--error-background) !important;
+	border: 1px solid var(--error-border) !important;
+}
+
+.grid-2col {
+	display: grid;
+	grid-template-columns: max-content auto;
+	grid-gap: var(--spacing);
+	margin-bottom: var(--spacing);
+	align-items: center;
+	
+}
+
+.message {
+	color: var(--message-text) !important;
+	background-color: var(--message-background) !important;
+	border: 1px solid var(--message-border) !important;
+}
+
+.section {
+	background-color: var(--section-background);
+	padding: var(--spacing);
+	border: 1px solid var(--border);
+	border-radius: 5px;
+}
+
+.section:not(:first-child) {
+	margin-top: var(--spacing);
+}
+
+.section:not(:last-child) {
+	margin-bottom: var(--spacing);
+}
+
+
+/* config */
+#content.page-config input[type="checkbox"] {
+	justify-self: left;
+}
+
+
+@media (max-width: 1026px) {
+	body {
+		margin: 0px;
+	}
+
+	#menu {
+		width: 100%;
+	}
+
+	#menu > a {
+		text-align: center;
+	}
+
+	#container {
+		width: unset;
+		margin: unset;
+	}
+
+	.container {
+		grid-template-columns: auto;
+	}
+
+	.content {
+		grid-template-columns: auto;
+	}
+
+	.section {
+		border-left-width: 0px;
+		border-right-width: 0px;
+		border-radius: 0px;
+	}
+}

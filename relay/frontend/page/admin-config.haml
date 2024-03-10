@@ -1,0 +1,37 @@
+-extends "base.haml"
+-set page="Config"
+-block content
+	%form.section(action="/admin/config" method="POST")
+		.grid-2col
+			%label(for="name") << Name
+			%input(id = "name" name="name" placeholder="Relay Name" value="{{config.name or ''}}")
+
+			%label(for="description") << Description
+			%textarea(id="description" name="note" value="{{config.note}}") << {{config.note}}
+
+			%label(for="theme") << Color Theme
+			%select(id="theme" name="theme")
+				-for theme in themes
+					-if theme == config.theme
+						%option(value="{{theme}}" selected) -> =theme.title()
+
+					-else
+						%option(value="{{theme}}") -> =theme.title()
+
+			%label(for="log-level") << Log Level
+			%select(id="log-level" name="log-level")
+				-for level in LogLevel
+					-if level == config["log-level"]
+						%option(value="{{level.name}}" selected) -> =level.name.title()
+
+					-else
+						%option(value="{{level.name}}") -> =level.name.title()
+
+			%label(for="whitelist-enabled") << Whitelist
+			-if config["whitelist-enabled"]
+				%input(id="whitelist-enabled" name="whitelist-enabled" type="checkbox" checked)
+
+			-else
+				%input(id="whitelist-enabled" name="whitelist-enabled" type="checkbox")
+
+		%input(type="submit" value="Save")

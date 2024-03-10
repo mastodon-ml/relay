@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import os
+import multiprocessing
 import signal
-import subprocess
-import sys
 import time
+import traceback
 import typing
 
 from aiohttp import web
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
 from datetime import datetime, timedelta
+from queue import Empty
 from threading import Event, Thread
 
 from . import logger as logging
@@ -19,20 +19,17 @@ from .cache import get_cache
 from .config import Config
 from .database import get_database
 from .http_client import HttpClient
-from .misc import check_open_port
+from .misc import check_open_port, get_resource
+from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
-
-try:
-	from importlib.resources import files as pkgfiles
-
-except ImportError:
-	from importlib_resources import files as pkgfiles
+from .views.frontend import handle_frontend_path
 
 if typing.TYPE_CHECKING:
+	from collections.abc import Coroutine
 	from tinysql import Database, Row
 	from .cache import Cache
-	from .misc import Message
+	from .misc import Message, Response
 
 
 # pylint: disable=unsubscriptable-object
@@ -40,29 +37,35 @@ if typing.TYPE_CHECKING:
 class Application(web.Application):
 	DEFAULT: Application = None
 
-	def __init__(self, cfgpath: str, gunicorn: bool = False):
+	def __init__(self, cfgpath: str | None, dev: bool = False):
 		web.Application.__init__(self,
 			middlewares = [
-				handle_api_path
+				handle_api_path,
+				handle_frontend_path,
+				handle_response_headers
 			]
 		)
 
 		Application.DEFAULT = self
 
-		self['proc'] = None
+		self['running'] = None
 		self['signer'] = None
 		self['start_time'] = None
 		self['cleanup_thread'] = None
+		self['dev'] = dev
 
 		self['config'] = Config(cfgpath, load = True)
 		self['database'] = get_database(self.config)
 		self['client'] = HttpClient()
 		self['cache'] = get_cache(self)
+		self['cache'].setup()
+		self['template'] = Template(self)
+		self['push_queue'] = multiprocessing.Queue()
+		self['workers'] = []
 
-		if not gunicorn:
-			return
+		self.cache.setup()
 
-		self.on_response_prepare.append(handle_access_log)
+		# self.on_response_prepare.append(handle_access_log)
 		self.on_cleanup.append(handle_cleanup)
 
 		for path, view in VIEWS:
@@ -70,7 +73,7 @@ class Application(web.Application):
 
 		setup_swagger(self,
 			ui_version = 3,
-			swagger_from_file = pkgfiles('relay').joinpath('data', 'swagger.yaml')
+			swagger_from_file = get_resource('data/swagger.yaml')
 		)
 
 
@@ -119,16 +122,23 @@ class Application(web.Application):
 
 
 	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
-		asyncio.ensure_future(self.client.post(inbox, message, instance))
+		self['push_queue'].put((inbox, message, instance))
 
 
-	def run(self, dev: bool = False) -> None:
-		self.start(dev)
+	def run(self) -> None:
+		if self["running"]:
+			return
 
-		while self['proc'] and self['proc'].poll() is None:
-			time.sleep(0.1)
+		domain = self.config.domain
+		host = self.config.listen
+		port = self.config.port
 
-		self.stop()
+		if not check_open_port(host, port):
+			logging.error(f'A server is already running on {host}:{port}')
+			return
+
+		logging.info(f'Starting webserver at {domain} ({host}:{port})')
+		asyncio.run(self.handle_run())
 
 
 	def set_signal_handler(self, startup: bool) -> None:
@@ -141,56 +151,54 @@ class Application(web.Application):
 				pass
 
 
+	def stop(self, *_):
+		self['running'] = False
 
-	def start(self, dev: bool = False) -> None:
-		if self['proc']:
-			return
 
-		if not check_open_port(self.config.listen, self.config.port):
-			logging.error('Server already running on %s:%s', self.config.listen, self.config.port)
-			return
-
-		cmd = [
-			sys.executable, '-m', 'gunicorn',
-			'relay.application:main_gunicorn',
-			'--bind', f'{self.config.listen}:{self.config.port}',
-			'--worker-class', 'aiohttp.GunicornWebWorker',
-			'--workers', str(self.config.workers),
-			'--env', f'CONFIG_FILE={self.config.path}',
-			'--reload-extra-file', pkgfiles('relay').joinpath('data', 'swagger.yaml'),
-			'--reload-extra-file', pkgfiles('relay').joinpath('data', 'statements.sql')
-		]
-
-		if dev:
-			cmd.append('--reload')
+	async def handle_run(self):
+		self['running'] = True
 
 		self.set_signal_handler(True)
-		self['proc'] = subprocess.Popen(cmd)  # pylint: disable=consider-using-with
+
+		self['database'].connect()
+		self['cache'].setup()
 		self['cleanup_thread'] = CacheCleanupThread(self)
 		self['cleanup_thread'].start()
 
+		for _ in range(self.config.workers):
+			worker = PushWorker(self['push_queue'])
+			worker.start()
 
-	def stop(self, *_) -> None:
-		if not self['proc']:
-			return
+			self['workers'].append(worker)
 
-		self['cleanup_thread'].stop()
-		self['proc'].terminate()
-		time_wait = 0.0
+		runner = web.AppRunner(self, access_log_format='%{X-Forwarded-For}i "%r" %s %b "%{User-Agent}i"')
+		await runner.setup()
 
-		while self['proc'].poll() is None:
-			time.sleep(0.1)
-			time_wait += 0.1
+		site = web.TCPSite(runner,
+			host = self.config.listen,
+			port = self.config.port,
+			reuse_address = True
+		)
 
-			if time_wait >= 5.0:
-				self['proc'].kill()
-				break
+		await site.start()
+		self['starttime'] = datetime.now()
+
+		while self['running']:
+			await asyncio.sleep(0.25)
+
+		await site.stop()
+
+		for worker in self['workers']: # pylint: disable=not-an-iterable
+			worker.stop()
 
 		self.set_signal_handler(False)
-		self['proc'] = None
 
-		self.cache.close()
-		self.database.disconnect()
+		self['starttime'] = None
+		self['running'] = False
+		self['cleanup_thread'].stop()
+		self['workers'].clear()
+		self['database'].disconnect()
+		self['cache'].close()
 
 
 class CacheCleanupThread(Thread):
@@ -217,38 +225,55 @@ class CacheCleanupThread(Thread):
 		self.running.clear()
 
 
-async def handle_access_log(request: web.Request, response: web.Response) -> None:
-	address = request.headers.get(
-		'X-Forwarded-For',
-		request.headers.get(
-			'X-Real-Ip',
-			request.remote
-		)
-	)
+class PushWorker(multiprocessing.Process):
+	def __init__(self, queue: multiprocessing.Queue):
+		multiprocessing.Process.__init__(self)
+		self.queue = queue
+		self.shutdown = multiprocessing.Event()
 
-	logging.info(
-		'%s "%s %s" %i %i "%s"',
-		address,
-		request.method,
-		request.path,
-		response.status,
-		response.content_length or 0,
-		request.headers.get('User-Agent', 'n/a')
-	)
+
+	def stop(self) -> None:
+		self.shutdown.set()
+
+
+	def run(self) -> None:
+		asyncio.run(self.handle_queue())
+
+
+	async def handle_queue(self) -> None:
+		client = HttpClient()
+
+		while not self.shutdown.is_set():
+			try:
+				inbox, message, instance = self.queue.get(block=True, timeout=0.25)
+				await client.post(inbox, message, instance)
+
+			except Empty:
+				pass
+
+			## make sure an exception doesn't bring down the worker
+			except Exception:
+				traceback.print_exc()
+
+		await client.close()
+
+
+@web.middleware
+async def handle_response_headers(request: web.Request, handler: Coroutine) -> Response:
+	resp = await handler(request)
+	resp.headers['Server'] = 'ActivityRelay'
+
+	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
+		# cache for 2 weeks
+		resp.headers['Cache-Control'] = 'public,max-age=1209600,immutable'
+
+	else:
+		resp.headers['Cache-Control'] = 'no-store'
+
+	return resp
 
 
 async def handle_cleanup(app: Application) -> None:
 	await app.client.close()
 	app.cache.close()
 	app.database.disconnect()
-
-
-async def main_gunicorn():
-	try:
-		app = Application(os.environ['CONFIG_FILE'], gunicorn = True)
-
-	except KeyError:
-		logging.error('Failed to set "CONFIG_FILE" environment. Trying to run without gunicorn?')
-		raise RuntimeError from None
-
-	return app

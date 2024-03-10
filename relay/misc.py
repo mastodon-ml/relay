@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import aputils
 import json
 import os
 import socket
 import typing
 
 from aiohttp.web import Response as AiohttpResponse
-from aputils.message import Message as ApMessage
 from datetime import datetime
 from uuid import uuid4
 
+try:
+	from importlib.resources import files as pkgfiles
+
+except ImportError:
+	from importlib_resources import files as pkgfiles
+
 if typing.TYPE_CHECKING:
+	from pathlib import Path
 	from typing import Any
 	from .application import Application
 
@@ -18,6 +25,7 @@ if typing.TYPE_CHECKING:
 IS_DOCKER = bool(os.environ.get('DOCKER_RUNNING'))
 MIMETYPES = {
 	'activity': 'application/activity+json',
+	'css': 'text/css',
 	'html': 'text/html',
 	'json': 'application/json',
 	'text': 'text/plain'
@@ -27,6 +35,23 @@ NODEINFO_NS = {
 	'20': 'http://nodeinfo.diaspora.software/ns/schema/2.0',
 	'21': 'http://nodeinfo.diaspora.software/ns/schema/2.1'
 }
+
+ACTOR_FORMATS = {
+	'mastodon': 'https://{domain}/actor',
+	'akkoma': 'https://{domain}/relay',
+	'pleroma': 'https://{domain}/relay'
+}
+
+SOFTWARE = (
+	'mastodon',
+	'akkoma',
+	'pleroma',
+	'misskey',
+	'friendica',
+	'hubzilla',
+	'firefish',
+	'gotosocial'
+)
 
 
 def boolean(value: Any) -> bool:
@@ -75,15 +100,19 @@ def get_app() -> Application:
 	return Application.DEFAULT
 
 
+def get_resource(path: str) -> Path:
+	return pkgfiles('relay').joinpath(path)
+
+
 class JsonEncoder(json.JSONEncoder):
-	def default(self, obj: Any) -> str:
-		if isinstance(obj, datetime):
-			return obj.isoformat()
+	def default(self, o: Any) -> str:
+		if isinstance(o, datetime):
+			return o.isoformat()
 
-		return JSONEncoder.default(self, obj)
+		return json.JSONEncoder.default(self, o)
 
 
-class Message(ApMessage):
+class Message(aputils.Message):
 	@classmethod
 	def new_actor(cls: type[Message],  # pylint: disable=arguments-differ
 				host: str,
@@ -170,16 +199,6 @@ class Message(ApMessage):
 		})
 
 
-	# todo: remove when fixed in aputils
-	@property
-	def object_id(self) -> str:
-		try:
-			return self["object"]["id"]
-
-		except (KeyError, TypeError):
-			return self["object"]
-
-
 class Response(AiohttpResponse):
 	# AiohttpResponse.__len__ method returns 0, so bool(response) always returns False
 	def __bool__(self) -> bool:
@@ -221,6 +240,12 @@ class Response(AiohttpResponse):
 			body = {'error': body}
 
 		return cls.new(body=body, status=status, ctype=ctype)
+
+
+	@classmethod
+	def new_redir(cls: type[Response], path: str) -> Response:
+		body = f'Redirect to <a href="{path}">{path}</a>'
+		return cls.new(body, 302, {'Location': path})
 
 
 	@property

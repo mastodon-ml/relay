@@ -8,10 +8,17 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from .config import CONFIG_DEFAULTS, get_default_type, get_default_value, serialize, deserialize
+from .config import (
+	CONFIG_DEFAULTS,
+	THEMES,
+	get_default_type,
+	get_default_value,
+	serialize,
+	deserialize
+)
 
 from .. import logger as logging
-from ..misc import get_app
+from ..misc import boolean, get_app
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Iterator
@@ -94,6 +101,13 @@ class Connection(SqlConnection):
 		elif key == 'log-level':
 			value = logging.LogLevel.parse(value)
 			logging.set_level(value)
+
+		elif key == 'whitelist-enabled':
+			value = boolean(value)
+
+		elif key == 'theme':
+			if value not in THEMES:
+				raise ValueError(f'"{value}" is not a valid theme')
 
 		params = {
 			'key': key,
@@ -252,10 +266,10 @@ class Connection(SqlConnection):
 
 		params = {}
 
-		if reason:
+		if reason is not None:
 			params['reason'] = reason
 
-		if note:
+		if note is not None:
 			params['note'] = note
 
 		statement = Update('domain_bans', params)
@@ -307,10 +321,10 @@ class Connection(SqlConnection):
 
 		params = {}
 
-		if reason:
+		if reason is not None:
 			params['reason'] = reason
 
-		if note:
+		if note is not None:
 			params['note'] = note
 
 		statement = Update('software_bans', params)

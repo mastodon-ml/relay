@@ -4,7 +4,6 @@ import typing
 
 from aiohttp import web
 from argon2.exceptions import VerifyMismatchError
-from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from .base import View, register_route
@@ -76,7 +75,7 @@ class Login(View):
 		if isinstance(data, Response):
 			return data
 
-		with self.database.connction(True) as conn:
+		with self.database.session(True) as conn:
 			if not (user := conn.get_user(data['username'])):
 				return Response.new_error(401, 'User not found', 'json')
 

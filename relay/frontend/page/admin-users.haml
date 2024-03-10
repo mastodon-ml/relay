@@ -1,0 +1,44 @@
+-extends "base.haml"
+-set page="Users"
+-block content
+	%details.section
+		%summary << Add User
+		%form(action="/admin/users", method="POST")
+			#add-item
+				%label(for="username") << Username
+				%input(id="username" name="username" placeholder="Username")
+
+				%label(for="password") << Password
+				%input(type="password" id="password" name="password" placeholder="Password")
+
+				%label(for="password2") << Password Again
+				%input(type="password" id="password2" name="password2" placeholder="Password Again")
+
+				%label(for="handle") << Handle
+				%input(type="email" name="handle" id="handle" placeholder="handle")
+
+			%input(type="submit" value="Add User")
+
+	#data-table.section
+		%table
+			%thead
+				%tr
+					%td.username << Username
+					%td.handle << Handle
+					%td.date << Joined
+					%td.remove
+
+			%tbody
+				-for user in users
+					%tr
+						%td.username
+							=user.username
+
+						%td.handle
+							=user.handle or "n/a"
+
+						%td.date
+							=user.created.strftime("%Y-%m-%d")
+
+						%td.remove
+							%a(href="/admin/users/delete/{{user.username}}" title="Remove User") << &#10006;
