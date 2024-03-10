@@ -1,0 +1,16 @@
+:root {
+	--text: {{theme["text"]}};
+	--background: {{theme["background"]}};
+	--primary: {{theme["primary"]}};
+	--primary-hover: {{theme["primary-hover"]}};
+	--section-background: {{theme["section-background"]}};
+	--table-background: {{theme["table-background"]}};
+	--border: {{theme["border"]}};
+	--message-text: {{theme["message-text"]}};
+	--message-background: {{theme["message-background"]}};
+	--message-border: {{theme["message-border"]}};
+	--error-text: {{theme["error-text"]}};
+	--error-background: {{theme["error-background"]}};
+	--error-border: {{theme["error-border"]}};
+	--spacing: 10px;
+}
