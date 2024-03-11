@@ -117,7 +117,8 @@ class Message(aputils.Message):
 	def new_actor(cls: type[Message],  # pylint: disable=arguments-differ
 				host: str,
 				pubkey: str,
-				description: str | None = None) -> Message:
+				description: str | None = None,
+				approves: bool = False) -> Message:
 
 		return cls({
 			'@context': 'https://www.w3.org/ns/activitystreams',
@@ -126,6 +127,7 @@ class Message(aputils.Message):
 			'preferredUsername': 'relay',
 			'name': 'ActivityRelay',
 			'summary': description or 'ActivityRelay bot',
+			'manuallyApprovesFollowers': approves,
 			'followers': f'https://{host}/followers',
 			'following': f'https://{host}/following',
 			'inbox': f'https://{host}/inbox',

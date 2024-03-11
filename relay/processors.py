@@ -62,9 +62,12 @@ async def handle_forward(view: ActorView, conn: Connection) -> None:
 async def handle_follow(view: ActorView, conn: Connection) -> None:
 	nodeinfo = await view.client.fetch_nodeinfo(view.actor.domain)
 	software = nodeinfo.sw_name if nodeinfo else None
+	config = conn.get_config_all()
 
 	# reject if software used by actor is banned
 	if conn.get_software_ban(software):
+		logging.verbose('Rejected banned actor: %s', view.actor.id)
+
 		view.app.push_message(
 			view.actor.shared_inbox,
 			Message.new_response(
@@ -85,6 +88,8 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 
 	## reject if the actor is not an instance actor
 	if person_check(view.actor, software):
+		logging.verbose('Non-application actor tried to follow: %s', view.actor.id)
+
 		view.app.push_message(
 			view.actor.shared_inbox,
 			Message.new_response(
@@ -95,20 +100,49 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 			)
 		)
 
-		logging.verbose('Non-application actor tried to follow: %s', view.actor.id)
 		return
 
-	with conn.transaction():
-		if conn.get_inbox(view.actor.shared_inbox):
-			view.instance = conn.update_inbox(view.actor.shared_inbox, followid = view.message.id)
+	if not conn.get_domain_whitelist(view.actor.domain):
+		# add request if approval-required is enabled
+		if config['approval-required']:
+			logging.verbose('New follow request fromm actor: %s', view.actor.id)
 
-		else:
-			view.instance = conn.put_inbox(
-				view.actor.domain,
+			with conn.transaction():
+				view.instance = conn.put_inbox(
+					domain = view.actor.domain,
+					inbox = view.actor.shared_inbox,
+					actor = view.actor.id,
+					followid = view.message.id,
+					software = software,
+					accepted = False
+				)
+
+			return
+
+		# reject if the actor isn't whitelisted while the whiltelist is enabled
+		if config['whitelist-enabled']:
+			logging.verbose('Rejected actor for not being in the whitelist: %s', view.actor.id)
+
+			view.app.push_message(
 				view.actor.shared_inbox,
-				view.actor.id,
-				view.message.id,
-				software
+				Message.new_response(
+					host = view.config.domain,
+					actor = view.actor.id,
+					followid = view.message.id,
+					accept = False
+				)
+			)
+
+			return
+
+	with conn.transaction():
+		view.instance = conn.put_inbox(
+				domain = view.actor.domain,
+				inbox = view.actor.shared_inbox,
+				actor = view.actor.id,
+				followid = view.message.id,
+				software = software,
+				accepted = True
 			)
 
 	view.app.push_message(
@@ -189,15 +223,15 @@ async def run_processor(view: ActorView) -> None:
 			if not view.instance['software']:
 				if (nodeinfo := await view.client.fetch_nodeinfo(view.instance['domain'])):
 					with conn.transaction():
-						view.instance = conn.update_inbox(
-							view.instance['inbox'],
+						view.instance = conn.put_inbox(
+							domain = view.instance['domain'],
 							software = nodeinfo.sw_name
 						)
 
 			if not view.instance['actor']:
 				with conn.transaction():
-					view.instance = conn.update_inbox(
-						view.instance['inbox'],
+					view.instance = conn.put_inbox(
+						domain = view.instance['domain'],
 						actor = view.actor.id
 					)
 

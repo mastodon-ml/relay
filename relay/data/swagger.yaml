@@ -285,6 +285,50 @@ paths:
           schema:
             $ref: "#/definitions/Error"
 
+  /v1/request:
+    get:
+      tags:
+      - Follow Request
+      description: Get the list of follow requests
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of instances
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Instance"
+
+    post:
+      tags:
+      - Follow Request
+      description: Approve or deny a follow request
+      parameters:
+      - in: formData
+        name: domain
+        required: true
+        type: string
+      - in: formData
+        name: accept
+        required: true
+        type: boolean
+      consumes:
+      - application/json
+      - multipart/form-data
+      - application/x-www-form-urlencoded
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Follow request successfully accepted or denied
+          schema:
+            $ref: "#/definitions/Message"
+        "500":
+          description: Follow request does not exist
+          schema:
+            $ref: "#/definitions/Error"
+
   /v1/domain_ban:
     get:
       tags:
@@ -672,6 +716,9 @@ definitions:
       software:
         description: Nodeinfo-formatted name of the instance's software
         type: string
+      accepted:
+        description: Whether or not the follow request has been accepted
+        type: boolean
       created:
         description: Date the instance joined or was added
         type: string

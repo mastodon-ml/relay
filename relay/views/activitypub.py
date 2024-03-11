@@ -30,9 +30,14 @@ class ActorView(View):
 
 
 	async def get(self, request: Request) -> Response:
+		with self.database.session(False) as conn:
+			config = conn.get_config_all()
+
 		data = Message.new_actor(
 			host = self.config.domain,
-			pubkey = self.app.signer.pubkey
+			pubkey = self.app.signer.pubkey,
+			description = ''.join(f"<p>{line}</p>" for line in config['note'].splitlines()),
+			approves = config['approval-required']
 		)
 
 		return Response.new(data, ctype='activity')
@@ -44,12 +49,6 @@ class ActorView(View):
 
 		with self.database.session() as conn:
 			self.instance = conn.get_inbox(self.actor.shared_inbox)
-			config = conn.get_config_all()
-
-			## reject if the actor isn't whitelisted while the whiltelist is enabled
-			if config['whitelist-enabled'] and not conn.get_domain_whitelist(self.actor.domain):
-				logging.verbose('Rejected actor for not being in the whitelist: %s', self.actor.id)
-				return Response.new_error(403, 'access denied', 'json')
 
 			## reject if actor is banned
 			if conn.get_domain_ban(self.actor.domain):

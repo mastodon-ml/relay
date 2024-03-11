@@ -342,7 +342,7 @@ def cli_config_list(ctx: click.Context) -> None:
 		for key, value in conn.get_config_all().items():
 			if key not in CONFIG_IGNORE:
 				key = f'{key}:'.ljust(20)
-				click.echo(f'- {key} {value}')
+				click.echo(f'- {key} {repr(value)}')
 
 
 @cli_config.command('set')
@@ -477,7 +477,7 @@ def cli_inbox_list(ctx: click.Context) -> None:
 	click.echo('Connected to the following instances or relays:')
 
 	with ctx.obj.database.session() as conn:
-		for inbox in conn.execute('SELECT * FROM inboxes'):
+		for inbox in conn.get_inboxes():
 			click.echo(f'- {inbox["inbox"]}')
 
 
@@ -616,6 +616,80 @@ def cli_inbox_remove(ctx: click.Context, inbox: str) -> None:
 			return
 
 	click.echo(f'Removed inbox from the database: {inbox}')
+
+
+@cli.group('request')
+def cli_request() -> None:
+	'Manage follow requests'
+
+
+@cli_request.command('list')
+@click.pass_context
+def cli_request_list(ctx: click.Context) -> None:
+	'List all current follow requests'
+
+	click.echo('Follow requests:')
+
+	with ctx.obj.database.session() as conn:
+		for instance in conn.get_requests():
+			date = instance['created'].strftime('%Y-%m-%d')
+			click.echo(f'- [{date}] {instance["domain"]}')
+
+
+@cli_request.command('accept')
+@click.argument('domain')
+@click.pass_context
+def cli_request_accept(ctx: click.Context, domain: str) -> None:
+	'Accept a follow request'
+
+	try:
+		with ctx.obj.database.session() as conn:
+			instance = conn.put_request_response(domain, True)
+
+	except KeyError:
+		click.echo('Request not found')
+		return
+
+	message = Message.new_response(
+		host = ctx.obj.config.domain,
+		actor = instance['actor'],
+		followid = instance['followid'],
+		accept = True
+	)
+
+	asyncio.run(http.post(instance['inbox'], message, instance))
+
+	if instance['software'] != 'mastodon':
+		message = Message.new_follow(
+			host = ctx.obj.config.domain,
+			actor = instance['actor']
+		)
+
+		asyncio.run(http.post(instance['inbox'], message, instance))
+
+
+@cli_request.command('deny')
+@click.argument('domain')
+@click.pass_context
+def cli_request_deny(ctx: click.Context, domain: str) -> None:
+	'Accept a follow request'
+
+	try:
+		with ctx.obj.database.session() as conn:
+			instance = conn.put_request_response(domain, False)
+
+	except KeyError:
+		click.echo('Request not found')
+		return
+
+	response = Message.new_response(
+		host = ctx.obj.config.domain,
+		actor = instance['actor'],
+		followid = instance['followid'],
+		accept = False
+	)
+
+	asyncio.run(http.post(instance['inbox'], response, instance))
 
 
 @cli.group('instance')

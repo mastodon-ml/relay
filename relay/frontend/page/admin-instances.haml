@@ -19,7 +19,38 @@
 
 			%input(type="submit" value="Add Instance")
 
-	#data-table.section
+	-if requests
+		.data-table.section
+			.title << Requests
+			%table
+				%thead
+					%tr
+						%td.instance << Instance
+						%td.software << Software
+						%td.date << Joined
+						%td.approve
+						%td.deny
+
+				%tbody
+					-for request in requests
+						%tr
+							%td.instance
+								%a(href="https://{{request.domain}}" target="_new") -> =request.domain
+
+							%td.software
+								=request.software or "n/a"
+
+							%td.date
+								=request.created.strftime("%Y-%m-%d")
+
+							%td.approve
+								%a(href="/admin/instances/approve/{{request.domain}}" title="Approve Request") << &check;
+								
+							%td.deny
+								%a(href="/admin/instances/deny/{{request.domain}}" title="Deny Request") << &#10006;
+
+	.data-table.section
+		.title << Instances
 		%table
 			%thead
 				%tr

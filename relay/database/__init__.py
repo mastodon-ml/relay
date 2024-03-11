@@ -53,6 +53,7 @@ def get_database(config: Config, migrate: bool = True) -> bsql.Database:
 				if schema_ver < ver:
 					func(conn)
 					conn.put_config('schema-version', ver)
+					logging.info("Updated database to %i", ver)
 
 		if (privkey := conn.get_config('private-key')):
 			conn.app.signer = privkey

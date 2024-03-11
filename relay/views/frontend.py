@@ -56,7 +56,7 @@ class HomeView(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
 			context = {
-				'instances': tuple(conn.execute('SELECT * FROM inboxes').all())
+				'instances': tuple(conn.get_inboxes())
 			}
 
 		data = self.template.render('page/home.haml', self, **context)
@@ -137,7 +137,8 @@ class AdminInstances(View):
 
 		with self.database.session() as conn:
 			context = {
-				'instances': tuple(conn.execute('SELECT * FROM inboxes').all())
+				'instances': tuple(conn.get_inboxes()),
+				'requests': tuple(conn.get_requests())
 			}
 
 			if error:
@@ -179,13 +180,64 @@ class AdminInstances(View):
 @register_route('/admin/instances/delete/{domain}')
 class AdminInstancesDelete(View):
 	async def get(self, request: Request, domain: str) -> Response:
-		with self.database.session() as conn:
+		with self.database.session(True) as conn:
 			if not conn.get_inbox(domain):
-				return await AdminInstances(request).get(request, message = 'Instance not found')
+				return await AdminInstances(request).get(request, error = 'Instance not found')
 
 			conn.del_inbox(domain)
 
 		return await AdminInstances(request).get(request, message = 'Removed instance')
+
+
+@register_route('/admin/instances/approve/{domain}')
+class AdminInstancesApprove(View):
+	async def get(self, request: Request, domain: str) -> Response:
+		try:
+			with self.database.session(True) as conn:
+				instance = conn.put_request_response(domain, True)
+
+		except KeyError:
+			return await AdminInstances(request).get(request, error = 'Instance not found')
+
+		message = Message.new_response(
+			host = self.config.domain,
+			actor = instance['actor'],
+			followid = instance['followid'],
+			accept = True
+		)
+
+		self.app.push_message(instance['inbox'], message, instance)
+
+		if instance['software'] != 'mastodon':
+			message = Message.new_follow(
+				host = self.config.domain,
+				actor = instance['actor']
+			)
+
+			self.app.push_message(instance['inbox'], message, instance)
+
+		return await AdminInstances(request).get(request, message = 'Request accepted')
+
+
+@register_route('/admin/instances/deny/{domain}')
+class AdminInstancesDeny(View):
+	async def get(self, request: Request, domain: str) -> Response:
+		try:
+			with self.database.session(True) as conn:
+				instance = conn.put_request_response(domain, False)
+
+		except KeyError:
+			return await AdminInstances(request).get(request, error = 'Instance not found')
+
+		message = Message.new_response(
+			host = self.config.domain,
+			actor = instance['actor'],
+			followid = instance['followid'],
+			accept = False
+		)
+
+		self.app.push_message(instance['inbox'], message, instance)
+		return await AdminInstances(request).get(request, message = 'Request denied')
 
 
 @register_route('/admin/whitelist')
@@ -412,7 +464,7 @@ class AdminConfig(View):
 	async def get(self, request: Request, message: str | None = None) -> Response:
 		context = {
 			'themes': tuple(THEMES.keys()),
-			'LogLevel': LogLevel,
+			'levels': tuple(level.name for level in LogLevel),
 			'message': message
 		}
 		data = self.template.render('page/admin-config.haml', self, **context)

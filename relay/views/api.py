@@ -212,7 +212,7 @@ class Inbox(View):
 			if not (instance := conn.get_inbox(data['domain'])):
 				return Response.new_error(404, 'Instance with domain not found', 'json')
 
-			instance = conn.update_inbox(instance['inbox'], **data)
+			instance = conn.put_inbox(instance['domain'], **data)
 
 		return Response.new(instance, ctype = 'json')
 
@@ -230,6 +230,50 @@ class Inbox(View):
 			conn.del_inbox(data['domain'])
 
 		return Response.new({'message': 'Deleted instance'}, ctype = 'json')
+
+
+@register_route('/api/v1/request')
+class RequestView(View):
+	async def get(self, request: Request) -> Response:
+		with self.database.session() as conn:
+			instances = conn.get_requests()
+
+		return Response.new(instances, ctype = 'json')
+
+
+	async def post(self, request: Request) -> Response:
+		data = await self.get_api_data(['domain', 'accept'], [])
+
+		if not isinstance(data['accept'], bool):
+			atype = type(data['accept']).__name__
+			return Response.new_error(400, f'Invalid type for "accept": {atype}', 'json')
+
+		try:
+			with self.database.session(True) as conn:
+				instance = conn.put_request_response(data['domain'], data['accept'])
+
+		except KeyError:
+			return Response.new_error(404, 'Request not found', 'json')
+
+		message = Message.new_response(
+			host = self.config.domain,
+			actor = instance['actor'],
+			followid = instance['followid'],
+			accept = data['accept']
+		)
+
+		self.app.push_message(instance['inbox'], message, instance)
+
+		if data['accept'] and instance['software'] != 'mastodon':
+			message = Message.new_follow(
+				host = self.config.domain,
+				actor = instance['actor']
+			)
+
+			self.app.push_message(instance['inbox'], message, instance)
+
+		resp_message = {'message': 'Request accepted' if data['accept'] else 'Request denied'}
+		return Response.new(resp_message, ctype = 'json')
 
 
 @register_route('/api/v1/domain_ban')

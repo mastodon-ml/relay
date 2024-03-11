@@ -52,7 +52,7 @@ class Connection(SqlConnection):
 			urlparse(message.object_id).netloc
 		}
 
-		for inbox in self.execute('SELECT * FROM inboxes'):
+		for inbox in self.get_inboxes():
 			if inbox['domain'] not in src_domains:
 				yield inbox['inbox']
 
@@ -124,51 +124,43 @@ class Connection(SqlConnection):
 			return cur.one()
 
 
+	def get_inboxes(self) -> tuple[Row]:
+		with self.execute("SELECT * FROM inboxes WHERE accepted = 1") as cur:
+			return tuple(cur.all())
+
+
 	def put_inbox(self,
 				domain: str,
-				inbox: str,
+				inbox: str | None = None,
 				actor: str | None = None,
 				followid: str | None = None,
-				software: str | None = None) -> Row:
+				software: str | None = None,
+				accepted: bool = True) -> Row:
 
 		params = {
-			'domain': domain,
 			'inbox': inbox,
 			'actor': actor,
 			'followid': followid,
 			'software': software,
-			'created': datetime.now(tz = timezone.utc)
+			'accepted': accepted
 		}
 
-		with self.run('put-inbox', params) as cur:
+		if not self.get_inbox(domain):
+			if not inbox:
+				raise ValueError("Missing inbox")
+
+			params['domain'] = domain
+			params['created'] = datetime.now(tz = timezone.utc)
+
+			with self.run('put-inbox', params) as cur:
+				return cur.one()
+
+		for key, value in tuple(params.items()):
+			if value is None:
+				del params[key]
+
+		with self.update('inboxes', params, domain = domain) as cur:
 			return cur.one()
-
-
-	def update_inbox(self,
-					inbox: str,
-					actor: str | None = None,
-					followid: str | None = None,
-					software: str | None = None) -> Row:
-
-		if not (actor or followid or software):
-			raise ValueError('Missing "actor", "followid", and/or "software"')
-
-		data = {}
-
-		if actor:
-			data['actor'] = actor
-
-		if followid:
-			data['followid'] = followid
-
-		if software:
-			data['software'] = software
-
-		statement = Update('inboxes', data)
-		statement.set_where("inbox", inbox)
-
-		with self.query(statement):
-			return self.get_inbox(inbox)
 
 
 	def del_inbox(self, value: str) -> bool:
@@ -177,6 +169,35 @@ class Connection(SqlConnection):
 				raise ValueError('More than one row was modified')
 
 			return cur.row_count == 1
+
+
+	def get_request(self, domain: str) -> Row:
+		with self.run('get-request', {'domain': domain}) as cur:
+			if not (row := cur.one()):
+				raise KeyError(domain)
+
+			return row
+
+
+	def get_requests(self) -> tuple[Row]:
+		with self.execute('SELECT * FROM inboxes WHERE accepted = 0') as cur:
+			return tuple(cur.all())
+
+
+	def put_request_response(self, domain: str, accepted: bool) -> Row:
+		instance = self.get_request(domain)
+
+		if not accepted:
+			self.del_inbox(domain)
+			return instance
+
+		params = {
+			'domain': domain,
+			'accepted': accepted
+		}
+
+		with self.run('put-inbox-accept', params) as cur:
+			return cur.one()
 
 
 	def get_user(self, value: str) -> Row:

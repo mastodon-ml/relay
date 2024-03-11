@@ -91,6 +91,17 @@ textarea {
 	margin: 0px auto;
 }
 
+#content .title {
+	font-size: 24px;
+	text-align: center;
+	font-weight: bold;
+	margin-bottom: 10px;
+}
+
+#content .title:not(:first-child) {
+	margin-top: 10px;
+}
+
 #header {
 	display: grid;
 	grid-template-columns: 50px auto 50px;
@@ -193,15 +204,6 @@ textarea {
 	align-items: center;
 }
 
-#data-table td:first-child {
-	width: 100%;
-}
-
-#data-table .date {
-	width: max-content;
-	text-align: right;
-}
-
 .button {
 	background-color: var(--primary);
 	border: 1px solid var(--primary);
@@ -218,6 +220,15 @@ textarea {
 .container {
 	display: grid;
 	grid-template-columns: max-content auto;
+}
+
+.data-table td:first-child {
+	width: 100%;
+}
+
+.data-table .date {
+	width: max-content;
+	text-align: right;
 }
 
 .error, .message {

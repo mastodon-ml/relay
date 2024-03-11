@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import typing
 
-from hamlish_jinja.extension import HamlishExtension
+from hamlish_jinja import HamlishExtension
 from jinja2 import Environment, FileSystemLoader
 
 from . import __version__
-from .database.config import THEMES
 from .misc import get_resource
 
 if typing.TYPE_CHECKING:
@@ -36,8 +35,8 @@ class Template(Environment):
 
 
 	def render(self, path: str, view: View | None = None, **context: Any) -> str:
-		with self.app.database.session(False) as s:
-			config = s.get_config_all()
+		with self.app.database.session(False) as conn:
+			config = conn.get_config_all()
 
 		new_context = {
 			'view': view,

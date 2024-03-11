@@ -34,7 +34,7 @@ class NodeinfoView(View):
 	# pylint: disable=no-self-use
 	async def get(self, request: Request, niversion: str) -> Response:
 		with self.database.session() as conn:
-			inboxes = conn.execute('SELECT * FROM inboxes').all()
+			inboxes = conn.get_inboxes()
 
 			data = {
 				'name': 'activityrelay',
@@ -42,7 +42,10 @@ class NodeinfoView(View):
 				'protocols': ['activitypub'],
 				'open_regs': not conn.get_config('whitelist-enabled'),
 				'users': 1,
-				'metadata': {'peers': [inbox['domain'] for inbox in inboxes]}
+				'metadata': {
+					'approval_required': conn.get_config('approval-required'),
+					'peers': [inbox['domain'] for inbox in inboxes]
+				}
 			}
 
 		if niversion == '2.1':
