@@ -249,7 +249,7 @@ class AdminWhitelist(View):
 
 		with self.database.session() as conn:
 			context = {
-				'whitelist': tuple(conn.execute('SELECT * FROM whitelist').all())
+				'whitelist': tuple(conn.execute('SELECT * FROM whitelist ORDER BY domain ASC'))
 			}
 
 			if error:
@@ -299,7 +299,7 @@ class AdminDomainBans(View):
 
 		with self.database.session() as conn:
 			context = {
-				'bans': tuple(conn.execute('SELECT * FROM domain_bans ORDER BY domain ASC').all())
+				'bans': tuple(conn.execute('SELECT * FROM domain_bans ORDER BY domain ASC'))
 			}
 
 			if error:
@@ -357,7 +357,7 @@ class AdminSoftwareBans(View):
 
 		with self.database.session() as conn:
 			context = {
-				'bans': tuple(conn.execute('SELECT * FROM software_bans ORDER BY name ASC').all())
+				'bans': tuple(conn.execute('SELECT * FROM software_bans ORDER BY name ASC'))
 			}
 
 			if error:
@@ -415,7 +415,7 @@ class AdminUsers(View):
 
 		with self.database.session() as conn:
 			context = {
-				'users': tuple(conn.execute('SELECT * FROM users').all())
+				'users': tuple(conn.execute('SELECT * FROM users ORDER BY username ASC'))
 			}
 
 			if error:
