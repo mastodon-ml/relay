@@ -36,7 +36,7 @@ class ActorView(View):
 		data = Message.new_actor(
 			host = self.config.domain,
 			pubkey = self.app.signer.pubkey,
-			description = ''.join(f"<p>{line}</p>" for line in config['note'].splitlines()),
+			description = self.app.template.render_markdown(config['note']),
 			approves = config['approval-required']
 		)
 

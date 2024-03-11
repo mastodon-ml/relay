@@ -6,6 +6,7 @@ barkshark-sql@https://git.barkshark.xyz/barkshark/bsql/archive/0.1.2.tar.gz
 click>=8.1.2
 hamlish-jinja@https://git.barkshark.xyz/barkshark/hamlish-jinja/archive/0.3.5.tar.gz
 hiredis==2.3.2
+markdown==3.5.2
 platformdirs==4.2.0
 pyyaml>=6.0
 redis==5.0.1

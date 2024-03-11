@@ -112,6 +112,11 @@ class Application(web.Application):
 
 
 	@property
+	def template(self) -> Template:
+		return self['template']
+
+
+	@property
 	def uptime(self) -> timedelta:
 		if not self['start_time']:
 			return timedelta(seconds=0)
