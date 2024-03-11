@@ -97,7 +97,8 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 				actor = view.actor.id,
 				followid = view.message.id,
 				accept = False
-			)
+			),
+			view.instance
 		)
 
 		return
