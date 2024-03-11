@@ -116,7 +116,7 @@ class HttpClient:
 		headers = {}
 
 		if sign_headers:
-			self.signer.sign_headers('GET', url, algorithm = 'original')
+			headers = self.signer.sign_headers('GET', url, algorithm = 'original')
 
 		try:
 			logging.debug('Fetching resource: %s', url)
@@ -130,7 +130,7 @@ class HttpClient:
 
 			if resp.status != 200:
 				logging.verbose('Received error when requesting %s: %i', url, resp.status)
-				logging.debug(await resp.read())
+				logging.debug(data)
 				return None
 
 			message = loads(data)
