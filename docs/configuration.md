@@ -167,7 +167,8 @@ Name of your relay's instance. It will be displayed at the top of web pages and 
 
 ### Note
 
-Short blurb that will be displayed on the relay's home and in API endpoints if set.
+Short blurb that will be displayed on the relay's home and in API endpoints if set. Can be in
+markdown format.
 
 	note: null
 
@@ -183,6 +184,7 @@ Valid values: `Default`, `Pink`, `Blue`
 
 ### Whitelist Enabled
 
-When enabled, only instances on the whitelist can join. Any instances currently subscribed and not in the whitelist when this is enabled can still post.
+When enabled, only instances on the whitelist can join. Any instances currently subscribed and not
+in the whitelist when this is enabled can still post.
 
 	whitelist-enabled: False
