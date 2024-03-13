@@ -52,34 +52,37 @@ class Template(Environment):
 			'domain': self.app.config.domain,
 			'version': __version__,
 			'config': config,
-			'theme_name': config['theme'] or 'Default',
 			**(context or {})
 		}
 
 		return self.get_template(path).render(new_context)
 
 
+	def render_markdown(self, text: str) -> str:
+		return self._render_markdown(text) # type: ignore
+
+
 class MarkdownExtension(Extension):
 	tags = {'markdown'}
-	extensions = {
+	extensions = (
 		'attr_list',
 		'smarty',
 		'tables'
-	}
+	)
 
 
 	def __init__(self, environment: Environment):
 		Extension.__init__(self, environment)
 		self._markdown = Markdown(extensions = MarkdownExtension.extensions)
 		environment.extend(
-			render_markdown = self._render_markdown
+			_render_markdown = self._render_markdown
 		)
 
 
 	def parse(self, parser: Parser) -> Node | list[Node]:
 		lineno = next(parser.stream).lineno
 		body = parser.parse_statements(
-			['name:endmarkdown'],
+			('name:endmarkdown',),
 			drop_needle = True
 		)
 
@@ -88,5 +91,5 @@ class MarkdownExtension(Extension):
 
 
 	def _render_markdown(self, caller: Callable[[], str] | str) -> str:
-		text = caller() if isinstance(caller, Callable) else caller
+		text = caller if isinstance(caller, str) else caller()
 		return self._markdown.convert(textwrap.dedent(text.strip('\n')))

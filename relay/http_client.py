@@ -7,7 +7,7 @@ import typing
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
-from aputils.objects import Nodeinfo, WellKnownNodeinfo
+from aputils import JsonBase, Nodeinfo, WellKnownNodeinfo
 from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
 
@@ -17,12 +17,13 @@ from .misc import MIMETYPES, Message, get_app
 
 if typing.TYPE_CHECKING:
 	from aputils import Signer
-	from tinysql import Row
+	from bsql import Row
 	from typing import Any
 	from .application import Application
 	from .cache import Cache
 
 
+T = typing.TypeVar('T', bound = JsonBase)
 HEADERS = {
 	'Accept': f'{MIMETYPES["activity"]}, {MIMETYPES["json"]};q=0.9',
 	'User-Agent': f'ActivityRelay/{__version__}'
@@ -33,12 +34,12 @@ class HttpClient:
 	def __init__(self, limit: int = 100, timeout: int = 10):
 		self.limit = limit
 		self.timeout = timeout
-		self._conn = None
-		self._session = None
+		self._conn: TCPConnector | None = None
+		self._session: ClientSession | None = None
 
 
 	async def __aenter__(self) -> HttpClient:
-		await self.open()
+		self.open()
 		return self
 
 
@@ -61,7 +62,7 @@ class HttpClient:
 		return self.app.signer
 
 
-	async def open(self) -> None:
+	def open(self) -> None:
 		if self._session:
 			return
 
@@ -79,23 +80,19 @@ class HttpClient:
 
 
 	async def close(self) -> None:
-		if not self._session:
-			return
+		if self._session:
+			await self._session.close()
 
-		await self._session.close()
-		await self._conn.close()
+		if self._conn:
+			await self._conn.close()
 
 		self._conn = None
 		self._session = None
 
 
-	async def get(self,  # pylint: disable=too-many-branches
-				url: str,
-				sign_headers: bool = False,
-				loads: callable = json.loads,
-				force: bool = False) -> dict | None:
-
-		await self.open()
+	async def _get(self, url: str, sign_headers: bool, force: bool) -> dict[str, Any] | None:
+		if not self._session:
+			raise RuntimeError('Client not open')
 
 		try:
 			url, _ = url.split('#', 1)
@@ -105,10 +102,8 @@ class HttpClient:
 
 		if not force:
 			try:
-				item = self.cache.get('request', url)
-
-				if not item.older_than(48):
-					return loads(item.value)
+				if not (item := self.cache.get('request', url)).older_than(48):
+					return json.loads(item.value)
 
 			except KeyError:
 				logging.verbose('No cached data for url: %s', url)
@@ -121,23 +116,22 @@ class HttpClient:
 		try:
 			logging.debug('Fetching resource: %s', url)
 
-			async with self._session.get(url, headers=headers) as resp:
-				## Not expecting a response with 202s, so just return
+			async with self._session.get(url, headers = headers) as resp:
+				# Not expecting a response with 202s, so just return
 				if resp.status == 202:
 					return None
 
-				data = await resp.read()
+				data = await resp.text()
 
 			if resp.status != 200:
 				logging.verbose('Received error when requesting %s: %i', url, resp.status)
 				logging.debug(data)
 				return None
 
-			message = loads(data)
-			self.cache.set('request', url, data.decode('utf-8'), 'str')
-			logging.debug('%s >> resp %s', url, json.dumps(message, indent = 4))
+			self.cache.set('request', url, data, 'str')
+			logging.debug('%s >> resp %s', url, json.dumps(json.loads(data), indent = 4))
 
-			return message
+			return json.loads(data)
 
 		except JSONDecodeError:
 			logging.verbose('Failed to parse JSON')
@@ -155,17 +149,26 @@ class HttpClient:
 		return None
 
 
-	async def post(self, url: str, message: Message, instance: Row | None = None) -> None:
-		await self.open()
+	async def get(self, url: str, sign_headers: bool, cls: type[T], force: bool = False) -> T | None:
+		if not issubclass(cls, JsonBase):
+			raise TypeError('cls must be a sub-class of "aputils.JsonBase"')
 
-		## Using the old algo by default is probably a better idea right now
-		# pylint: disable=consider-ternary-expression
+		if (data := (await self._get(url, sign_headers, force))) is None:
+			return None
+
+		return cls.parse(data)
+
+
+	async def post(self, url: str, message: Message, instance: Row | None = None) -> None:
+		if not self._session:
+			raise RuntimeError('Client not open')
+
+		# Using the old algo by default is probably a better idea right now
 		if instance and instance['software'] in {'mastodon'}:
 			algorithm = 'hs2019'
 
 		else:
 			algorithm = 'original'
-		# pylint: enable=consider-ternary-expression
 
 		headers = {'Content-Type': 'application/activity+json'}
 		headers.update(get_app().signer.sign_headers('POST', url, message, algorithm=algorithm))
@@ -173,7 +176,7 @@ class HttpClient:
 		try:
 			logging.verbose('Sending "%s" to %s', message.type, url)
 
-			async with self._session.post(url, headers=headers, data=message.to_json()) as resp:
+			async with self._session.post(url, headers = headers, data = message.to_json()) as resp:
 				# Not expecting a response, so just return
 				if resp.status in {200, 202}:
 					logging.verbose('Successfully sent "%s" to %s', message.type, url)
@@ -198,10 +201,11 @@ class HttpClient:
 		nodeinfo_url = None
 		wk_nodeinfo = await self.get(
 			f'https://{domain}/.well-known/nodeinfo',
-			loads = WellKnownNodeinfo.parse
+			False,
+			WellKnownNodeinfo
 		)
 
-		if not wk_nodeinfo:
+		if wk_nodeinfo is None:
 			logging.verbose('Failed to fetch well-known nodeinfo url for %s', domain)
 			return None
 
@@ -212,14 +216,14 @@ class HttpClient:
 			except KeyError:
 				pass
 
-		if not nodeinfo_url:
+		if nodeinfo_url is None:
 			logging.verbose('Failed to fetch nodeinfo url for %s', domain)
 			return None
 
-		return await self.get(nodeinfo_url, loads = Nodeinfo.parse) or None
+		return await self.get(nodeinfo_url, False, Nodeinfo)
 
 
-async def get(*args: Any, **kwargs: Any) -> Message | dict | None:
+async def get(*args: Any, **kwargs: Any) -> Any:
 	async with HttpClient() as client:
 		return await client.get(*args, **kwargs)
 

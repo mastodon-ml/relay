@@ -15,7 +15,7 @@ try:
 	from watchdog.events import PatternMatchingEventHandler
 
 except ImportError:
-	class PatternMatchingEventHandler:
+	class PatternMatchingEventHandler: # type: ignore
 		pass
 
 
@@ -45,9 +45,15 @@ def cli_install():
 
 @cli.command('lint')
 @click.argument('path', required = False, default = 'relay')
-def cli_lint(path):
-	subprocess.run([sys.executable, '-m', 'flake8', path], check = False)
-	subprocess.run([sys.executable, '-m', 'pylint', path], check = False)
+@click.option('--strict', '-s', is_flag = True, help = 'Enable strict mode for mypy')
+def cli_lint(path: str, strict: bool) -> None:
+	cmd: list[str] = [sys.executable, '-m', 'mypy']
+
+	if strict:
+		cmd.append('--strict')
+
+	subprocess.run([*cmd, path], check = False)
+	subprocess.run([sys.executable, '-m', 'flake8', path])
 
 
 @cli.command('build')
@@ -146,7 +152,6 @@ class WatchHandler(PatternMatchingEventHandler):
 
 			self.kill_proc()
 
-		# pylint: disable=consider-using-with
 		self.proc = subprocess.Popen(self.cmd, stdin = subprocess.PIPE)
 		self.last_restart = timestamp
 

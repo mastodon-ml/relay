@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import json
 import typing
+
+from dataclasses import Field, asdict, dataclass, fields
 
 from .. import logger as logging
 from ..misc import boolean
 
 if typing.TYPE_CHECKING:
-	from collections.abc import Callable
-	from typing import Any
+	from bsql import Row
+	from collections.abc import Callable, Sequence
+	from typing import Any, Self
 
 
 THEMES = {
@@ -59,40 +61,101 @@ THEMES = {
 	}
 }
 
-CONFIG_DEFAULTS: dict[str, tuple[str, Any]] = {
-	'schema-version': ('int', 20240310),
-	'private-key': ('str', None),
-	'approval-required': ('bool', False),
-	'log-level': ('loglevel', logging.LogLevel.INFO),
-	'name': ('str', 'ActivityRelay'),
-	'note': ('str', 'Make a note about your instance here.'),
-	'theme': ('str', 'default'),
-	'whitelist-enabled': ('bool', False)
-}
-
 # serializer | deserializer
-CONFIG_CONVERT: dict[str, tuple[Callable, Callable]] = {
+CONFIG_CONVERT: dict[str, tuple[Callable[[Any], str], Callable[[str], Any]]] = {
 	'str': (str, str),
 	'int': (str, int),
 	'bool': (str, boolean),
-	'json': (json.dumps, json.loads),
-	'loglevel': (lambda x: x.name, logging.LogLevel.parse)
+	'logging.LogLevel': (lambda x: x.name, logging.LogLevel.parse)
 }
 
 
-def get_default_value(key: str) -> Any:
-	return CONFIG_DEFAULTS[key][1]
+@dataclass()
+class ConfigData:
+	schema_version: int = 20240310
+	private_key: str = ''
+	approval_required: bool = False
+	log_level: logging.LogLevel = logging.LogLevel.INFO
+	name: str = 'ActivityRelay'
+	note: str = ''
+	theme: str = 'default'
+	whitelist_enabled: bool = False
 
 
-def get_default_type(key: str) -> str:
-	return CONFIG_DEFAULTS[key][0]
+	def __getitem__(self, key: str) -> Any:
+		if (value := getattr(self, key.replace('-', '_'), None)) is None:
+			raise KeyError(key)
+
+		return value
 
 
-def serialize(key: str, value: Any) -> str:
-	type_name = get_default_type(key)
-	return CONFIG_CONVERT[type_name][0](value)
+	def __setitem__(self, key: str, value: Any) -> None:
+		self.set(key, value)
 
 
-def deserialize(key: str, value: str) -> Any:
-	type_name = get_default_type(key)
-	return CONFIG_CONVERT[type_name][1](value)
+	@classmethod
+	def KEYS(cls: type[Self]) -> Sequence[str]:
+		return list(cls.__dataclass_fields__)
+
+
+	@staticmethod
+	def SYSTEM_KEYS() -> Sequence[str]:
+		return ('schema-version', 'schema_version', 'private-key', 'private_key')
+
+
+	@classmethod
+	def USER_KEYS(cls: type[Self]) -> Sequence[str]:
+		return tuple(key for key in cls.KEYS() if key not in cls.SYSTEM_KEYS())
+
+
+	@classmethod
+	def DEFAULT(cls: type[Self], key: str) -> str | int | bool:
+		return cls.FIELD(key.replace('-', '_')).default # type: ignore
+
+
+	@classmethod
+	def FIELD(cls: type[Self], key: str) -> Field:
+		for field in fields(cls):
+			if field.name == key.replace('-', '_'):
+				return field
+
+		raise KeyError(key)
+
+
+	@classmethod
+	def from_rows(cls: type[Self], rows: Sequence[Row]) -> Self:
+		data = cls()
+		set_schema_version = False
+
+		for row in rows:
+			data.set(row['key'], row['value'])
+
+			if row['key'] == 'schema-version':
+				set_schema_version = True
+
+		if not set_schema_version:
+			data.schema_version = 0
+
+		return data
+
+
+	def get(self, key: str, default: Any = None, serialize: bool = False) -> Any:
+		field = type(self).FIELD(key)
+		value = getattr(self, field.name, None)
+
+		if not serialize:
+			return value
+
+		converter = CONFIG_CONVERT[str(field.type)][0]
+		return converter(value)
+
+
+	def set(self, key: str, value: Any) -> None:
+		field = type(self).FIELD(key)
+		converter = CONFIG_CONVERT[str(field.type)][1]
+
+		setattr(self, field.name, converter(value))
+
+
+	def to_dict(self) -> dict[str, Any]:
+		return {key.replace('_', '-'): value for key, value in asdict(self).items()}

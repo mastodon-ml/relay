@@ -9,23 +9,15 @@ from urllib.parse import urlparse
 from .base import View, register_route
 
 from .. import __version__
-from .. import logger as logging
-from ..database.config import CONFIG_DEFAULTS
-from ..misc import Message, Response
+from ..database import ConfigData
+from ..misc import Message, Response, get_app
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
-	from collections.abc import Coroutine
+	from collections.abc import Callable, Sequence
 
 
-CONFIG_IGNORE = (
-	'schema-version',
-	'private-key'
-)
-
-CONFIG_VALID = {key for key in CONFIG_DEFAULTS if key not in CONFIG_IGNORE}
-
-PUBLIC_API_PATHS: tuple[tuple[str, str]] = (
+PUBLIC_API_PATHS: Sequence[tuple[str, str]] = (
 	('GET', '/api/v1/relay'),
 	('GET', '/api/v1/instance'),
 	('POST', '/api/v1/token')
@@ -40,11 +32,11 @@ def check_api_path(method: str, path: str) -> bool:
 
 
 @web.middleware
-async def handle_api_path(request: web.Request, handler: Coroutine) -> web.Response:
+async def handle_api_path(request: Request, handler: Callable) -> Response:
 	try:
 		request['token'] = request.headers['Authorization'].replace('Bearer', '').strip()
 
-		with request.app.database.session() as conn:
+		with get_app().database.session() as conn:
 			request['user'] = conn.get_user_by_token(request['token'])
 
 	except (KeyError, ValueError):
@@ -60,8 +52,6 @@ async def handle_api_path(request: web.Request, handler: Coroutine) -> web.Respo
 
 	return await handler(request)
 
-
-# pylint: disable=no-self-use,unused-argument
 
 @register_route('/api/v1/token')
 class Login(View):
@@ -102,14 +92,14 @@ class RelayInfo(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
 			config = conn.get_config_all()
-			inboxes = [row['domain'] for row in conn.execute('SELECT * FROM inboxes')]
+			inboxes = [row['domain'] for row in conn.get_inboxes()]
 
 		data = {
 			'domain': self.config.domain,
-			'name': config['name'],
-			'description': config['note'],
+			'name': config.name,
+			'description': config.note,
 			'version': __version__,
-			'whitelist_enabled': config['whitelist-enabled'],
+			'whitelist_enabled': config.whitelist_enabled,
 			'email': None,
 			'admin': None,
 			'icon': None,
@@ -122,12 +112,17 @@ class RelayInfo(View):
 @register_route('/api/v1/config')
 class Config(View):
 	async def get(self, request: Request) -> Response:
-		with self.database.session() as conn:
-			data = conn.get_config_all()
-			data['log-level'] = data['log-level'].name
+		data = {}
 
-		for key in CONFIG_IGNORE:
-			del data[key]
+		with self.database.session() as conn:
+			for key, value in conn.get_config_all().to_dict().items():
+				if key in ConfigData.SYSTEM_KEYS():
+					continue
+
+				if key == 'log-level':
+					value = value.name
+
+				data[key] = value
 
 		return Response.new(data, ctype = 'json')
 
@@ -138,7 +133,7 @@ class Config(View):
 		if isinstance(data, Response):
 			return data
 
-		if data['key'] not in CONFIG_VALID:
+		if data['key'] not in ConfigData.USER_KEYS():
 			return Response.new_error(400, 'Invalid key', 'json')
 
 		with self.database.session() as conn:
@@ -153,11 +148,11 @@ class Config(View):
 		if isinstance(data, Response):
 			return data
 
-		if data['key'] not in CONFIG_VALID:
+		if data['key'] not in ConfigData.USER_KEYS():
 			return Response.new_error(400, 'Invalid key', 'json')
 
 		with self.database.session() as conn:
-			conn.put_config(data['key'], CONFIG_DEFAULTS[data['key']][1])
+			conn.put_config(data['key'], ConfigData.DEFAULT(data['key']))
 
 		return Response.new({'message': 'Updated config'}, ctype = 'json')
 
@@ -184,18 +179,12 @@ class Inbox(View):
 				return Response.new_error(404, 'Instance already in database', 'json')
 
 			if not data.get('inbox'):
-				try:
-					actor_data = await self.client.get(
-						data['actor'],
-						sign_headers = True,
-						loads = Message.parse
-					)
+				actor_data: Message | None = await self.client.get(data['actor'], True, Message)
 
-					data['inbox'] = actor_data.shared_inbox
-
-				except Exception as e:
-					logging.error('Failed to fetch actor: %s', str(e))
+				if actor_data is None:
 					return Response.new_error(500, 'Failed to fetch actor', 'json')
+
+				data['inbox'] = actor_data.shared_inbox
 
 			row = conn.put_inbox(**data)
 

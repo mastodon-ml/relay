@@ -27,31 +27,26 @@ if Path(__file__).parent.parent.joinpath('.git').exists():
 		pass
 
 
-# pylint: disable=unused-argument
-
 @register_route('/nodeinfo/{niversion:\\d.\\d}.json', '/nodeinfo/{niversion:\\d.\\d}')
 class NodeinfoView(View):
-	# pylint: disable=no-self-use
 	async def get(self, request: Request, niversion: str) -> Response:
 		with self.database.session() as conn:
 			inboxes = conn.get_inboxes()
 
-			data = {
-				'name': 'activityrelay',
-				'version': VERSION,
-				'protocols': ['activitypub'],
-				'open_regs': not conn.get_config('whitelist-enabled'),
-				'users': 1,
-				'metadata': {
+			nodeinfo = aputils.Nodeinfo.new(
+				name = 'activityrelay',
+				version = VERSION,
+				protocols = ['activitypub'],
+				open_regs = not conn.get_config('whitelist-enabled'),
+				users = 1,
+				repo = 'https://git.pleroma.social/pleroma/relay' if niversion == '2.1' else None,
+				metadata = {
 					'approval_required': conn.get_config('approval-required'),
 					'peers': [inbox['domain'] for inbox in inboxes]
 				}
-			}
+			)
 
-		if niversion == '2.1':
-			data['repo'] = 'https://git.pleroma.social/pleroma/relay'
-
-		return Response.new(aputils.Nodeinfo.new(**data), ctype = 'json')
+		return Response.new(nodeinfo, ctype = 'json')
 
 
 @register_route('/.well-known/nodeinfo')

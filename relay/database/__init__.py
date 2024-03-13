@@ -3,7 +3,7 @@ from __future__ import annotations
 import bsql
 import typing
 
-from .config import CONFIG_DEFAULTS, THEMES, get_default_value
+from .config import THEMES, ConfigData
 from .connection import RELAY_SOFTWARE, Connection
 from .schema import TABLES, VERSIONS, migrate_0
 
@@ -11,7 +11,7 @@ from .. import logger as logging
 from ..misc import get_resource
 
 if typing.TYPE_CHECKING:
-	from .config import Config
+	from ..config import Config
 
 
 def get_database(config: Config, migrate: bool = True) -> bsql.Database:
@@ -46,7 +46,7 @@ def get_database(config: Config, migrate: bool = True) -> bsql.Database:
 			migrate_0(conn)
 			return db
 
-		if (schema_ver := conn.get_config('schema-version')) < get_default_value('schema-version'):
+		if (schema_ver := conn.get_config('schema-version')) < ConfigData.DEFAULT('schema-version'):
 			logging.info("Migrating database from version '%i'", schema_ver)
 
 			for ver, func in VERSIONS.items():

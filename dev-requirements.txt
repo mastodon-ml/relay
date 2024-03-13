@@ -1,4 +1,4 @@
 flake8 == 7.0.0
+mypy == 1.9.0
 pyinstaller == 6.3.0
-pylint == 3.0
 watchdog == 4.0.0

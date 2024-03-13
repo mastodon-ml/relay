@@ -26,16 +26,15 @@ from .views.api import handle_api_path
 from .views.frontend import handle_frontend_path
 
 if typing.TYPE_CHECKING:
-	from collections.abc import Coroutine
-	from tinysql import Database, Row
+	from collections.abc import Callable
+	from bsql import Database, Row
 	from .cache import Cache
 	from .misc import Message, Response
 
 
-# pylint: disable=unsubscriptable-object
-
 class Application(web.Application):
-	DEFAULT: Application = None
+	DEFAULT: Application | None = None
+
 
 	def __init__(self, cfgpath: str | None, dev: bool = False):
 		web.Application.__init__(self,
@@ -64,14 +63,13 @@ class Application(web.Application):
 		self['workers'] = []
 
 		self.cache.setup()
-
-		# self.on_response_prepare.append(handle_access_log)
-		self.on_cleanup.append(handle_cleanup)
+		self.on_cleanup.append(handle_cleanup) # type: ignore
 
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
 
-		setup_swagger(self,
+		setup_swagger(
+			self,
 			ui_version = 3,
 			swagger_from_file = get_resource('data/swagger.yaml')
 		)
@@ -165,6 +163,7 @@ class Application(web.Application):
 
 		self.set_signal_handler(True)
 
+		self['client'].open()
 		self['database'].connect()
 		self['cache'].setup()
 		self['cleanup_thread'] = CacheCleanupThread(self)
@@ -179,7 +178,8 @@ class Application(web.Application):
 		runner = web.AppRunner(self, access_log_format='%{X-Forwarded-For}i "%r" %s %b "%{User-Agent}i"')
 		await runner.setup()
 
-		site = web.TCPSite(runner,
+		site = web.TCPSite(
+			runner,
 			host = self.config.listen,
 			port = self.config.port,
 			reuse_address = True
@@ -193,7 +193,7 @@ class Application(web.Application):
 
 		await site.stop()
 
-		for worker in self['workers']: # pylint: disable=not-an-iterable
+		for worker in self['workers']:
 			worker.stop()
 
 		self.set_signal_handler(False)
@@ -247,6 +247,7 @@ class PushWorker(multiprocessing.Process):
 
 	async def handle_queue(self) -> None:
 		client = HttpClient()
+		client.open()
 
 		while not self.shutdown.is_set():
 			try:
@@ -256,7 +257,7 @@ class PushWorker(multiprocessing.Process):
 			except Empty:
 				pass
 
-			## make sure an exception doesn't bring down the worker
+			# make sure an exception doesn't bring down the worker
 			except Exception:
 				traceback.print_exc()
 
@@ -264,7 +265,7 @@ class PushWorker(multiprocessing.Process):
 
 
 @web.middleware
-async def handle_response_headers(request: web.Request, handler: Coroutine) -> Response:
+async def handle_response_headers(request: web.Request, handler: Callable) -> Response:
 	resp = await handler(request)
 	resp.headers['Server'] = 'ActivityRelay'
 

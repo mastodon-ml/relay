@@ -21,17 +21,8 @@ from .database import RELAY_SOFTWARE, get_database
 from .misc import ACTOR_FORMATS, SOFTWARE, IS_DOCKER, Message
 
 if typing.TYPE_CHECKING:
-	from tinysql import Row
+	from bsql import Row
 	from typing import Any
-
-
-# pylint: disable=unsubscriptable-object,unsupported-assignment-operation
-
-
-CONFIG_IGNORE = (
-	'schema-version',
-	'private-key'
-)
 
 
 def check_alphanumeric(text: str) -> str:
@@ -50,7 +41,7 @@ def cli(ctx: click.Context, config: str | None) -> None:
 
 	if not ctx.invoked_subcommand:
 		if ctx.obj.config.domain.endswith('example.com'):
-			cli_setup.callback()
+			cli_setup.callback() # type: ignore
 
 		else:
 			click.echo(
@@ -58,7 +49,7 @@ def cli(ctx: click.Context, config: str | None) -> None:
 				'future.'
 			)
 
-			cli_run.callback()
+			cli_run.callback() # type: ignore
 
 
 @cli.command('setup')
@@ -184,7 +175,7 @@ def cli_setup(ctx: click.Context) -> None:
 			conn.put_config(key, value)
 
 	if not IS_DOCKER and click.confirm('Relay all setup! Would you like to run it now?'):
-		cli_run.callback()
+		cli_run.callback() # type: ignore
 
 
 @cli.command('run')
@@ -257,7 +248,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 			conn.put_config('note', config['note'])
 			conn.put_config('whitelist-enabled', config['whitelist_enabled'])
 
-			with click.progressbar(
+			with click.progressbar( # type: ignore
 				database['relay-list'].values(),
 				label = 'Inboxes'.ljust(15),
 				width = 0
@@ -281,7 +272,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 						software = inbox['software']
 					)
 
-			with click.progressbar(
+			with click.progressbar( # type: ignore
 				config['blocked_software'],
 				label = 'Banned software'.ljust(15),
 				width = 0
@@ -293,7 +284,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 						reason = 'relay' if software in RELAY_SOFTWARE else None
 					)
 
-			with click.progressbar(
+			with click.progressbar( # type: ignore
 				config['blocked_instances'],
 				label = 'Banned domains'.ljust(15),
 				width = 0
@@ -302,7 +293,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 				for domain in banned_software:
 					conn.put_domain_ban(domain)
 
-			with click.progressbar(
+			with click.progressbar( # type: ignore
 				config['whitelist'],
 				label = 'Whitelist'.ljust(15),
 				width = 0
@@ -339,10 +330,17 @@ def cli_config_list(ctx: click.Context) -> None:
 	click.echo('Relay Config:')
 
 	with ctx.obj.database.session() as conn:
-		for key, value in conn.get_config_all().items():
-			if key not in CONFIG_IGNORE:
-				key = f'{key}:'.ljust(20)
-				click.echo(f'- {key} {repr(value)}')
+		config = conn.get_config_all()
+
+		for key, value in config.to_dict().items():
+			if key in type(config).SYSTEM_KEYS():
+				continue
+
+			if key == 'log-level':
+				value = value.name
+
+			key_str = f'{key}:'.ljust(20)
+			click.echo(f'- {key_str} {repr(value)}')
 
 
 @cli_config.command('set')
@@ -520,7 +518,7 @@ def cli_inbox_follow(ctx: click.Context, actor: str) -> None:
 def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 	'Unfollow an actor (Relay must be running)'
 
-	inbox_data: Row = None
+	inbox_data: Row | None = None
 
 	with ctx.obj.database.session() as conn:
 		if conn.get_domain_ban(actor):
@@ -540,6 +538,11 @@ def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 				actor = f'https://{actor}/actor'
 
 			actor_data = asyncio.run(http.get(actor, sign_headers = True))
+
+			if not actor_data:
+				click.echo("Failed to fetch actor")
+				return
+
 			inbox = actor_data.shared_inbox
 			message = Message.new_unfollow(
 				host = ctx.obj.config.domain,
@@ -967,7 +970,6 @@ def cli_whitelist_import(ctx: click.Context) -> None:
 
 
 def main() -> None:
-	# pylint: disable=no-value-for-parameter
 	cli(prog_name='relay')
 
 

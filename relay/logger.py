@@ -9,7 +9,7 @@ from pathlib import Path
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Callable
-	from typing import Any
+	from typing import Any, Self
 
 
 class LogLevel(IntEnum):
@@ -26,7 +26,13 @@ class LogLevel(IntEnum):
 
 
 	@classmethod
-	def parse(cls: type[IntEnum], data: object) -> IntEnum:
+	def parse(cls: type[Self], data: Any) -> Self:
+		try:
+			data = int(data)
+
+		except ValueError:
+			pass
+
 		if isinstance(data, cls):
 			return data
 
@@ -70,15 +76,15 @@ error: Callable = logging.error
 critical: Callable = logging.critical
 
 
-env_log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+env_log_level: Path | str | None = os.environ.get('LOG_LEVEL', 'INFO').upper()
 
 try:
-	env_log_file = Path(os.environ['LOG_FILE']).expanduser().resolve()
+	env_log_file: Path | None = Path(os.environ['LOG_FILE']).expanduser().resolve()
 
 except KeyError:
 	env_log_file = None
 
-handlers = [logging.StreamHandler()]
+handlers: list[Any] = [logging.StreamHandler()]
 
 if env_log_file:
 	handlers.append(logging.FileHandler(env_log_file))

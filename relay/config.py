@@ -6,13 +6,14 @@ import platform
 import typing
 import yaml
 
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from platformdirs import user_config_dir
 
 from .misc import IS_DOCKER
 
 if typing.TYPE_CHECKING:
-	from typing import Any
+	from typing import Any, Self
 
 
 if platform.system() == 'Windows':
@@ -23,61 +24,44 @@ else:
 	CORE_COUNT = len(os.sched_getaffinity(0))
 
 
-DEFAULTS: dict[str, Any] = {
+DOCKER_VALUES = {
 	'listen': '0.0.0.0',
 	'port': 8080,
-	'domain': 'relay.example.com',
-	'workers': CORE_COUNT,
-	'db_type': 'sqlite',
-	'ca_type': 'database',
-	'sq_path': 'relay.sqlite3',
-
-	'pg_host': '/var/run/postgresql',
-	'pg_port': 5432,
-	'pg_user': getpass.getuser(),
-	'pg_pass': None,
-	'pg_name': 'activityrelay',
-
-	'rd_host': 'localhost',
-	'rd_port': 6379,
-	'rd_user': None,
-	'rd_pass': None,
-	'rd_database': 0,
-	'rd_prefix': 'activityrelay'
+	'sq_path': '/data/relay.jsonld'
 }
 
-if IS_DOCKER:
-	DEFAULTS['sq_path'] = '/data/relay.jsonld'
+
+class NOVALUE:
+	pass
 
 
+@dataclass(init = False)
 class Config:
-	def __init__(self, path: str, load: bool = False):
-		if path:
-			self.path = Path(path).expanduser().resolve()
+	listen: str = '0.0.0.0'
+	port: int = 8080
+	domain: str = 'relay.example.com'
+	workers: int = CORE_COUNT
+	db_type: str = 'sqlite'
+	ca_type: str = 'database'
+	sq_path: str = 'relay.sqlite3'
 
-		else:
-			self.path = Config.get_config_dir()
+	pg_host: str = '/var/run/postgresql'
+	pg_port: int = 5432
+	pg_user: str = getpass.getuser()
+	pg_pass: str | None = None
+	pg_name: str = 'activityrelay'
 
-		self.listen = None
-		self.port = None
-		self.domain = None
-		self.workers = None
-		self.db_type = None
-		self.ca_type = None
-		self.sq_path = None
+	rd_host: str = 'localhost'
+	rd_port: int = 6470
+	rd_user: str | None = None
+	rd_pass: str | None = None
+	rd_database: int = 0
+	rd_prefix: str = 'activityrelay'
 
-		self.pg_host = None
-		self.pg_port = None
-		self.pg_user = None
-		self.pg_pass = None
-		self.pg_name = None
 
-		self.rd_host = None
-		self.rd_port = None
-		self.rd_user = None
-		self.rd_pass = None
-		self.rd_database = None
-		self.rd_prefix = None
+	def __init__(self, path: str | None = None, load: bool = False):
+		self.path = Config.get_config_dir(path)
+		self.reset()
 
 		if load:
 			try:
@@ -87,22 +71,36 @@ class Config:
 				self.save()
 
 
+	@classmethod
+	def KEYS(cls: type[Self]) -> list[str]:
+		return list(cls.__dataclass_fields__)
+
+
+	@classmethod
+	def DEFAULT(cls: type[Self], key: str) -> str | int | None:
+		for field in fields(cls):
+			if field.name == key:
+				return field.default # type: ignore
+
+		raise KeyError(key)
+
+
 	@staticmethod
 	def get_config_dir(path: str | None = None) -> Path:
 		if path:
 			return Path(path).expanduser().resolve()
 
-		dirs = (
+		paths = (
 			Path("relay.yaml").resolve(),
 			Path(user_config_dir("activityrelay"), "relay.yaml"),
 			Path("/etc/activityrelay/relay.yaml")
 		)
 
-		for directory in dirs:
-			if directory.exists():
-				return directory
+		for cfgfile in paths:
+			if cfgfile.exists():
+				return cfgfile
 
-		return dirs[0]
+		return paths[0]
 
 
 	@property
@@ -130,7 +128,6 @@ class Config:
 
 	def load(self) -> None:
 		self.reset()
-
 		options = {}
 
 		try:
@@ -141,95 +138,85 @@ class Config:
 
 		with self.path.open('r', encoding = 'UTF-8') as fd:
 			config = yaml.load(fd, **options)
-			pgcfg = config.get('postgresql', {})
-			rdcfg = config.get('redis', {})
 
 		if not config:
 			raise ValueError('Config is empty')
 
-		if IS_DOCKER:
-			self.listen = '0.0.0.0'
-			self.port = 8080
-			self.sq_path = '/data/relay.jsonld'
+		pgcfg = config.get('postgresql', {})
+		rdcfg = config.get('redis', {})
 
-		else:
-			self.set('listen', config.get('listen', DEFAULTS['listen']))
-			self.set('port', config.get('port', DEFAULTS['port']))
-			self.set('sq_path', config.get('sqlite_path', DEFAULTS['sq_path']))
+		for key in type(self).KEYS():
+			if IS_DOCKER and key in {'listen', 'port', 'sq_path'}:
+				self.set(key, DOCKER_VALUES[key])
+				continue
 
-		self.set('workers', config.get('workers', DEFAULTS['workers']))
-		self.set('domain', config.get('domain', DEFAULTS['domain']))
-		self.set('db_type', config.get('database_type', DEFAULTS['db_type']))
-		self.set('ca_type', config.get('cache_type', DEFAULTS['ca_type']))
-
-		for key in DEFAULTS:
 			if key.startswith('pg'):
-				try:
-					self.set(key, pgcfg[key[3:]])
-
-				except KeyError:
-					continue
+				self.set(key, pgcfg.get(key[3:], NOVALUE))
+				continue
 
 			elif key.startswith('rd'):
-				try:
-					self.set(key, rdcfg[key[3:]])
+				self.set(key, rdcfg.get(key[3:], NOVALUE))
+				continue
 
-				except KeyError:
-					continue
+			cfgkey = key
+
+			if key == 'db_type':
+				cfgkey = 'database_type'
+
+			elif key == 'ca_type':
+				cfgkey = 'cache_type'
+
+			elif key == 'sq_path':
+				cfgkey = 'sqlite_path'
+
+			self.set(key, config.get(cfgkey, NOVALUE))
 
 
 	def reset(self) -> None:
-		for key, value in DEFAULTS.items():
-			setattr(self, key, value)
+		for field in fields(self):
+			setattr(self, field.name, field.default)
 
 
 	def save(self) -> None:
 		self.path.parent.mkdir(exist_ok = True, parents = True)
 
+		data: dict[str, Any] = {}
+
+		for key, value in asdict(self).items():
+			if key.startswith('pg_'):
+				if 'postgres' not in data:
+					data['postgres'] = {}
+
+				data['postgres'][key[3:]] = value
+				continue
+
+			if key.startswith('rd_'):
+				if 'redis' not in data:
+					data['redis'] = {}
+
+				data['redis'][key[3:]] = value
+				continue
+
+			if key == 'db_type':
+				key = 'database_type'
+
+			elif key == 'ca_type':
+				key = 'cache_type'
+
+			elif key == 'sq_path':
+				key = 'sqlite_path'
+
+			data[key] = value
+
 		with self.path.open('w', encoding = 'utf-8') as fd:
-			yaml.dump(self.to_dict(), fd, sort_keys = False)
+			yaml.dump(data, fd, sort_keys = False)
 
 
 	def set(self, key: str, value: Any) -> None:
-		if key not in DEFAULTS:
+		if key not in type(self).KEYS():
 			raise KeyError(key)
 
-		if key in {'port', 'pg_port', 'workers'} and not isinstance(value, int):
-			if (value := int(value)) < 1:
-				if key == 'port':
-					value = 8080
-
-				elif key == 'pg_port':
-					value = 5432
-
-				elif key == 'workers':
-					value = len(os.sched_getaffinity(0))
+		if value is NOVALUE:
+			return
 
 		setattr(self, key, value)
-
-
-	def to_dict(self) -> dict[str, Any]:
-		return {
-			'listen': self.listen,
-			'port': self.port,
-			'domain': self.domain,
-			'workers': self.workers,
-			'database_type': self.db_type,
-			'cache_type': self.ca_type,
-			'sqlite_path': self.sq_path,
-			'postgres': {
-				'host': self.pg_host,
-				'port': self.pg_port,
-				'user': self.pg_user,
-				'pass': self.pg_pass,
-				'name': self.pg_name
-			},
-			'redis': {
-				'host': self.rd_host,
-				'port': self.rd_port,
-				'user': self.rd_user,
-				'pass': self.rd_pass,
-				'database': self.rd_database,
-				'refix': self.rd_prefix
-			}
-		}

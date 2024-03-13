@@ -7,10 +7,10 @@ from .database import Connection
 from .misc import Message
 
 if typing.TYPE_CHECKING:
-	from .views import ActorView
+	from .views.activitypub import ActorView
 
 
-def person_check(actor: str, software: str) -> bool:
+def person_check(actor: Message, software: str | None) -> bool:
 	# pleroma and akkoma may use Person for the actor type for some reason
 	# akkoma changed this in 3.6.0
 	if software in {'akkoma', 'pleroma'} and actor.id == f'https://{actor.domain}/relay':
@@ -65,7 +65,7 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 	config = conn.get_config_all()
 
 	# reject if software used by actor is banned
-	if conn.get_software_ban(software):
+	if software and conn.get_software_ban(software):
 		logging.verbose('Rejected banned actor: %s', view.actor.id)
 
 		view.app.push_message(
@@ -75,7 +75,8 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 				actor = view.actor.id,
 				followid = view.message.id,
 				accept = False
-			)
+			),
+			view.instance
 		)
 
 		logging.verbose(
@@ -86,7 +87,7 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 
 		return
 
-	## reject if the actor is not an instance actor
+	# reject if the actor is not an instance actor
 	if person_check(view.actor, software):
 		logging.verbose('Non-application actor tried to follow: %s', view.actor.id)
 
@@ -105,7 +106,7 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 
 	if not conn.get_domain_whitelist(view.actor.domain):
 		# add request if approval-required is enabled
-		if config['approval-required']:
+		if config.approval_required:
 			logging.verbose('New follow request fromm actor: %s', view.actor.id)
 
 			with conn.transaction():
@@ -121,7 +122,7 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 			return
 
 		# reject if the actor isn't whitelisted while the whiltelist is enabled
-		if config['whitelist-enabled']:
+		if config.whitelist_enabled:
 			logging.verbose('Rejected actor for not being in the whitelist: %s', view.actor.id)
 
 			view.app.push_message(
@@ -131,7 +132,8 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 					actor = view.actor.id,
 					followid = view.message.id,
 					accept = False
-				)
+				),
+				view.instance
 			)
 
 			return
@@ -171,7 +173,7 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 
 
 async def handle_undo(view: ActorView, conn: Connection) -> None:
-	## If the object is not a Follow, forward it
+	# If the object is not a Follow, forward it
 	if view.message.object['type'] != 'Follow':
 		await handle_forward(view, conn)
 		return
@@ -185,7 +187,7 @@ async def handle_undo(view: ActorView, conn: Connection) -> None:
 			logging.verbose(
 				'Failed to delete "%s" with follow ID "%s"',
 				view.actor.id,
-				view.message.object['id']
+				view.message.object_id
 			)
 
 	view.app.push_message(

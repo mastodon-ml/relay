@@ -8,11 +8,11 @@ from aiohttp.web import HTTPMethodNotAllowed
 from functools import cached_property
 from json.decoder import JSONDecodeError
 
-from ..misc import Response
+from ..misc import Response, get_app
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
-	from collections.abc import Callable, Coroutine, Generator
+	from collections.abc import Callable, Generator, Sequence, Mapping
 	from bsql import Database
 	from typing import Any, Self
 	from ..application import Application
@@ -22,20 +22,24 @@ if typing.TYPE_CHECKING:
 	from ..template import Template
 
 
-VIEWS = []
+VIEWS: list[tuple[str, type[View]]] = []
+
+
+def convert_data(data: Mapping[str, Any]) -> dict[str, str]:
+	return {key: str(value) for key, value in data.items()}
 
 
 def register_route(*paths: str) -> Callable:
-	def wrapper(view: View) -> View:
+	def wrapper(view: type[View]) -> type[View]:
 		for path in paths:
-			VIEWS.append([path, view])
+			VIEWS.append((path, view))
 
 		return view
 	return wrapper
 
 
 class View(AbstractView):
-	def __await__(self) -> Generator[Response]:
+	def __await__(self) -> Generator[Any, None, Response]:
 		if self.request.method not in METHODS:
 			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods)
 
@@ -46,22 +50,22 @@ class View(AbstractView):
 
 
 	@classmethod
-	async def run(cls: type[Self], method: str, request: Request, **kwargs: Any) -> Self:
+	async def run(cls: type[Self], method: str, request: Request, **kwargs: Any) -> Response:
 		view = cls(request)
 		return await view.handlers[method](request, **kwargs)
 
 
-	async def _run_handler(self, handler: Coroutine, **kwargs: Any) -> Response:
+	async def _run_handler(self, handler: Callable[..., Any], **kwargs: Any) -> Response:
 		return await handler(self.request, **self.request.match_info, **kwargs)
 
 
 	@cached_property
-	def allowed_methods(self) -> tuple[str]:
+	def allowed_methods(self) -> Sequence[str]:
 		return tuple(self.handlers.keys())
 
 
 	@cached_property
-	def handlers(self) -> dict[str, Coroutine]:
+	def handlers(self) -> dict[str, Callable[..., Any]]:
 		data = {}
 
 		for method in METHODS:
@@ -74,10 +78,9 @@ class View(AbstractView):
 		return data
 
 
-	# app components
 	@property
 	def app(self) -> Application:
-		return self.request.app
+		return get_app()
 
 
 	@property
@@ -110,17 +113,17 @@ class View(AbstractView):
 							optional: list[str]) -> dict[str, str] | Response:
 
 		if self.request.content_type in {'x-www-form-urlencoded', 'multipart/form-data'}:
-			post_data = await self.request.post()
+			post_data = convert_data(await self.request.post())
 
 		elif self.request.content_type == 'application/json':
 			try:
-				post_data = await self.request.json()
+				post_data = convert_data(await self.request.json())
 
 			except JSONDecodeError:
 				return Response.new_error(400, 'Invalid JSON data', 'json')
 
 		else:
-			post_data = self.request.query
+			post_data = convert_data(await self.request.query) # type: ignore
 
 		data = {}
 
@@ -132,6 +135,6 @@ class View(AbstractView):
 			return Response.new_error(400, f'Missing {str(e)} pararmeter', 'json')
 
 		for key in optional:
-			data[key] = post_data.get(key)
+			data[key] = post_data.get(key, '')
 
 		return data

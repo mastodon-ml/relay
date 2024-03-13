@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import typing
 
-from bsql import Column, Connection, Table, Tables
+from bsql import Column, Table, Tables
 
-from .config import get_default_value
+from .config import ConfigData
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Callable
+	from .connection import Connection
 
 
 VERSIONS: dict[int, Callable] = {}
@@ -71,7 +72,7 @@ def migration(func: Callable) -> Callable:
 
 def migrate_0(conn: Connection) -> None:
 	conn.create_tables()
-	conn.put_config('schema-version', get_default_value('schema-version'))
+	conn.put_config('schema-version', ConfigData.DEFAULT('schema-version'))
 
 
 @migration

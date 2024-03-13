@@ -8,18 +8,18 @@
 			%input(id = "name" name="name" placeholder="Relay Name" value="{{config.name or ''}}")
 
 			%label(for="description") << Description
-			%textarea(id="description" name="note" value="{{config.note}}") << {{config.note}}
+			%textarea(id="description" name="note" value="{{config.note or ''}}") << {{config.note}}
 
 			%label(for="theme") << Color Theme
 			=func.new_select("theme", config.theme, themes)
 
 			%label(for="log-level") << Log Level
-			=func.new_select("log-level", config["log-level"].name, levels)
+			=func.new_select("log-level", config.log_level.name, levels)
 
 			%label(for="whitelist-enabled") << Whitelist
-			=func.new_checkbox("whitelist-enabled", config["whitelist-enabled"])
+			=func.new_checkbox("whitelist-enabled", config.whitelist_enabled)
 
 			%label(for="approval-required") << Approval Required
-			=func.new_checkbox("approval-required", config["approval-required"])
+			=func.new_checkbox("approval-required", config.approval_required)
 
 		%input(type="submit" value="Save")

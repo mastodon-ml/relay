@@ -8,36 +8,30 @@ from urllib.parse import urlparse
 
 from .base import View, register_route
 
-from ..database import CONFIG_DEFAULTS, THEMES
+from ..database import THEMES, ConfigData
 from ..logger import LogLevel
-from ..misc import ACTOR_FORMATS, Message, Response
+from ..misc import ACTOR_FORMATS, Message, Response, get_app
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
-	from collections.abc import Coroutine
+	from collections.abc import Callable
+	from typing import Any
 
-
-# pylint: disable=no-self-use
 
 UNAUTH_ROUTES = {
 	'/',
 	'/login'
 }
 
-CONFIG_IGNORE = (
-	'schema-version',
-	'private-key'
-)
-
 
 @web.middleware
-async def handle_frontend_path(request: web.Request, handler: Coroutine) -> Response:
+async def handle_frontend_path(request: web.Request, handler: Callable) -> Response:
 	if request.path in UNAUTH_ROUTES or request.path.startswith('/admin'):
 		request['token'] = request.cookies.get('user-token')
 		request['user'] = None
 
 		if request['token']:
-			with request.app.database.session(False) as conn:
+			with get_app().database.session(False) as conn:
 				request['user'] = conn.get_user_by_token(request['token'])
 
 		if request['user'] and request.path == '/login':
@@ -49,13 +43,11 @@ async def handle_frontend_path(request: web.Request, handler: Coroutine) -> Resp
 	return await handler(request)
 
 
-# pylint: disable=unused-argument
-
 @register_route('/')
 class HomeView(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			context = {
+			context: dict[str, Any] = {
 				'instances': tuple(conn.get_inboxes())
 			}
 
@@ -136,7 +128,7 @@ class AdminInstances(View):
 				message: str | None = None) -> Response:
 
 		with self.database.session() as conn:
-			context = {
+			context: dict[str, Any] = {
 				'instances': tuple(conn.get_inboxes()),
 				'requests': tuple(conn.get_requests())
 			}
@@ -152,7 +144,8 @@ class AdminInstances(View):
 
 
 	async def post(self, request: Request) -> Response:
-		data = await request.post()
+		post = await request.post()
+		data: dict[str, str] = {key: value for key, value in post.items()} # type: ignore
 
 		if not data.get('actor') and not data.get('domain'):
 			return await self.get(request, error = 'Missing actor and/or domain')
@@ -162,13 +155,21 @@ class AdminInstances(View):
 
 		if not data.get('software'):
 			nodeinfo = await self.client.fetch_nodeinfo(data['domain'])
+
+			if nodeinfo is None:
+				return await self.get(request, error = 'Failed to fetch nodeinfo')
+
 			data['software'] = nodeinfo.sw_name
 
 		if not data.get('actor') and data['software'] in ACTOR_FORMATS:
 			data['actor'] = ACTOR_FORMATS[data['software']].format(domain = data['domain'])
 
 		if not data.get('inbox') and data['actor']:
-			actor = await self.client.get(data['actor'], sign_headers = True, loads = Message.parse)
+			actor: Message | None = await self.client.get(data['actor'], True, Message)
+
+			if actor is None:
+				return await self.get(request, error = 'Failed to fetch actor')
+
 			data['inbox'] = actor.shared_inbox
 
 		with self.database.session(True) as conn:
@@ -248,7 +249,7 @@ class AdminWhitelist(View):
 				message: str | None = None) -> Response:
 
 		with self.database.session() as conn:
-			context = {
+			context: dict[str, Any] = {
 				'whitelist': tuple(conn.execute('SELECT * FROM whitelist ORDER BY domain ASC'))
 			}
 
@@ -298,7 +299,7 @@ class AdminDomainBans(View):
 				message: str | None = None) -> Response:
 
 		with self.database.session() as conn:
-			context = {
+			context: dict[str, Any] = {
 				'bans': tuple(conn.execute('SELECT * FROM domain_bans ORDER BY domain ASC'))
 			}
 
@@ -356,7 +357,7 @@ class AdminSoftwareBans(View):
 				message: str | None = None) -> Response:
 
 		with self.database.session() as conn:
-			context = {
+			context: dict[str, Any] = {
 				'bans': tuple(conn.execute('SELECT * FROM software_bans ORDER BY name ASC'))
 			}
 
@@ -414,7 +415,7 @@ class AdminUsers(View):
 				message: str | None = None) -> Response:
 
 		with self.database.session() as conn:
-			context = {
+			context: dict[str, Any] = {
 				'users': tuple(conn.execute('SELECT * FROM users ORDER BY username ASC'))
 			}
 
@@ -462,29 +463,26 @@ class AdminUsersDelete(View):
 @register_route('/admin/config')
 class AdminConfig(View):
 	async def get(self, request: Request, message: str | None = None) -> Response:
-		context = {
+		context: dict[str, Any] = {
 			'themes': tuple(THEMES.keys()),
 			'levels': tuple(level.name for level in LogLevel),
 			'message': message
 		}
+
 		data = self.template.render('page/admin-config.haml', self, **context)
 		return Response.new(data, ctype = 'html')
 
 
 	async def post(self, request: Request) -> Response:
 		form = dict(await request.post())
+		data = ConfigData()
+
+		for key in ConfigData.USER_KEYS():
+			data.set(key, form.get(key.replace('_', '-')))
 
 		with self.database.session(True) as conn:
-			for key in CONFIG_DEFAULTS:
-				value = form.get(key)
-
-				if key == 'whitelist-enabled':
-					value = bool(value)
-
-				elif key.lower() in CONFIG_IGNORE:
-					continue
-
-				if value is None:
+			for key, value in data.to_dict().items():
+				if key in ConfigData.SYSTEM_KEYS():
 					continue
 
 				conn.put_config(key, value)
@@ -503,7 +501,7 @@ class StyleCss(View):
 class ThemeCss(View):
 	async def get(self, request: Request, theme: str) -> Response:
 		try:
-			context = {
+			context: dict[str, Any] = {
 				'theme': THEMES[theme]
 			}
 

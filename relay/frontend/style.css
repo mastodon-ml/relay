@@ -28,6 +28,14 @@ form input[type="submit"] {
 	margin: 0 auto;
 }
 
+legend {
+	background-color: var(--section-background);
+	padding: 5px;
+	border: 1px solid var(--border);
+	border-radius: 5px;
+	font-size: 10pt;
+}
+
 p {
 	line-height: 1em;
 	margin: 0px;

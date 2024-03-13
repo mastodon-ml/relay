@@ -98,3 +98,5 @@ ENV/
 *.yaml
 *.jsonld
 *.sqlite3
+
+test*.py
