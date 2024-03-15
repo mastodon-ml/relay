@@ -1,29 +1,32 @@
 -extends "base.haml"
 -set page="Users"
+
+-block head
+	%script(type="application/javascript" src="/static/user.js" nonce="{{view.request['hash']}}")
+
 -block content
 	%details.section
 		%summary << Add User
-		%form(action="/admin/users", method="POST")
-			#add-item
-				%label(for="username") << Username
-				%input(id="username" name="username" placeholder="Username")
+		#add-item
+			%label(for="new-username") << Username
+			%input(id="new-username" name="username" placeholder="Username")
 
-				%label(for="password") << Password
-				%input(type="password" id="password" name="password" placeholder="Password")
+			%label(for="new-password") << Password
+			%input(id="new-password" type="password" placeholder="Password")
 
-				%label(for="password2") << Password Again
-				%input(type="password" id="password2" name="password2" placeholder="Password Again")
+			%label(for="new-password2") << Password Again
+			%input(id="new-password2" type="password" placeholder="Password Again")
 
-				%label(for="handle") << Handle
-				%input(type="email" name="handle" id="handle" placeholder="handle")
+			%label(for="new-handle") << Handle
+			%input(id="new-handle" type="email" placeholder="handle")
 
-			%input(type="submit" value="Add User")
+		%input(type="button" value="Add User" onclick="add_user()")
 
 	%fieldset.section
 		%legend << Users
 
 		.data-table
-			%table
+			%table#users
 				%thead
 					%tr
 						%td.username << Username
@@ -33,7 +36,7 @@
 
 				%tbody
 					-for user in users
-						%tr
+						%tr(id="{{user.username}}")
 							%td.username
 								=user.username
 
@@ -44,4 +47,4 @@
 								=user.created.strftime("%Y-%m-%d")
 
 							%td.remove
-								%a(href="/admin/users/delete/{{user.username}}" title="Remove User") << &#10006;
+								%a(href="#" onclick="del_user('{{user.username}}')" title="Remove User") << &#10006;
