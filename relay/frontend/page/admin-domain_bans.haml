@@ -2,7 +2,7 @@
 -set page="Domain Bans"
 
 -block head
-	%script(type="application/javascript" src="/static/domain_ban.js" nonce="{{view.request['hash']}}", defer)
+	%script(type="application/javascript" src="/static/domain_ban.js" nonce="{{view.request['hash']}}")
 
 -block content
 	%details.section
@@ -23,7 +23,7 @@
 		%legend << Domain Bans
 
 		.data-table
-			%table#table
+			%table
 				%thead
 					%tr
 						%td.domain << Domain
@@ -38,11 +38,11 @@
 									%summary -> =ban.domain
 
 									.grid-2col
-										.reason << Reason
-										%textarea.reason(id="{{ban.domain}}-reason" name="reason") << {{ban.reason or ""}}
+										%label.reason(for="{{ban.domain}}-reason") << Reason
+										%textarea.reason(id="{{ban.domain}}-reason") << {{ban.reason or ""}}
 
-										.note << Note
-										%textarea.note(id="{{ban.domain}}-note" name="note") << {{ban.note or ""}}
+										%label.note(for="{{ban.domain}}-note") << Note
+										%textarea.note(id="{{ban.domain}}-note") << {{ban.note or ""}}
 
 									%input(type="button" value="Update" onclick="update_ban('{{ban.domain}}')")
 
@@ -50,4 +50,4 @@
 								=ban.created.strftime("%Y-%m-%d")
 
 							%td.remove
-								%a(href="#", onclick="unban('{{ban.domain}}')" title="Unban domain") << &#10006;
+								%a(href="#" onclick="unban('{{ban.domain}}')" title="Unban domain") << &#10006;

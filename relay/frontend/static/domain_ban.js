@@ -3,9 +3,9 @@ function create_ban_object(domain, reason, note) {
 	text += `<summary>${domain}</summary>\n`;
 	text += '<div class="grid-2col">\n';
 	text += `<label for="${domain}-reason" class="reason">Reason</label>\n`;
-	text += `<textarea id="${domain}-reason"  class="reason" name="reason">${reason}</textarea>\n`;
+	text += `<textarea id="${domain}-reason" class="reason">${reason}</textarea>\n`;
 	text += `<label for="${domain}-note" class="note">Note</label>\n`;
-	text += `<textarea id="${domain}-note" class="note" name="note">${note}</textarea>\n`;
+	text += `<textarea id="${domain}-note" class="note">${note}</textarea>\n`;
 	text += `<input type="button" value="Update" onclick="update_ban(\"${domain}\"")">`;
 	text += '</details>';
 
@@ -14,7 +14,7 @@ function create_ban_object(domain, reason, note) {
 
 
 async function ban() {
-	var table = document.getElementById("table");
+	var table = document.querySelector("table");
 	var row = table.insertRow(-1);
 
 	var elems = {
@@ -59,25 +59,42 @@ async function ban() {
 	elems.reason.value = null;
 	elems.note.value = null;
 
-	document.querySelectorAll("details.section").forEach((elem) => {
-		elem.open = false;
-	});
+	row.querySelector("details").open = false;
 }
 
 
 async function update_ban(domain) {
 	var row = document.getElementById(domain);
+
+	var elems = {
+		"reason": row.querySelector("textarea.reason"),
+		"note": row.querySelector("textarea.note")
+	}
+
+	var values = {
+		"domain": domain,
+		"reason": elems.reason.value,
+		"note": elems.note.value
+	}
+
+	try {
+		await client.request("PATCH", "v1/domain_ban", values)
+
+	} catch (error) {
+		alert(error);
+		return;
+	}
+
+	row.querySelector("details").open = false;
 }
 
 
 async function unban(domain) {
-	console.log(domain);
-
 	try {
 		await client.unban(domain);
 
-	} catch (err) {
-		alert(err);
+	} catch (error) {
+		alert(error);
 		return;
 	}
 

@@ -140,25 +140,6 @@ class Application(web.Application):
 
 		return '; '.join(data) + ';'
 
-		# data = {
-		# 	'base-uri': '\'none\'',
-		# 	'default-src': '\'none\'',
-		# 	'frame-ancestors': '\'none\'',
-		# 	'font-src': f'\'self\' https://{self.config.domain}',
-		# 	'img-src': f'\'self\' https://{self.config.domain}',
-		# 	'style-src': f'\'self\' https://{self.config.domain} \'nonce-randomstringhere\'',
-		# 	'media-src': f'\'self\' https://{self.config.domain}',
-		# 	'frame-src': f'\'self\' https:',
-		# 	'manifest-src': f'\'self\' https://{self.config.domain}',
-		# 	'form-action': f'\'self\'',
-		# 	'child-src': f'\'self\' https://{self.config.domain}',
-		# 	'worker-src': f'\'self\' https://{self.config.domain}',
-		# 	'connect-src': f'\'self\' https://{self.config.domain} wss://{self.config.domain}',
-		# 	'script-src': f'\'self\' https://{self.config.domain}'
-		# }
-  # 
-		# return '; '.join(f'{key} {value}' for key, value in data.items()) + ';'
-
 
 	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
 		self['push_queue'].put((inbox, message, instance))
@@ -305,6 +286,7 @@ async def handle_response_headers(request: web.Request, handler: Callable) -> Re
 	resp = await handler(request)
 	resp.headers['Server'] = 'ActivityRelay'
 
+	# Still have to figure out how csp headers work
 	# if resp.content_type == 'text/html':
 	# 	resp.headers['Content-Security-Policy'] = Application.DEFAULT.get_csp(request)
 

@@ -274,6 +274,54 @@ class DomainBan(View):
 		return Response.new(bans, ctype = 'json')
 
 
+	async def post(self, request: Request) -> Response:
+		data = await self.get_api_data(['domain'], ['note', 'reason'])
+
+		if isinstance(data, Response):
+			return data
+
+		with self.database.session() as conn:
+			if conn.get_domain_ban(data['domain']):
+				return Response.new_error(400, 'Domain already banned', 'json')
+
+			ban = conn.put_domain_ban(**data)
+
+		return Response.new(ban, ctype = 'json')
+
+
+	async def patch(self, request: Request) -> Response:
+		with self.database.session() as conn:
+			data = await self.get_api_data(['domain'], ['note', 'reason'])
+
+			if isinstance(data, Response):
+				return data
+
+			if not conn.get_domain_ban(data['domain']):
+				return Response.new_error(404, 'Domain not banned', 'json')
+
+			if not any([data.get('note'), data.get('reason')]):
+				return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
+
+			ban = conn.update_domain_ban(**data)
+
+		return Response.new(ban, ctype = 'json')
+
+
+	async def delete(self, request: Request) -> Response:
+		with self.database.session() as conn:
+			data = await self.get_api_data(['domain'], [])
+
+			if isinstance(data, Response):
+				return data
+
+			if not conn.get_domain_ban(data['domain']):
+				return Response.new_error(404, 'Domain not banned', 'json')
+
+			conn.del_domain_ban(data['domain'])
+
+		return Response.new({'message': 'Unbanned domain'}, ctype = 'json')
+
+
 @register_route('/api/v1/software_ban')
 class SoftwareBan(View):
 	async def get(self, request: Request) -> Response:
