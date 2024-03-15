@@ -1,15 +1,3 @@
-function get_cookie(name) {
-	const regex = new RegExp(`(^| )` + name + `=([^;]+)`);
-	const match = document.cookie.match(regex);
-
-	if (match) {
-		return match[2]
-	}
-
-	return null;
-}
-
-
 function get_date_string(date) {
 	var year = date.getFullYear().toString();
 	var month = date.getMonth().toString();
@@ -46,11 +34,6 @@ function append_table_row(table, row_name, row) {
 
 
 class Client {
-	constructor() {
-		this.token = get_cookie("user-token");
-	}
-
-
 	async request(method, path, body = null) {
 		var headers = {
 			"Accept": "application/json"
@@ -59,10 +42,6 @@ class Client {
 		if (body !== null) {
 			headers["Content-Type"] = "application/json"
 			body = JSON.stringify(body)
-		}
-
-		if (this.token !== null) {
-			headers["Authorization"] = "Bearer " + this.token;
 		}
 
 		const response = await fetch("/api/" + path, {
