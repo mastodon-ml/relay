@@ -190,13 +190,28 @@ class Connection(SqlConnection):
 			return cur.one() # type: ignore
 
 
-	def put_user(self, username: str, password: str, handle: str | None = None) -> Row:
-		data = {
-			'username': username,
-			'hash': self.hasher.hash(password),
-			'handle': handle,
-			'created': datetime.now(tz = timezone.utc)
-		}
+	def put_user(self, username: str, password: str | None, handle: str | None = None) -> Row:
+		if self.get_user(username):
+			data = {
+				'username': username
+			}
+
+			if password:
+				data['password'] = password
+
+			if handle:
+				data['handler'] = handle
+
+		else:
+			if password is None:
+				raise ValueError('Password cannot be empty')
+
+			data = {
+				'username': username,
+				'hash': self.hasher.hash(password),
+				'handle': handle,
+				'created': datetime.now(tz = timezone.utc)
+			}
 
 		with self.run('put-user', data) as cur:
 			return cur.one() # type: ignore

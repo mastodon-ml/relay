@@ -34,7 +34,11 @@ def check_api_path(method: str, path: str) -> bool:
 @web.middleware
 async def handle_api_path(request: Request, handler: Callable) -> Response:
 	try:
-		request['token'] = request.headers['Authorization'].replace('Bearer', '').strip()
+		if (token := request.cookies.get('user-token')):
+			request['token'] = token
+
+		else:
+			request['token'] = request.headers['Authorization'].replace('Bearer', '').strip()
 
 		with get_app().database.session() as conn:
 			request['user'] = conn.get_user_by_token(request['token'])
@@ -382,6 +386,63 @@ class SoftwareBan(View):
 			conn.del_software_ban(data['name'])
 
 		return Response.new({'message': 'Unbanned software'}, ctype = 'json')
+
+
+@register_route('/api/v1/user')
+class User(View):
+	async def get(self, request: Request) -> Response:
+		with self.database.session() as conn:
+			items = []
+
+			for row in conn.execute('SELECT * FROM users'):
+				del row['hash']
+				items.append(row)
+
+		return Response.new(items, ctype = 'json')
+
+
+	async def post(self, request: Request) -> Response:
+		data = await self.get_api_data(['username', 'password'], ['handle'])
+
+		if isinstance(data, Response):
+			return data
+
+		with self.database.session() as conn:
+			if conn.get_user(data['username']):
+				return Response.new_error(404, 'User already exists', 'json')
+
+			user = conn.put_user(**data)
+			del user['hash']
+
+		return Response.new(user, ctype = 'json')
+
+
+	async def patch(self, request: Request) -> Response:
+		data = await self.get_api_data(['username'], ['password', ['handle']])
+
+		if isinstance(data, Response):
+			return data
+
+		with self.database.session(True) as conn:
+			user = conn.put_user(**data)
+			del user['hash']
+
+		return Response.new(user, ctype = 'json')
+
+
+	async def delete(self, request: Request) -> Response:
+		data = await self.get_api_data(['username'], [])
+
+		if isinstance(data, Response):
+			return data
+
+		with self.database.session(True) as conn:
+			if not conn.get_user(data['username']):
+				return Response.new_error(404, 'User does not exist', 'json')
+
+			conn.del_user(data['username'])
+
+		return Response.new({'message': 'Deleted user'}, ctype = 'json')
 
 
 @register_route('/api/v1/whitelist')

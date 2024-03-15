@@ -126,7 +126,7 @@ class View(AbstractView):
 				return Response.new_error(400, 'Invalid JSON data', 'json')
 
 		else:
-			post_data = convert_data(await self.request.query) # type: ignore
+			post_data = convert_data(self.request.query) # type: ignore
 
 		data = {}
 
