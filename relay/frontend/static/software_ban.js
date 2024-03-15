@@ -42,18 +42,11 @@ async function ban() {
 		return
 	}
 
-	row.id = ban.name;
-	var new_name = row.insertCell(0);
-	var new_date = row.insertCell(1);
-	var new_remove = row.insertCell(2);
-
-	new_name.className = "name";
-	new_date.className = "date";
-	new_remove.className = "remove";
-
-	new_name.innerHTML = create_ban_object(ban.name, ban.reason, ban.note);
-	new_date.innerHTML = get_date_string(ban.created);
-	new_remove.innerHTML = `<a href="#" onclick="unban('${ban.name}')" title="Unban name">&#10006;</a>`;
+	append_table_row(document.getElementById("instances"), ban.name, {
+		name: create_ban_object(ban.name, ban.reason, ban.note),
+		date: get_date_string(ban.created),
+		remove: `<a href="#" onclick="unban('${ban.domain}')" title="Unban software">&#10006;</a>`
+	});
 
 	elems.name.value = null;
 	elems.reason.value = null;

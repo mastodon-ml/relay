@@ -15,21 +15,11 @@ async function add_whitelist() {
 		return
 	}
 
-	var table = document.getElementById("whitelist");
-	var row = table.insertRow(-1);
-	row.id = item.domain;
-
-	var domain = row.insertCell(0);
-	domain.className = "domain";
-	domain.innerHTML = item.domain;
-
-	var date = row.insertCell(1);
-	date.className = "date";
-	date.innerHTML = get_date_string(item.created);
-
-	var remove = row.insertCell(2);
-	remove.className = "remove";
-	remove.innerHTML = `<a href="#" onclick="del_whitelist('${item.domain}')" title="Remove whitelisted domain">&#10006;</a>`;
+	append_table_row(document.getElementById("instances"), item.domain, {
+		domain: item.domain,
+		date: get_date_string(ban.created),
+		remove: `<a href="#" onclick="del_whitelist('${item.domain}')" title="Remove whitelisted domain">&#10006;</a>`
+	});
 
 	domain_elem.value = null;
 	document.querySelector("details.section").open = false;

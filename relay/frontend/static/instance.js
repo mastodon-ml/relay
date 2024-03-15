@@ -1,25 +1,3 @@
-function append_table_row(table, instance) {
-	var row = table.insertRow(-1);
-	row.id = instance.domain;
-
-	var domain = row.insertCell(0);
-	domain.className = "domain";
-	domain.innerHTML = `<a href="https://${instance.domain}/" target="_new">${instance.domain}</a>`;
-
-	var software = row.insertCell(1);
-	software.className = "software";
-	software.innerHTML = instance.software
-
-	var date = row.insertCell(2);
-	date.className = "date";
-	date.innerHTML = get_date_string(instance.created);
-
-	var remove = row.insertCell(3);
-	remove.className = "remove";
-	remove.innerHTML = `<a href="#" onclick="del_instance('${instance.domain}')" title="Remove Instance">&#10006;</a>`;
-}
-
-
 async function add_instance() {
 	var elems = {
 		actor: document.getElementById("new-actor"),
@@ -48,7 +26,12 @@ async function add_instance() {
 		return
 	}
 
-	append_table_row(document.getElementById("instances"), instance);
+	append_table_row(document.getElementById("instances"), instance.domain, {
+		domain: `<a href="https://${instance.domain}/" target="_new">${instance.domain}</a>`,
+		software: instance.software,
+		date: get_date_string(instance.created),
+		remove: `<a href="#" onclick="del_instance('${instance.domain}')" title="Remove Instance">&#10006;</a>`
+	});
 
 	elems.actor.value = null;
 	elems.inbox.value = null;
@@ -99,7 +82,12 @@ async function req_response(domain, accept) {
 	instances = await client.request("GET", `v1/instance`, null);
 	instances.forEach((instance) => {
 		if (instance.domain === domain) {
-			append_table_row(document.getElementById("instances"), instance);
+			append_table_row(document.getElementById("instances"), instance.domain, {
+				domain: `<a href="https://${instance.domain}/" target="_new">${instance.domain}</a>`,
+				software: instance.software,
+				date: get_date_string(instance.created),
+				remove: `<a href="#" onclick="del_instance('${instance.domain}')" title="Remove Instance">&#10006;</a>`
+			});
 		}
 	});
 }

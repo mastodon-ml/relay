@@ -40,20 +40,11 @@ async function ban() {
 		return
 	}
 
-	var row = table.insertRow(-1);
-	row.id = ban.domain;
-
-	var new_domain = row.insertCell(0);
-	var new_date = row.insertCell(1);
-	var new_remove = row.insertCell(2);
-
-	new_domain.className = "domain";
-	new_date.className = "date";
-	new_remove.className = "remove";
-
-	new_domain.innerHTML = create_ban_object(ban.domain, ban.reason, ban.note);
-	new_date.innerHTML = get_date_string(ban.created);
-	new_remove.innerHTML = `<a href="#" onclick="unban('${ban.domain}')" title="Unban domain">&#10006;</a>`;
+	append_table_row(document.getElementById("instances"), ban.domain, {
+		domain: create_ban_object(ban.domain, ban.reason, ban.note),
+		date: get_date_string(ban.created),
+		remove: `<a href="#" onclick="unban('${ban.domain}')" title="Unban domain">&#10006;</a>`
+	});
 
 	elems.domain.value = null;
 	elems.reason.value = null;

@@ -27,6 +27,24 @@ function get_date_string(date) {
 }
 
 
+function append_table_row(table, row_name, row) {
+	var table_row = table.insertRow(-1);
+	table_row.id = row_name;
+
+	index = 0;
+
+	for (var prop in row) {
+		if (Object.prototype.hasOwnProperty.call(row, prop)) {
+			var cell = table_row.insertCell(index);
+			cell.className = prop;
+			cell.innerHTML = row[prop];
+
+			index += 1;
+		}
+	}
+}
+
+
 class Client {
 	constructor() {
 		this.token = get_cookie("user-token");
