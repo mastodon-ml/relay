@@ -30,6 +30,8 @@ function append_table_row(table, row_name, row) {
 			index += 1;
 		}
 	}
+
+	return table_row;
 }
 
 

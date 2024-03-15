@@ -130,7 +130,7 @@ class Application(web.Application):
 		data = [
 			"default-src 'none'",
 			f"script-src 'nonce-{request['hash']}'",
-			f"style-src 'nonce-{request['hash']}'",
+			f"style-src 'self' 'nonce-{request['hash']}'",
 			"form-action 'self'",
 			"connect-src 'self'",
 			"img-src 'self'",
@@ -287,8 +287,8 @@ async def handle_response_headers(request: web.Request, handler: Callable) -> Re
 	resp.headers['Server'] = 'ActivityRelay'
 
 	# Still have to figure out how csp headers work
-	# if resp.content_type == 'text/html':
-	# 	resp.headers['Content-Security-Policy'] = Application.DEFAULT.get_csp(request)
+	if resp.content_type == 'text/html':
+		resp.headers['Content-Security-Policy'] = Application.DEFAULT.get_csp(request)
 
 	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
 		# cache for 2 weeks

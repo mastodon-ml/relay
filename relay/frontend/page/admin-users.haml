@@ -2,7 +2,7 @@
 -set page="Users"
 
 -block head
-	%script(type="application/javascript" src="/static/user.js" nonce="{{view.request['hash']}}")
+	%script(type="application/javascript" src="/static/user.js" nonce="{{view.request['hash']}}" defer)
 
 -block content
 	%details.section
@@ -20,7 +20,7 @@
 			%label(for="new-handle") << Handle
 			%input(id="new-handle" type="email" placeholder="handle")
 
-		%input(type="button" value="Add User" onclick="add_user()")
+		%input#new-user(type="button" value="Add User")
 
 	%fieldset.section
 		%legend << Users
@@ -47,4 +47,4 @@
 								=user.created.strftime("%Y-%m-%d")
 
 							%td.remove
-								%a(href="#" onclick="del_user('{{user.username}}')" title="Remove User") << &#10006;
+								%a(href="#" title="Remove User") << &#10006;

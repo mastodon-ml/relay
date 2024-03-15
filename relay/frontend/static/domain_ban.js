@@ -6,10 +6,22 @@ function create_ban_object(domain, reason, note) {
 	text += `<textarea id="${domain}-reason" class="reason">${reason}</textarea>\n`;
 	text += `<label for="${domain}-note" class="note">Note</label>\n`;
 	text += `<textarea id="${domain}-note" class="note">${note}</textarea>\n`;
-	text += `<input type="button" value="Update" onclick="update_ban(\"${domain}\"")">`;
+	text += `<input class="update-ban" type="button" value="Update">`;
 	text += '</details>';
 
 	return text;
+}
+
+
+function add_row_listeners(row) {
+	row.querySelector(".update-ban").addEventListener("click", async (event) => {
+		await update_ban(row.id);
+	});
+
+	row.querySelector(".remove a").addEventListener("click", async (event) => {
+		event.preventDefault();
+		await unban(row.id);
+	});
 }
 
 
@@ -23,8 +35,8 @@ async function ban() {
 
 	var values = {
 		domain: elems.domain.value.trim(),
-		reason: elems.reason.value,
-		note: elems.note.value
+		reason: elems.reason.value.trim(),
+		note: elems.note.value.trim()
 	}
 
 	if (values.domain === "") {
@@ -40,11 +52,15 @@ async function ban() {
 		return
 	}
 
-	append_table_row(document.getElementById("instances"), ban.domain, {
+	var row = append_table_row(document.querySelector("table"), ban.domain, {
 		domain: create_ban_object(ban.domain, ban.reason, ban.note),
 		date: get_date_string(ban.created),
-		remove: `<a href="#" onclick="unban('${ban.domain}')" title="Unban domain">&#10006;</a>`
+		remove: `<a href="#" title="Unban domain">&#10006;</a>`
 	});
+
+	console.log(row.querySelector(".update-ban"));
+	console.log(row.querySelector(".remove a"));
+	add_row_listeners(row);
 
 	elems.domain.value = null;
 	elems.reason.value = null;
@@ -90,4 +106,17 @@ async function unban(domain) {
 	}
 
 	document.getElementById(domain).remove();
+}
+
+
+document.querySelector("#new-ban").addEventListener("click", async (event) => {
+	await ban();
+});
+
+for (var row of document.querySelector("fieldset.section table").rows) {
+	if (!row.querySelector(".update-ban")) {
+		continue;
+	}
+
+	add_row_listeners(row);
 }

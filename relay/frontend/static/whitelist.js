@@ -1,3 +1,11 @@
+function add_row_listeners(row) {
+	row.querySelector(".remove a").addEventListener("click", async (event) => {
+		event.preventDefault();
+		await del_whitelist(row.id);
+	});
+}
+
+
 async function add_whitelist() {
 	var domain_elem = document.getElementById("new-domain");
 	var domain = domain_elem.value.trim();
@@ -15,11 +23,13 @@ async function add_whitelist() {
 		return
 	}
 
-	append_table_row(document.getElementById("whitelist"), item.domain, {
+	var row = append_table_row(document.getElementById("whitelist"), item.domain, {
 		domain: item.domain,
 		date: get_date_string(item.created),
-		remove: `<a href="#" onclick="del_whitelist('${item.domain}')" title="Remove whitelisted domain">&#10006;</a>`
+		remove: `<a href="#" title="Remove whitelisted domain">&#10006;</a>`
 	});
+
+	add_row_listeners(row);
 
 	domain_elem.value = null;
 	document.querySelector("details.section").open = false;
@@ -36,4 +46,17 @@ async function del_whitelist(domain) {
 	}
 
 	document.getElementById(domain).remove();
+}
+
+
+document.querySelector("#new-item").addEventListener("click", async (event) => {
+	await add_whitelist();
+});
+
+for (var row of document.querySelector("fieldset.section table").rows) {
+	if (!row.querySelector(".remove a")) {
+		continue;
+	}
+
+	add_row_listeners(row);
 }

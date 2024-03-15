@@ -2,7 +2,7 @@
 -set page="Software Bans"
 
 -block head
-	%script(type="application/javascript" src="/static/software_ban.js" nonce="{{view.request['hash']}}")
+	%script(type="application/javascript" src="/static/software_ban.js" nonce="{{view.request['hash']}}" defer)
 
 -block content
 	%details.section
@@ -17,13 +17,13 @@
 			%label(for="new-note") << Admin Note
 			%textarea(id="new-note") << {{""}}
 
-		%input(type="submit" value="Ban Software" onclick="ban()")
+		%input#new-ban(type="button" value="Ban Software")
 
 	%fieldset.section
 		%legend << Software Bans
 
 		.data-table
-			%table
+			%table#bans
 				%thead
 					%tr
 						%td.name << Name
@@ -44,10 +44,10 @@
 										%label.note(for="{{ban.name}}-note") << Note
 										%textarea.note(id="{{ban.name}}-note") << {{ban.note or ""}}
 
-									%input(type="button" value="Update" onclick="update_ban('{{ban.name}}')")
+									%input.update-ban(type="button" value="Update")
 
 							%td.date
 								=ban.created.strftime("%Y-%m-%d")
 
 							%td.remove
-								%a(href="#" onclick="unban('{{ban.name}}')" title="Unban name") << &#10006;
+								%a(href="#" title="Unban name") << &#10006;

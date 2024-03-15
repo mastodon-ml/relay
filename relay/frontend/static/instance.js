@@ -1,3 +1,24 @@
+function add_instance_listeners(row) {
+	row.querySelector(".remove a").addEventListener("click", async (event) => {
+		event.preventDefault();
+		await del_instance(row.id);
+	});
+}
+
+
+function add_request_listeners(row) {
+	row.querySelector(".approve a").addEventListener("click", async (event) => {
+		event.preventDefault();
+		await req_response(row.id, true);
+	});
+
+	row.querySelector(".deny a").addEventListener("click", async (event) => {
+		event.preventDefault();
+		await req_response(row.id, false);
+	});
+}
+
+
 async function add_instance() {
 	var elems = {
 		actor: document.getElementById("new-actor"),
@@ -26,12 +47,14 @@ async function add_instance() {
 		return
 	}
 
-	append_table_row(document.getElementById("instances"), instance.domain, {
+	row = append_table_row(document.getElementById("instances"), instance.domain, {
 		domain: `<a href="https://${instance.domain}/" target="_new">${instance.domain}</a>`,
 		software: instance.software,
 		date: get_date_string(instance.created),
-		remove: `<a href="#" onclick="del_instance('${instance.domain}')" title="Remove Instance">&#10006;</a>`
+		remove: `<a href="#" title="Remove Instance">&#10006;</a>`
 	});
+
+	add_instance_listeners(row);
 
 	elems.actor.value = null;
 	elems.inbox.value = null;
@@ -82,12 +105,37 @@ async function req_response(domain, accept) {
 	instances = await request("GET", `v1/instance`, null);
 	instances.forEach((instance) => {
 		if (instance.domain === domain) {
-			append_table_row(document.getElementById("instances"), instance.domain, {
+			row = append_table_row(document.getElementById("instances"), instance.domain, {
 				domain: `<a href="https://${instance.domain}/" target="_new">${instance.domain}</a>`,
 				software: instance.software,
 				date: get_date_string(instance.created),
-				remove: `<a href="#" onclick="del_instance('${instance.domain}')" title="Remove Instance">&#10006;</a>`
+				remove: `<a href="#" title="Remove Instance">&#10006;</a>`
 			});
+
+			add_instance_listeners(row);
 		}
 	});
+}
+
+
+document.querySelector("#add-instance").addEventListener("click", async (event) => {
+	await add_instance();
+})
+
+for (var row of document.querySelector("#instances").rows) {
+	if (!row.querySelector(".remove a")) {
+		continue;
+	}
+
+	add_instance_listeners(row);
+}
+
+if (document.querySelector("#requests")) {
+	for (var row of document.querySelector("#requests").rows) {
+		if (!row.querySelector(".approve a")) {
+			continue;
+		}
+
+		add_request_listeners(row);
+	}
 }

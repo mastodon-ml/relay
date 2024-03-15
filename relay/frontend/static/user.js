@@ -1,3 +1,12 @@
+function add_row_listeners(row) {
+	console.log(row);
+	row.querySelector(".remove a").addEventListener("click", async (event) => {
+		event.preventDefault();
+		await del_user(row.id);
+	});
+}
+
+
 async function add_user() {
 	var elems = {
 		username: document.getElementById("new-username"),
@@ -31,12 +40,14 @@ async function add_user() {
 		return
 	}
 
-	append_table_row(document.getElementById("users"), user.username, {
+	var row = append_table_row(document.querySelector("fieldset.section table"), user.username, {
 		domain: user.username,
-		handle: user.handle,
+		handle: user.handle ? self.handle : "n/a",
 		date: get_date_string(user.created),
-		remove: `<a href="#" onclick="del_user('${user.username}')" title="Delete User">&#10006;</a>`
+		remove: `<a href="#" title="Delete User">&#10006;</a>`
 	});
+
+	add_row_listeners(row);
 
 	elems.username.value = null;
 	elems.password.value = null;
@@ -57,4 +68,17 @@ async function del_user(username) {
 	}
 
 	document.getElementById(username).remove();
+}
+
+
+document.querySelector("#new-user").addEventListener("click", async (event) => {
+	await add_user();
+});
+
+for (var row of document.querySelector("#users").rows) {
+	if (!row.querySelector(".remove a")) {
+		continue;
+	}
+
+	add_row_listeners(row);
 }
