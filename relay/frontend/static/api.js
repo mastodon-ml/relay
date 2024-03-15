@@ -68,22 +68,6 @@ class Client {
 
 		return message;
 	}
-
-	async ban(domain, reason, note) {
-		const params = {
-			"domain": domain,
-			"reason": reason,
-			"note": note
-		}
-
-		return await this.request("POST", "v1/domain_ban", params);
-	}
-
-
-	async unban(domain) {
-		const params = {"domain": domain}
-		return await this.request("DELETE", "v1/domain_ban", params);
-	}
 }
 
 

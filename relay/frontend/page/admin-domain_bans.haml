@@ -9,13 +9,13 @@
 		%summary << Ban Domain
 		#add-item
 			%label(for="new-domain") << Domain
-			%input(type="domain" id="new-domain" name="domain" placeholder="Domain")
+			%input(type="domain" id="new-domain" placeholder="Domain")
 
 			%label(for="new-reason") << Ban Reason
-			%textarea(id="new-reason" name="new") << {{""}}
+			%textarea(id="new-reason") << {{""}}
 
 			%label(for="new-note") << Admin Note
-			%textarea(id="new-note" name="note") << {{""}}
+			%textarea(id="new-note") << {{""}}
 
 		%input(type="button" value="Ban Domain" onclick="ban();")
 

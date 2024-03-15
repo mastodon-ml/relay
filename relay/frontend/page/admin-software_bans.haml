@@ -7,18 +7,17 @@
 -block content
 	%details.section
 		%summary << Ban Software
-		%form(action="/admin/software_bans" method="POST")
-			#add-item
-				%label(for="name") << Name
-				%input(id="name" name="name" placeholder="Name")
+		#add-item
+			%label(for="new-name") << Domain
+			%input(type="name" id="new-name" placeholder="Domain")
 
-				%label(for="reason") << Ban Reason
-				%textarea(id="reason" name="reason") << {{""}}
+			%label(for="new-reason") << Ban Reason
+			%textarea(id="new-reason") << {{""}}
 
-				%label(for="note") << Admin Note
-				%textarea(id="note" name="note") << {{""}}
+			%label(for="new-note") << Admin Note
+			%textarea(id="new-note") << {{""}}
 
-			%input(type="submit" value="Ban Software")
+		%input(type="submit" value="Ban Software" onclick="ban()")
 
 	%fieldset.section
 		%legend << Software Bans
@@ -33,23 +32,22 @@
 
 				%tbody
 					-for ban in bans
-						%tr
+						%tr(id="{{ban.name}}")
 							%td.name
 								%details
 									%summary -> =ban.name
-									%form(action="/admin/software_bans" method="POST")
-										.grid-2col
-											.reason << Reason
-											%textarea.reason(id="reason" name="reason") << {{ban.reason or ""}}
 
-											.note << Note
-											%textarea.note(id="note" name="note") << {{ban.note or ""}}
+									.grid-2col
+										%label.reason(for="{{ban.name}}-reason") << Reason
+										%textarea.reason(id="{{ban.name}}-reason") << {{ban.reason or ""}}
 
-										%input(type="hidden" name="name" value="{{ban.name}}")
-										%input(type="submit" value="Update")
+										%label.note(for="{{ban.name}}-note") << Note
+										%textarea.note(id="{{ban.name}}-note") << {{ban.note or ""}}
+
+									%input(type="button" value="Update" onclick="update_ban('{{ban.name}}')")
 
 							%td.date
 								=ban.created.strftime("%Y-%m-%d")
 
 							%td.remove
-								%a(href="/admin/software_bans/delete/{{ban.name}}" title="Unban software") << &#10006;
+								%a(href="#" onclick="unban('{{ban.name}}')" title="Unban name") << &#10006;

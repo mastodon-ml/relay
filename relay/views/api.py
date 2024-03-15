@@ -359,7 +359,7 @@ class SoftwareBan(View):
 			if not any([data.get('note'), data.get('reason')]):
 				return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
 
-			ban = conn.update_software_ban(data['name'], **data)
+			ban = conn.update_software_ban(**data)
 
 		return Response.new(ban, ctype = 'json')
 

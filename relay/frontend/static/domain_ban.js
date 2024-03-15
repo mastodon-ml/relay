@@ -35,7 +35,7 @@ async function ban() {
 	}
 
 	try {
-		var ban = await client.ban(values.domain, values.reason, values.note);
+		var ban = await client.request("POST", "v1/domain_ban", values);
 
 	} catch (err) {
 		alert(err);
@@ -59,7 +59,7 @@ async function ban() {
 	elems.reason.value = null;
 	elems.note.value = null;
 
-	row.querySelector("details").open = false;
+	document.querySelector("details.section").open = false;
 }
 
 
@@ -91,7 +91,7 @@ async function update_ban(domain) {
 
 async function unban(domain) {
 	try {
-		await client.unban(domain);
+		await client.request("DELETE", "v1/domain_ban", {"domain": domain});
 
 	} catch (error) {
 		alert(error);
