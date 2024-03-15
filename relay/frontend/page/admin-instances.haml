@@ -20,56 +20,59 @@
 			%input(type="submit" value="Add Instance")
 
 	-if requests
-		.data-table.section
-			.title << Requests
+		%fieldset.section
+			%legend << Follow Requests
+			.data-table
+				%table
+					%thead
+						%tr
+							%td.instance << Instance
+							%td.software << Software
+							%td.date << Joined
+							%td.approve
+							%td.deny
+
+					%tbody
+						-for request in requests
+							%tr
+								%td.instance
+									%a(href="https://{{request.domain}}" target="_new") -> =request.domain
+
+								%td.software
+									=request.software or "n/a"
+
+								%td.date
+									=request.created.strftime("%Y-%m-%d")
+
+								%td.approve
+									%a(href="/admin/instances/approve/{{request.domain}}" title="Approve Request") << &check;
+									
+								%td.deny
+									%a(href="/admin/instances/deny/{{request.domain}}" title="Deny Request") << &#10006;
+
+	%fieldset.section
+		%legend << Instances
+
+		.data-table
 			%table
 				%thead
 					%tr
 						%td.instance << Instance
 						%td.software << Software
 						%td.date << Joined
-						%td.approve
-						%td.deny
+						%td.remove
 
 				%tbody
-					-for request in requests
+					-for instance in instances
 						%tr
 							%td.instance
-								%a(href="https://{{request.domain}}" target="_new") -> =request.domain
+								%a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain
 
 							%td.software
-								=request.software or "n/a"
+								=instance.software or "n/a"
 
 							%td.date
-								=request.created.strftime("%Y-%m-%d")
+								=instance.created.strftime("%Y-%m-%d")
 
-							%td.approve
-								%a(href="/admin/instances/approve/{{request.domain}}" title="Approve Request") << &check;
-								
-							%td.deny
-								%a(href="/admin/instances/deny/{{request.domain}}" title="Deny Request") << &#10006;
-
-	.data-table.section
-		.title << Instances
-		%table
-			%thead
-				%tr
-					%td.instance << Instance
-					%td.software << Software
-					%td.date << Joined
-					%td.remove
-
-			%tbody
-				-for instance in instances
-					%tr
-						%td.instance
-							%a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain
-
-						%td.software
-							=instance.software or "n/a"
-
-						%td.date
-							=instance.created.strftime("%Y-%m-%d")
-
-						%td.remove
-							%a(href="/admin/instances/delete/{{instance.domain}}" title="Remove Instance") << &#10006;
+							%td.remove
+								%a(href="/admin/instances/delete/{{instance.domain}}" title="Remove Instance") << &#10006;

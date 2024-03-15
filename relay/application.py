@@ -68,6 +68,8 @@ class Application(web.Application):
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
 
+		self.add_routes([web.static('/static', get_resource('frontend/static'))])
+
 		setup_swagger(
 			self,
 			ui_version = 3,
@@ -122,6 +124,40 @@ class Application(web.Application):
 		uptime = datetime.now() - self['start_time']
 
 		return timedelta(seconds=uptime.seconds)
+
+
+	def get_csp(self, request: Request) -> str:
+		data = [
+			"default-src 'none'",
+			f"script-src 'nonce-{request['hash']}'",
+			f"style-src 'nonce-{request['hash']}'",
+			"form-action 'self'",
+			"connect-src 'self'",
+			"img-src 'self'",
+			"object-src 'none'",
+			"frame-ancestors 'none'"
+		]
+
+		return '; '.join(data) + ';'
+
+		# data = {
+		# 	'base-uri': '\'none\'',
+		# 	'default-src': '\'none\'',
+		# 	'frame-ancestors': '\'none\'',
+		# 	'font-src': f'\'self\' https://{self.config.domain}',
+		# 	'img-src': f'\'self\' https://{self.config.domain}',
+		# 	'style-src': f'\'self\' https://{self.config.domain} \'nonce-randomstringhere\'',
+		# 	'media-src': f'\'self\' https://{self.config.domain}',
+		# 	'frame-src': f'\'self\' https:',
+		# 	'manifest-src': f'\'self\' https://{self.config.domain}',
+		# 	'form-action': f'\'self\'',
+		# 	'child-src': f'\'self\' https://{self.config.domain}',
+		# 	'worker-src': f'\'self\' https://{self.config.domain}',
+		# 	'connect-src': f'\'self\' https://{self.config.domain} wss://{self.config.domain}',
+		# 	'script-src': f'\'self\' https://{self.config.domain}'
+		# }
+  # 
+		# return '; '.join(f'{key} {value}' for key, value in data.items()) + ';'
 
 
 	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
@@ -268,6 +304,9 @@ class PushWorker(multiprocessing.Process):
 async def handle_response_headers(request: web.Request, handler: Callable) -> Response:
 	resp = await handler(request)
 	resp.headers['Server'] = 'ActivityRelay'
+
+	# if resp.content_type == 'text/html':
+	# 	resp.headers['Content-Security-Policy'] = Application.DEFAULT.get_csp(request)
 
 	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
 		# cache for 2 weeks

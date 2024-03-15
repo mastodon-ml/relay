@@ -26,21 +26,31 @@ UNAUTH_ROUTES = {
 
 @web.middleware
 async def handle_frontend_path(request: web.Request, handler: Callable) -> Response:
+	app = get_app()
+
 	if request.path in UNAUTH_ROUTES or request.path.startswith('/admin'):
 		request['token'] = request.cookies.get('user-token')
 		request['user'] = None
 
 		if request['token']:
-			with get_app().database.session(False) as conn:
+			with app.database.session(False) as conn:
 				request['user'] = conn.get_user_by_token(request['token'])
 
 		if request['user'] and request.path == '/login':
 			return Response.new('', 302, {'Location': '/'})
 
 		if not request['user'] and request.path.startswith('/admin'):
-			return Response.new('', 302, {'Location': f'/login?redir={request.path}'})
+				response = Response.new('', 302, {'Location': f'/login?redir={request.path}'})
+				response.del_cookie('user-token')
+				return response
 
-	return await handler(request)
+	response = await handler(request)
+
+	if not request['user'] and request['token']:
+		print("del token")
+		response.del_cookie('user-token')
+
+	return response
 
 
 @register_route('/')
@@ -96,8 +106,8 @@ class Login(View):
 				domain = self.config.domain,
 				path = '/',
 				secure = True,
-				httponly = True,
-				samesite = 'Strict'
+				httponly = False,
+				samesite = 'lax'
 			)
 
 			return resp
@@ -271,7 +281,7 @@ class AdminWhitelist(View):
 
 		with self.database.session(True) as conn:
 			if conn.get_domain_whitelist(data['domain']):
-				return await self.get(request, message = "Domain already in whitelist")
+				return await self.get(request, error = "Domain already in whitelist")
 
 			conn.put_domain_whitelist(data['domain'])
 
@@ -284,7 +294,7 @@ class AdminWhitlistDelete(View):
 		with self.database.session() as conn:
 			if not conn.get_domain_whitelist(domain):
 				msg = 'Whitelisted domain not found'
-				return await AdminWhitelist.run("GET", request, message = msg)
+				return await AdminWhitelist.run("GET", request, error = msg)
 
 			conn.del_domain_whitelist(domain)
 
@@ -342,7 +352,7 @@ class AdminDomainBansDelete(View):
 	async def get(self, request: Request, domain: str) -> Response:
 		with self.database.session() as conn:
 			if not conn.get_domain_ban(domain):
-				return await AdminDomainBans.run("GET", request, message = 'Domain ban not found')
+				return await AdminDomainBans.run("GET", request, error = 'Domain ban not found')
 
 			conn.del_domain_ban(domain)
 
@@ -400,7 +410,7 @@ class AdminSoftwareBansDelete(View):
 	async def get(self, request: Request, name: str) -> Response:
 		with self.database.session() as conn:
 			if not conn.get_software_ban(name):
-				return await AdminSoftwareBans.run("GET", request, message = 'Software ban not found')
+				return await AdminSoftwareBans.run("GET", request, error = 'Software ban not found')
 
 			conn.del_software_ban(name)
 
@@ -441,7 +451,7 @@ class AdminUsers(View):
 
 		with self.database.session(True) as conn:
 			if conn.get_user(data['username']):
-				return await self.get(request, message = "User already exists")
+				return await self.get(request, error = "User already exists")
 
 			conn.put_user(data['username'], data['password'], data['handle'])
 
@@ -453,7 +463,7 @@ class AdminUsersDelete(View):
 	async def get(self, request: Request, name: str) -> Response:
 		with self.database.session() as conn:
 			if not conn.get_user(name):
-				return await AdminUsers.run("GET", request, message = 'User not found')
+				return await AdminUsers.run("GET", request, error = 'User not found')
 
 			conn.del_user(name)
 

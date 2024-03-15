@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import typing
 
+from Crypto.Random import get_random_bytes
 from aiohttp.abc import AbstractView
 from aiohttp.hdrs import METH_ALL as METHODS
 from aiohttp.web import HTTPMethodNotAllowed
+from base64 import b64encode
 from functools import cached_property
 from json.decoder import JSONDecodeError
 
@@ -56,6 +58,7 @@ class View(AbstractView):
 
 
 	async def _run_handler(self, handler: Callable[..., Any], **kwargs: Any) -> Response:
+		self.request['hash'] = b64encode(get_random_bytes(16)).decode('ascii')
 		return await handler(self.request, **self.request.match_info, **kwargs)
 
 

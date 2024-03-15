@@ -2,24 +2,26 @@
 -set page="Config"
 -import "functions.haml" as func
 -block content
-	%form.section(action="/admin/config" method="POST")
-		.grid-2col
-			%label(for="name") << Name
-			%input(id = "name" name="name" placeholder="Relay Name" value="{{config.name or ''}}")
+	%fieldset.section
+		%legend << Config
+		%form(action="/admin/config" method="POST")
+			.grid-2col
+				%label(for="name") << Name
+				%input(id = "name" name="name" placeholder="Relay Name" value="{{config.name or ''}}")
 
-			%label(for="description") << Description
-			%textarea(id="description" name="note" value="{{config.note or ''}}") << {{config.note}}
+				%label(for="description") << Description
+				%textarea(id="description" name="note" value="{{config.note or ''}}") << {{config.note}}
 
-			%label(for="theme") << Color Theme
-			=func.new_select("theme", config.theme, themes)
+				%label(for="theme") << Color Theme
+				=func.new_select("theme", config.theme, themes)
 
-			%label(for="log-level") << Log Level
-			=func.new_select("log-level", config.log_level.name, levels)
+				%label(for="log-level") << Log Level
+				=func.new_select("log-level", config.log_level.name, levels)
 
-			%label(for="whitelist-enabled") << Whitelist
-			=func.new_checkbox("whitelist-enabled", config.whitelist_enabled)
+				%label(for="whitelist-enabled") << Whitelist
+				=func.new_checkbox("whitelist-enabled", config.whitelist_enabled)
 
-			%label(for="approval-required") << Approval Required
-			=func.new_checkbox("approval-required", config.approval_required)
+				%label(for="approval-required") << Approval Required
+				=func.new_checkbox("approval-required", config.approval_required)
 
-		%input(type="submit" value="Save")
+			%input(type="submit" value="Save")

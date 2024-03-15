@@ -23,17 +23,27 @@ details summary {
 	cursor: pointer;
 }
 
+fieldset {
+	margin-left: 0px;
+	margin-right: 0px;
+}
+
+fieldset > *:nth-child(2) {
+	margin-top: 0px !important;
+}
+
 form input[type="submit"] {
 	display: block;
 	margin: 0 auto;
 }
 
 legend {
-	background-color: var(--section-background);
+	background-color: var(--table-background);
 	padding: 5px;
 	border: 1px solid var(--border);
 	border-radius: 5px;
 	font-size: 10pt;
+	font-weight: bold;
 }
 
 p {
