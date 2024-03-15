@@ -133,6 +133,8 @@ class Config(View):
 		if isinstance(data, Response):
 			return data
 
+		data['key'] = data['key'].replace('-', '_');
+
 		if data['key'] not in ConfigData.USER_KEYS():
 			return Response.new_error(400, 'Invalid key', 'json')
 
