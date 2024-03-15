@@ -36,7 +36,7 @@ async function add_instance() {
 	}
 
 	if (values.actor === "") {
-		alert("Domain, actor, and inbox are required");
+		alert("Actor is required");
 		return;
 	}
 

@@ -1,19 +1,22 @@
 -extends "base.haml"
 -set page="Whitelist"
+
+-block head
+	%script(type="application/javascript" src="/static/whitelist.js" nonce="{{view.request['hash']}}")
+
 -block content
 	%details.section
 		%summary << Add Domain
-		%form(action="/admin/whitelist" method="POST")
-			#add-item
-				%label(for="domain") << Domain
-				%input(type="domain" id="domain" name="domain" placeholder="Domain")
+		#add-item
+			%label(for="new-domain") << Domain
+			%input(type="domain" id="new-domain" placeholder="Domain")
 
-			%input(type="submit" value="Add Domain")
+		%input(type="button" value="Add Domain", onclick="add_whitelist()")
 
 	%fieldset.data-table.section
 		%legend << Whitelist
 
-		%table
+		%table#whitelist
 			%thead
 				%tr
 					%td.domain << Domain
@@ -22,7 +25,7 @@
 
 			%tbody
 				-for item in whitelist
-					%tr
+					%tr(id="{{item.domain}}")
 						%td.domain
 							=item.domain
 
@@ -30,4 +33,4 @@
 							=item.created.strftime("%Y-%m-%d")
 
 						%td.remove
-							%a(href="/admin/whitelist/delete/{{item.domain}}" title="Remove whitlisted domain") << &#10006;
+							%a(href="#" onclick="del_whitelist('{{item.domain}}')" title="Remove whitlisted domain") << &#10006;
