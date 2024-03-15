@@ -33,48 +33,43 @@ function append_table_row(table, row_name, row) {
 }
 
 
-class Client {
-	async request(method, path, body = null) {
-		var headers = {
-			"Accept": "application/json"
-		}
+async function request(method, path, body = null) {
+	var headers = {
+		"Accept": "application/json"
+	}
 
-		if (body !== null) {
-			headers["Content-Type"] = "application/json"
-			body = JSON.stringify(body)
-		}
+	if (body !== null) {
+		headers["Content-Type"] = "application/json"
+		body = JSON.stringify(body)
+	}
 
-		const response = await fetch("/api/" + path, {
-			method: method,
-			mode: "cors",
-			cache: "no-store",
-			redirect: "follow",
-			body: body,
-			headers: headers
+	const response = await fetch("/api/" + path, {
+		method: method,
+		mode: "cors",
+		cache: "no-store",
+		redirect: "follow",
+		body: body,
+		headers: headers
+	});
+
+	const message = await response.json();
+
+	if (Object.hasOwn(message, "error")) {
+		throw new Error(message.error);
+	}
+
+	if (Array.isArray(message)) {
+		message.forEach((msg) => {
+			if (Object.hasOwn(msg, "created")) {
+				msg.created = new Date(msg.created);
+			}
 		});
 
-		const message = await response.json();
-
-		if (Object.hasOwn(message, "error")) {
-			throw new Error(message.error);
+	} else {
+		if (Object.hasOwn(message, "created")) {
+			message.created = new Date(message.created);
 		}
-
-		if (Array.isArray(message)) {
-			message.forEach((msg) => {
-				if (Object.hasOwn(msg, "created")) {
-					msg.created = new Date(msg.created);
-				}
-			});
-
-		} else {
-			if (Object.hasOwn(message, "created")) {
-				message.created = new Date(message.created);
-			}
-		}
-
-		return message;
 	}
+
+	return message;
 }
-
-
-client = new Client();

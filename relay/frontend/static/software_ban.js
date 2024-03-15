@@ -35,7 +35,7 @@ async function ban() {
 	}
 
 	try {
-		var ban = await client.request("POST", "v1/software_ban", values);
+		var ban = await request("POST", "v1/software_ban", values);
 
 	} catch (err) {
 		alert(err);
@@ -71,7 +71,7 @@ async function update_ban(name) {
 	}
 
 	try {
-		await client.request("PATCH", "v1/software_ban", values)
+		await request("PATCH", "v1/software_ban", values)
 
 	} catch (error) {
 		alert(error);
@@ -84,7 +84,7 @@ async function update_ban(name) {
 
 async function unban(name) {
 	try {
-		await client.request("DELETE", "v1/software_ban", {"name": name});
+		await request("DELETE", "v1/software_ban", {"name": name});
 
 	} catch (error) {
 		alert(error);

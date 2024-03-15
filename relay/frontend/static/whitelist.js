@@ -8,16 +8,16 @@ async function add_whitelist() {
 	}
 
 	try {
-		var item = await client.request("POST", "v1/whitelist", {"domain": domain});
+		var item = await request("POST", "v1/whitelist", {"domain": domain});
 
 	} catch (err) {
 		alert(err);
 		return
 	}
 
-	append_table_row(document.getElementById("instances"), item.domain, {
+	append_table_row(document.getElementById("whitelist"), item.domain, {
 		domain: item.domain,
-		date: get_date_string(ban.created),
+		date: get_date_string(item.created),
 		remove: `<a href="#" onclick="del_whitelist('${item.domain}')" title="Remove whitelisted domain">&#10006;</a>`
 	});
 
@@ -28,7 +28,7 @@ async function add_whitelist() {
 
 async function del_whitelist(domain) {
 	try {
-		await client.request("DELETE", "v1/whitelist", {"domain": domain});
+		await request("DELETE", "v1/whitelist", {"domain": domain});
 
 	} catch (error) {
 		alert(error);

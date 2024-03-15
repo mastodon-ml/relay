@@ -24,7 +24,7 @@ async function add_user() {
 	}
 
 	try {
-		var user = await client.request("POST", "v1/user", values);
+		var user = await request("POST", "v1/user", values);
 
 	} catch (err) {
 		alert(err);
@@ -49,7 +49,7 @@ async function add_user() {
 
 async function del_user(username) {
 	try {
-		await client.request("DELETE", "v1/user", {"username": username});
+		await request("DELETE", "v1/user", {"username": username});
  
 	} catch (error) {
 		alert(error);

@@ -15,7 +15,7 @@ async function handle_config_change(event) {
 	}
 
 	try {
-		await client.request("POST", "v1/config", params);
+		await request("POST", "v1/config", params);
 
 	} catch (error) {
 		alert(error);

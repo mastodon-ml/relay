@@ -19,7 +19,7 @@ async function add_instance() {
 	}
 
 	try {
-		var instance = await client.request("POST", "v1/instance", values);
+		var instance = await request("POST", "v1/instance", values);
 
 	} catch (err) {
 		alert(err);
@@ -44,7 +44,7 @@ async function add_instance() {
 
 async function del_instance(domain) {
 	try {
-		await client.request("DELETE", "v1/instance", {"domain": domain});
+		await request("DELETE", "v1/instance", {"domain": domain});
 
 	} catch (error) {
 		alert(error);
@@ -62,7 +62,7 @@ async function req_response(domain, accept) {
 	}
 
 	try {
-		await client.request("POST", "v1/request", params);
+		await request("POST", "v1/request", params);
 
 	} catch (error) {
 		alert(error);
@@ -79,7 +79,7 @@ async function req_response(domain, accept) {
 		return;
 	}
 
-	instances = await client.request("GET", `v1/instance`, null);
+	instances = await request("GET", `v1/instance`, null);
 	instances.forEach((instance) => {
 		if (instance.domain === domain) {
 			append_table_row(document.getElementById("instances"), instance.domain, {
