@@ -62,8 +62,17 @@ class Client {
 			throw new Error(message.error);
 		}
 
-		if (Object.hasOwn(message, "created")) {
-			message.created = new Date(message.created);
+		if (Array.isArray(message)) {
+			message.forEach((msg) => {
+				if (Object.hasOwn(msg, "created")) {
+					msg.created = new Date(msg.created);
+				}
+			});
+
+		} else {
+			if (Object.hasOwn(message, "created")) {
+				message.created = new Date(message.created);
+			}
 		}
 
 		return message;

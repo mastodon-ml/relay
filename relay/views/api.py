@@ -10,7 +10,7 @@ from .base import View, register_route
 
 from .. import __version__
 from ..database import ConfigData
-from ..misc import Message, Response, get_app
+from ..misc import Message, Response, boolean, get_app
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
@@ -161,7 +161,7 @@ class Config(View):
 class Inbox(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			data = tuple(conn.execute('SELECT * FROM inboxes').all())
+			data = conn.get_inboxes()
 
 		return Response.new(data, ctype = 'json')
 
@@ -186,6 +186,12 @@ class Inbox(View):
 
 				data['inbox'] = actor_data.shared_inbox
 
+			if not data.get('software'):
+				nodeinfo = await self.client.fetch_nodeinfo(data['domain'])
+
+				if nodeinfo is not None:
+					data['software'] = nodeinfo.sw_name
+
 			row = conn.put_inbox(**data)
 
 		return Response.new(row, ctype = 'json')
@@ -206,7 +212,7 @@ class Inbox(View):
 		return Response.new(instance, ctype = 'json')
 
 
-	async def delete(self, request: Request, domain: str) -> Response:
+	async def delete(self, request: Request) -> Response:
 		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], [])
 
@@ -232,10 +238,7 @@ class RequestView(View):
 
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['domain', 'accept'], [])
-
-		if not isinstance(data['accept'], bool):
-			atype = type(data['accept']).__name__
-			return Response.new_error(400, f'Invalid type for "accept": {atype}', 'json')
+		data['accept'] = boolean(data['accept'])
 
 		try:
 			with self.database.session(True) as conn:

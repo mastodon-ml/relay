@@ -15,8 +15,6 @@ function create_ban_object(domain, reason, note) {
 
 async function ban() {
 	var table = document.querySelector("table");
-	var row = table.insertRow(-1);
-
 	var elems = {
 		domain: document.getElementById("new-domain"),
 		reason: document.getElementById("new-reason"),
@@ -42,7 +40,9 @@ async function ban() {
 		return
 	}
 
+	var row = table.insertRow(-1);
 	row.id = ban.domain;
+
 	var new_domain = row.insertCell(0);
 	var new_date = row.insertCell(1);
 	var new_remove = row.insertCell(2);
