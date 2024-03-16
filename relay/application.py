@@ -71,7 +71,7 @@ class Application(web.Application):
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
 
-		if dev:
+		if self['dev']:
 			static = StaticResource('/static', get_resource('frontend/static'))
 
 		else:
