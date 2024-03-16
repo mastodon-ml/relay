@@ -86,10 +86,11 @@ def cli_build():
 
 
 @cli.command('run')
-def cli_run():
+@click.option('--dev', '-d', is_flag = True)
+def cli_run(dev: bool):
 	print('Starting process watcher')
 
-	handler = WatchHandler()
+	handler = WatchHandler(dev)
 	handler.run_proc()
 
 	watcher = Observer()
@@ -112,12 +113,13 @@ def cli_run():
 
 class WatchHandler(PatternMatchingEventHandler):
 	patterns = ['*.py']
-	cmd = [sys.executable, '-m', 'relay', 'run', '-d']
+	cmd = [sys.executable, '-m', 'relay', 'run']
 
 
-	def __init__(self):
+	def __init__(self, dev: bool):
 		PatternMatchingEventHandler.__init__(self)
 
+		self.dev: bool = dev
 		self.proc = None
 		self.last_restart = None
 
@@ -152,7 +154,12 @@ class WatchHandler(PatternMatchingEventHandler):
 
 			self.kill_proc()
 
-		self.proc = subprocess.Popen(self.cmd, stdin = subprocess.PIPE)
+		if self.dev:
+			self.proc = subprocess.Popen([*self.cmd, '-d'], stdin = subprocess.PIPE)
+
+		else:
+			self.proc = subprocess.Popen(self.cmd, stdin = subprocess.PIPE)
+
 		self.last_restart = timestamp
 
 		print(f'Started process with PID {self.proc.pid}')
