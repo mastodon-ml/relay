@@ -71,14 +71,6 @@ class Application(web.Application):
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
 
-		if self['dev']:
-			static = StaticResource('/static', get_resource('frontend/static'))
-
-		else:
-			static = CachedStaticResource('/static', get_resource('frontend/static'))
-
-		self.router.register_resource(static)
-
 		setup_swagger(
 			self,
 			ui_version = 3,
@@ -154,6 +146,16 @@ class Application(web.Application):
 		self['push_queue'].put((inbox, message, instance))
 
 
+	def register_static_routes(self) -> None:
+		if self['dev']:
+			static = StaticResource('/static', get_resource('frontend/static'))
+
+		else:
+			static = CachedStaticResource('/static', get_resource('frontend/static'))
+
+		self.router.register_resource(static)
+
+
 	def run(self) -> None:
 		if self["running"]:
 			return
@@ -165,6 +167,8 @@ class Application(web.Application):
 		if not check_open_port(host, port):
 			logging.error(f'A server is already running on {host}:{port}')
 			return
+
+		self.register_static_routes()
 
 		logging.info(f'Starting webserver at {domain} ({host}:{port})')
 		asyncio.run(self.handle_run())
