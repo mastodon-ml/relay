@@ -262,7 +262,7 @@ class CachedStaticResource(StaticResource):
 		try:
 			return web.Response(
 				body = self.cache[rel_url],
-				content_type = guess_type(path)[0]
+				content_type = guess_type(rel_url)[0]
 			)
 
 		except KeyError:
