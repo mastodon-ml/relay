@@ -100,8 +100,8 @@ def cli_run(dev: bool):
 
 	try:
 		while True:
-			handler.proc.stdin.write(sys.stdin.read().encode('UTF-8'))
-			handler.proc.stdin.flush()
+			handler.proc.stdin.write(sys.stdin.read().encode('UTF-8')) # type: ignore
+			handler.proc.stdin.flush() # type: ignore
 
 	except KeyboardInterrupt:
 		pass
@@ -121,12 +121,12 @@ class WatchHandler(PatternMatchingEventHandler):
 		PatternMatchingEventHandler.__init__(self)
 
 		self.dev: bool = dev
-		self.proc = None
-		self.last_restart = None
+		self.proc: subprocess.Popen | None = None
+		self.last_restart: datetime | None = None
 
 
 	def kill_proc(self):
-		if self.proc.poll() is not None:
+		if not self.proc or self.proc.poll() is not None:
 			return
 
 		logging.info(f'Terminating process {self.proc.pid}')

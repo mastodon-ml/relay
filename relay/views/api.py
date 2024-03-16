@@ -15,6 +15,7 @@ from ..misc import Message, Response, boolean, get_app
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
 	from collections.abc import Callable, Sequence
+	from typing import Any
 
 
 PUBLIC_API_PATHS: Sequence[tuple[str, str]] = (
@@ -149,7 +150,7 @@ class Config(View):
 		if isinstance(data, Response):
 			return data
 
-		data['key'] = data['key'].replace('-', '_');
+		data['key'] = data['key'].replace('-', '_')
 
 		if data['key'] not in ConfigData.USER_KEYS():
 			return Response.new_error(400, 'Invalid key', 'json')
@@ -255,7 +256,7 @@ class RequestView(View):
 
 
 	async def post(self, request: Request) -> Response:
-		data = await self.get_api_data(['domain', 'accept'], [])
+		data: dict[str, Any] | Response = await self.get_api_data(['domain', 'accept'], [])
 		data['accept'] = boolean(data['accept'])
 
 		try:
@@ -430,7 +431,7 @@ class User(View):
 
 
 	async def patch(self, request: Request) -> Response:
-		data = await self.get_api_data(['username'], ['password', ['handle']])
+		data = await self.get_api_data(['username'], ['password', 'handle'])
 
 		if isinstance(data, Response):
 			return data

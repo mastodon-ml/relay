@@ -192,7 +192,7 @@ class Connection(SqlConnection):
 
 	def put_user(self, username: str, password: str | None, handle: str | None = None) -> Row:
 		if self.get_user(username):
-			data = {
+			data: dict[str, str | datetime | None] = {
 				'username': username
 			}
 

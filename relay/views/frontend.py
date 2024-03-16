@@ -3,14 +3,12 @@ from __future__ import annotations
 import typing
 
 from aiohttp import web
-from argon2.exceptions import VerifyMismatchError
-from urllib.parse import urlparse
 
 from .base import View, register_route
 
-from ..database import THEMES, ConfigData
+from ..database import THEMES
 from ..logger import LogLevel
-from ..misc import ACTOR_FORMATS, Message, Response, get_app
+from ..misc import Response, get_app
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
@@ -40,9 +38,9 @@ async def handle_frontend_path(request: web.Request, handler: Callable) -> Respo
 			return Response.new('', 302, {'Location': '/'})
 
 		if not request['user'] and request.path.startswith('/admin'):
-				response = Response.new('', 302, {'Location': f'/login?redir={request.path}'})
-				response.del_cookie('user-token')
-				return response
+			response = Response.new('', 302, {'Location': f'/login?redir={request.path}'})
+			response.del_cookie('user-token')
+			return response
 
 	response = await handler(request)
 

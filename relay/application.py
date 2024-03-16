@@ -35,6 +35,21 @@ if typing.TYPE_CHECKING:
 	from .misc import Message, Response
 
 
+def get_csp(request: web.Request) -> str:
+	data = [
+		"default-src 'none'",
+		f"script-src 'nonce-{request['hash']}'",
+		f"style-src 'self' 'nonce-{request['hash']}'",
+		"form-action 'self'",
+		"connect-src 'self'",
+		"img-src 'self'",
+		"object-src 'none'",
+		"frame-ancestors 'none'"
+	]
+
+	return '; '.join(data) + ';'
+
+
 class Application(web.Application):
 	DEFAULT: Application | None = None
 
@@ -125,21 +140,6 @@ class Application(web.Application):
 		uptime = datetime.now() - self['start_time']
 
 		return timedelta(seconds=uptime.seconds)
-
-
-	def get_csp(self, request: Request) -> str:
-		data = [
-			"default-src 'none'",
-			f"script-src 'nonce-{request['hash']}'",
-			f"style-src 'self' 'nonce-{request['hash']}'",
-			"form-action 'self'",
-			"connect-src 'self'",
-			"img-src 'self'",
-			"object-src 'none'",
-			"frame-ancestors 'none'"
-		]
-
-		return '; '.join(data) + ';'
 
 
 	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
@@ -240,7 +240,7 @@ class CachedStaticResource(StaticResource):
 	def __init__(self, prefix: str, path: Path):
 		StaticResource.__init__(self, prefix, path)
 
-		self.cache: dict[Path, bytes] = {}
+		self.cache: dict[str, bytes] = {}
 
 		for filename in path.rglob('*'):
 			if filename.is_dir():
@@ -334,7 +334,7 @@ async def handle_response_headers(request: web.Request, handler: Callable) -> Re
 
 	# Still have to figure out how csp headers work
 	if resp.content_type == 'text/html':
-		resp.headers['Content-Security-Policy'] = Application.DEFAULT.get_csp(request)
+		resp.headers['Content-Security-Policy'] = get_csp(request)
 
 	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
 		# cache for 2 weeks
