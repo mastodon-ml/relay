@@ -8,9 +8,12 @@ import traceback
 import typing
 
 from aiohttp import web
+from aiohttp.web import StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
 from datetime import datetime, timedelta
+from mimetypes import guess_type
+from pathlib import Path
 from queue import Empty
 from threading import Event, Thread
 
@@ -68,7 +71,13 @@ class Application(web.Application):
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
 
-		self.add_routes([web.static('/static', get_resource('frontend/static'))])
+		if dev:
+			static = StaticResource('/static', get_resource('frontend/static'))
+
+		else:
+			static = CachedStaticResource('/static', get_resource('frontend/static'))
+
+		self.router.register_resource(static)
 
 		setup_swagger(
 			self,
@@ -221,6 +230,39 @@ class Application(web.Application):
 		self['workers'].clear()
 		self['database'].disconnect()
 		self['cache'].close()
+
+
+class CachedStaticResource(StaticResource):
+	def __init__(self, prefix: str, path: Path):
+		StaticResource.__init__(self, prefix, path)
+
+		self.cache: dict[Path, bytes] = {}
+
+		for filename in path.rglob('*'):
+			if filename.is_dir():
+				continue
+
+			rel_path = str(filename.relative_to(path))
+
+			with filename.open('rb') as fd:
+				logging.debug('Loading static resource "%s"', rel_path)
+				self.cache[rel_path] = fd.read()
+
+
+	async def _handle(self, request: web.Request) -> web.StreamResponse:
+		rel_url = request.match_info['filename']
+
+		if Path(rel_url).anchor:
+			raise web.HTTPForbidden()
+
+		try:
+			return web.Response(
+				body = self.cache[rel_url],
+				content_type = guess_type(path)[0]
+			)
+
+		except KeyError:
+			raise web.HTTPNotFound()
 
 
 class CacheCleanupThread(Thread):
