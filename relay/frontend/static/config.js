@@ -27,6 +27,10 @@ async function handle_config_change(event) {
 		document.querySelector("title").innerHTML = params.value;
 	}
 
+	if (params.key === "theme") {
+		document.querySelector("link.theme").href = `/theme/${params.value}.css`;
+	}
+
 	toast("Updated config", "message");
 }
 
