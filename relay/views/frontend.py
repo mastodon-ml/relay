@@ -72,47 +72,6 @@ class Login(View):
 		return Response.new(data, ctype = 'html')
 
 
-	async def post(self, request: Request) -> Response:
-		form = await request.post()
-		params = {}
-
-		with self.database.session(True) as conn:
-			if not (user := conn.get_user(form['username'])):
-				params = {
-					'username': form['username'],
-					'error': 'User not found'
-				}
-
-			else:
-				try:
-					conn.hasher.verify(user['hash'], form['password'])
-
-				except VerifyMismatchError:
-					params = {
-						'username': form['username'],
-						'error': 'Invalid password'
-					}
-
-			if params:
-				data = self.template.render('page/login.haml', self, **params)
-				return Response.new(data, ctype = 'html')
-
-			token = conn.put_token(user['username'])
-			resp = Response.new_redir(request.query.getone('redir', '/'))
-			resp.set_cookie(
-				'user-token',
-				token['code'],
-				max_age = 60 * 60 * 24 * 365,
-				domain = self.config.domain,
-				path = '/',
-				secure = True,
-				httponly = False,
-				samesite = 'lax'
-			)
-
-			return resp
-
-
 @register_route('/logout')
 class Logout(View):
 	async def get(self, request: Request) -> Response:

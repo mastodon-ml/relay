@@ -1,15 +1,18 @@
 -extends "base.haml"
 -set page="Login"
+
+-block head
+	%script(type="application/javascript" src="/static/login.js" nonce="{{view.request['hash']}}" defer)
+
 -block content
 	%fieldset.section
 		%legend << Login
 
-		%form(action="/login" method="POST")
-			.grid-2col
-				%label(for="username") << Username
-				%input(id="username" name="username" placeholder="Username" value="{{username or ''}}")
+		.grid-2col
+			%label(for="username") << Username
+			%input(id="username" name="username" placeholder="Username" value="{{username or ''}}")
 
-				%label(for="password") << Password
-				%input(id="password" name="password" placeholder="Password" type="password")
+			%label(for="password") << Password
+			%input(id="password" name="password" placeholder="Password" type="password")
 
-			%input(type="submit" value="Login")
+		%input.submit(type="button" value="Login")

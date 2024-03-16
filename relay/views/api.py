@@ -81,7 +81,19 @@ class Login(View):
 
 			token = conn.put_token(data['username'])
 
-		return Response.new({'token': token['code']}, ctype = 'json')
+		resp = Response.new({'token': token['code']}, ctype = 'json')
+		resp.set_cookie(
+				'user-token',
+				token['code'],
+				max_age = 60 * 60 * 24 * 365,
+				domain = self.config.domain,
+				path = '/',
+				secure = True,
+				httponly = False,
+				samesite = 'lax'
+			)
+
+		return resp
 
 
 	async def delete(self, request: Request) -> Response:

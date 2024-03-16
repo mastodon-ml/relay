@@ -9,16 +9,16 @@
 		%summary << Add User
 		#add-item
 			%label(for="new-username") << Username
-			%input(id="new-username" name="username" placeholder="Username")
+			%input(id="new-username" name="username" placeholder="Username" autocomplete="off")
 
 			%label(for="new-password") << Password
-			%input(id="new-password" type="password" placeholder="Password")
+			%input(id="new-password" type="password" placeholder="Password" autocomplete="off")
 
 			%label(for="new-password2") << Password Again
-			%input(id="new-password2" type="password" placeholder="Password Again")
+			%input(id="new-password2" type="password" placeholder="Password Again" autocomplete="off")
 
 			%label(for="new-handle") << Handle
-			%input(id="new-handle" type="email" placeholder="handle")
+			%input(id="new-handle" type="email" placeholder="handle" autocomplete="off")
 
 		%input#new-user(type="button" value="Add User")
 
