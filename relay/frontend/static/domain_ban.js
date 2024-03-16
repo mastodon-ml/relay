@@ -40,7 +40,7 @@ async function ban() {
 	}
 
 	if (values.domain === "") {
-		alert("Domain is required");
+		toast("Domain is required");
 		return;
 	}
 
@@ -48,7 +48,7 @@ async function ban() {
 		var ban = await request("POST", "v1/domain_ban", values);
 
 	} catch (err) {
-		alert(err);
+		toast(err);
 		return
 	}
 
@@ -58,8 +58,6 @@ async function ban() {
 		remove: `<a href="#" title="Unban domain">&#10006;</a>`
 	});
 
-	console.log(row.querySelector(".update-ban"));
-	console.log(row.querySelector(".remove a"));
 	add_row_listeners(row);
 
 	elems.domain.value = null;
@@ -67,6 +65,7 @@ async function ban() {
 	elems.note.value = null;
 
 	document.querySelector("details.section").open = false;
+	toast("Banned domain", "message");
 }
 
 
@@ -88,11 +87,12 @@ async function update_ban(domain) {
 		await request("PATCH", "v1/domain_ban", values)
 
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
 	row.querySelector("details").open = false;
+	toast("Updated baned domain", "message");
 }
 
 
@@ -101,11 +101,12 @@ async function unban(domain) {
 		await request("DELETE", "v1/domain_ban", {"domain": domain});
 
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
 	document.getElementById(domain).remove();
+	toast("Unbanned domain", "message");
 }
 
 

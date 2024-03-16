@@ -13,7 +13,9 @@
 		%meta(name="viewport" content="width=device-width, initial-scale=1")
 		%link(rel="stylesheet" type="text/css" href="/theme/{{config.theme}}.css" nonce="{{view.request['hash']}}")
 		%link(rel="stylesheet" type="text/css" href="/static/style.css" nonce="{{view.request['hash']}}")
+		%link(rel="stylesheet" type="text/css" href="/static/toast.css" nonce="{{view.request['hash']}}")
 		%script(type="application/javascript" src="/static/menu.js" nonce="{{view.request['hash']}}", defer)
+		%script(type="application/javascript" src="/static/toast.js" nonce="{{view.request['hash']}}", defer)
 		%script(type="application/javascript" src="/static/api.js" nonce="{{view.request['hash']}}", defer)
 		-block head
 
@@ -36,6 +38,8 @@
 
 			-else
 				{{menu_item("Login", "/login")}}
+
+		%ul#notifications
 
 		#container
 			#header.section

@@ -35,7 +35,7 @@ async function add_instance() {
 	}
 
 	if (values.actor === "") {
-		alert("Actor is required");
+		toast("Actor is required");
 		return;
 	}
 
@@ -43,7 +43,7 @@ async function add_instance() {
 		var instance = await request("POST", "v1/instance", values);
 
 	} catch (err) {
-		alert(err);
+		toast(err);
 		return
 	}
 
@@ -62,6 +62,7 @@ async function add_instance() {
 	elems.software.value = null;
 
 	document.querySelector("details.section").open = false;
+	toast("Added instance", "message");
 }
 
 
@@ -70,7 +71,7 @@ async function del_instance(domain) {
 		await request("DELETE", "v1/instance", {"domain": domain});
 
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
@@ -88,7 +89,7 @@ async function req_response(domain, accept) {
 		await request("POST", "v1/request", params);
 
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
@@ -115,6 +116,8 @@ async function req_response(domain, accept) {
 			add_instance_listeners(row);
 		}
 	});
+
+	toast("Removed instance", "message");
 }
 
 

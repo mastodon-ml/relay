@@ -39,7 +39,7 @@ async function ban() {
 	}
 
 	if (values.name === "") {
-		alert("Domain is required");
+		toast("Domain is required");
 		return;
 	}
 
@@ -47,7 +47,7 @@ async function ban() {
 		var ban = await request("POST", "v1/software_ban", values);
 
 	} catch (err) {
-		alert(err);
+		toast(err);
 		return
 	}
 
@@ -64,6 +64,7 @@ async function ban() {
 	elems.note.value = null;
 
 	document.querySelector("details.section").open = false;
+	toast("Banned software", "message");
 }
 
 
@@ -85,11 +86,12 @@ async function update_ban(name) {
 		await request("PATCH", "v1/software_ban", values)
 
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
 	row.querySelector("details").open = false;
+	toast("Updated software ban", "message");
 }
 
 
@@ -98,11 +100,12 @@ async function unban(name) {
 		await request("DELETE", "v1/software_ban", {"name": name});
 
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
 	document.getElementById(name).remove();
+	toast("Unbanned software", "message");
 }
 
 

@@ -1,5 +1,4 @@
 function add_row_listeners(row) {
-	console.log(row);
 	row.querySelector(".remove a").addEventListener("click", async (event) => {
 		event.preventDefault();
 		await del_user(row.id);
@@ -23,12 +22,12 @@ async function add_user() {
 	}
 
 	if (values.username === "" | values.password === "" | values.password2 === "") {
-		alert("Username, password, and password2 are required");
+		toast("Username, password, and password2 are required");
 		return;
 	}
 
 	if (values.password !== values.password2) {
-		alert("Passwords do not match");
+		toast("Passwords do not match");
 		return;
 	}
 
@@ -36,7 +35,7 @@ async function add_user() {
 		var user = await request("POST", "v1/user", values);
 
 	} catch (err) {
-		alert(err);
+		toast(err);
 		return
 	}
 
@@ -55,6 +54,7 @@ async function add_user() {
 	elems.handle.value = null;
 
 	document.querySelector("details.section").open = false;
+	toast("Created user", "message");
 }
 
 
@@ -63,11 +63,12 @@ async function del_user(username) {
 		await request("DELETE", "v1/user", {"username": username});
  
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
 	document.getElementById(username).remove();
+	toast("Deleted user", "message");
 }
 
 

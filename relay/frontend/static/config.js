@@ -18,7 +18,7 @@ async function handle_config_change(event) {
 		await request("POST", "v1/config", params);
 
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
@@ -26,6 +26,8 @@ async function handle_config_change(event) {
 		document.querySelector("#header .title").innerHTML = params.value;
 		document.querySelector("title").innerHTML = params.value;
 	}
+
+	toast("Updated config", "message");
 }
 
 

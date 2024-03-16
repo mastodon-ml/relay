@@ -11,7 +11,7 @@ async function add_whitelist() {
 	var domain = domain_elem.value.trim();
 
 	if (domain === "") {
-		alert("Domain is required");
+		toast("Domain is required");
 		return;
 	}
 
@@ -19,8 +19,8 @@ async function add_whitelist() {
 		var item = await request("POST", "v1/whitelist", {"domain": domain});
 
 	} catch (err) {
-		alert(err);
-		return
+		toast(err);
+		return;
 	}
 
 	var row = append_table_row(document.getElementById("whitelist"), item.domain, {
@@ -33,6 +33,7 @@ async function add_whitelist() {
 
 	domain_elem.value = null;
 	document.querySelector("details.section").open = false;
+	toast("Added domain", "message");
 }
 
 
@@ -41,11 +42,12 @@ async function del_whitelist(domain) {
 		await request("DELETE", "v1/whitelist", {"domain": domain});
 
 	} catch (error) {
-		alert(error);
+		toast(error);
 		return;
 	}
 
 	document.getElementById(domain).remove();
+	toast("Removed domain", "message");
 }
 
 
