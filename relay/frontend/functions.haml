@@ -1,13 +1,13 @@
 -macro new_checkbox(name, checked)
 	-if checked
-		%input(id="{{name}}" name="{{name}}" type="checkbox" checked)
+		%input(id="{{name}}" type="checkbox" checked)
 
 	-else
-		%input(id="{{name}}" name="{{name}}" type="checkbox")
+		%input(id="{{name}}" type="checkbox")
 
 
 -macro new_select(name, selected, items)
-	%select(id="{{name}}" name="{{name}}")
+	%select(id="{{name}}")
 		-for item in items
 			-if item == selected
 				%option(value="{{item}}" selected) -> =item.title()

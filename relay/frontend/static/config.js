@@ -1,6 +1,6 @@
 const elems = [
 	document.querySelector("#name"),
-	document.querySelector("#description"),
+	document.querySelector("#note"),
 	document.querySelector("#theme"),
 	document.querySelector("#log-level"),
 	document.querySelector("#whitelist-enabled"),

@@ -11,10 +11,10 @@
 
 		.grid-2col
 			%label(for="name") << Name
-			%input(id = "name" name="name" placeholder="Relay Name" value="{{config.name or ''}}")
+			%input(id = "name" placeholder="Relay Name" value="{{config.name or ''}}")
 
-			%label(for="description") << Description
-			%textarea(id="description" name="note" value="{{config.note or ''}}") << {{config.note}}
+			%label(for="note") << Description
+			%textarea(id="note" value="{{config.note or ''}}") << {{config.note}}
 
 			%label(for="theme") << Color Theme
 			=func.new_select("theme", config.theme, themes)
