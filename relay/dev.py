@@ -9,6 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from . import __version__
+from . import logger as logging
 
 try:
 	from watchdog.observers import Observer
@@ -128,7 +129,7 @@ class WatchHandler(PatternMatchingEventHandler):
 		if self.proc.poll() is not None:
 			return
 
-		print(f'Terminating process {self.proc.pid}')
+		logging.info(f'Terminating process {self.proc.pid}')
 		self.proc.terminate()
 		sec = 0.0
 
@@ -137,11 +138,11 @@ class WatchHandler(PatternMatchingEventHandler):
 			sec += 0.1
 
 			if sec >= 5:
-				print('Failed to terminate. Killing process...')
+				logging.error('Failed to terminate. Killing process...')
 				self.proc.kill()
 				break
 
-		print('Process terminated')
+		logging.info('Process terminated')
 
 
 	def run_proc(self, restart=False):
@@ -154,15 +155,13 @@ class WatchHandler(PatternMatchingEventHandler):
 
 			self.kill_proc()
 
-		if self.dev:
-			self.proc = subprocess.Popen([*self.cmd, '-d'], stdin = subprocess.PIPE)
+		cmd = [*self.cmd, '-d'] if self.dev else self.cmd
 
-		else:
-			self.proc = subprocess.Popen(self.cmd, stdin = subprocess.PIPE)
-
+		self.proc = subprocess.Popen(cmd, stdin = subprocess.PIPE)
 		self.last_restart = timestamp
 
-		print(f'Started process with PID {self.proc.pid}')
+		logging.info('Started process with PID %i', self.proc.pid)
+		logging.info('Command: %s', ' '.join(cmd))
 
 
 	def on_any_event(self, event):
