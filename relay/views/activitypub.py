@@ -136,20 +136,20 @@ class ActorView(View):
 			if not digest.validate(body):
 				raise aputils.SignatureFailureError("Body digest does not match")
 
-		if self.signature.algorithm_type == "hs2019":
-			if "(created)" not in self.signature.headers:
-				raise aputils.SignatureFailureError("'(created)' header not used")
+		if self.signature.algorithm_type == aputils.AlgorithmType.HS2019:
+			if self.signature.created is None or self.signature.expires is None:
+				raise aputils.SignatureFailureError("Missing 'created' or 'expireds' parameter")
 
 			current_timestamp = aputils.HttpDate.new_utc().timestamp()
 
 			if self.signature.created > current_timestamp:
 				raise aputils.SignatureFailureError("Creation date after current date")
 
-			if current_timestamp > self.signature.expires:
-				raise aputils.SignatureFailureError("Expiration date before current date")
+			if self.signature.expires < current_timestamp:
+				raise aputils.SignatureFailureError("Signature has expired")
 
-			headers["(created)"] = self.signature.created
-			headers["(expires)"] = self.signature.expires
+			headers["(created)"] = str(self.signature.created)
+			headers["(expires)"] = str(self.signature.expires)
 
 		if not self.signer._validate_signature(headers, self.signature):
 			raise aputils.SignatureFailureError("Signature does not match")

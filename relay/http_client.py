@@ -149,7 +149,12 @@ class HttpClient:
 		return None
 
 
-	async def get(self, url: str, sign_headers: bool, cls: type[T], force: bool = False) -> T | None:
+	async def get(self,
+				url: str,
+				sign_headers: bool,
+				cls: type[T],
+				force: bool = False) -> T | None:
+
 		if not issubclass(cls, JsonBase):
 			raise TypeError('cls must be a sub-class of "aputils.JsonBase"')
 
@@ -174,12 +179,12 @@ class HttpClient:
 		headers.update(get_app().signer.sign_headers('POST', url, message, algorithm=algorithm))
 
 		try:
-			logging.verbose('Sending "%s" to %s', message.type, url)
+			logging.verbose('Sending "%s" to %s', message.type.value, url)
 
 			async with self._session.post(url, headers = headers, data = message.to_json()) as resp:
 				# Not expecting a response, so just return
 				if resp.status in {200, 202}:
-					logging.verbose('Successfully sent "%s" to %s', message.type, url)
+					logging.verbose('Successfully sent "%s" to %s', message.type.value, url)
 					return
 
 				logging.verbose('Received error when pushing to %s: %i', url, resp.status)

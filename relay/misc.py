@@ -130,10 +130,8 @@ class Message(aputils.Message):
 				description: str | None = None,
 				approves: bool = False) -> Self:
 
-		return cls({
-			'@context': 'https://www.w3.org/ns/activitystreams',
+		return cls.new(aputils.ObjectType.APPLICATION, {
 			'id': f'https://{host}/actor',
-			'type': 'Application',
 			'preferredUsername': 'relay',
 			'name': 'ActivityRelay',
 			'summary': description or 'ActivityRelay bot',
@@ -155,10 +153,8 @@ class Message(aputils.Message):
 
 	@classmethod
 	def new_announce(cls: type[Self], host: str, obj: str | dict[str, Any]) -> Self:
-		return cls({
-			'@context': 'https://www.w3.org/ns/activitystreams',
+		return cls.new(aputils.ObjectType.ANNOUNCE, {
 			'id': f'https://{host}/activities/{uuid4()}',
-			'type': 'Announce',
 			'to': [f'https://{host}/followers'],
 			'actor': f'https://{host}/actor',
 			'object': obj
@@ -167,22 +163,18 @@ class Message(aputils.Message):
 
 	@classmethod
 	def new_follow(cls: type[Self], host: str, actor: str) -> Self:
-		return cls({
-			'@context': 'https://www.w3.org/ns/activitystreams',
-			'type': 'Follow',
+		return cls.new(aputils.ObjectType.FOLLOW, {
+			'id': f'https://{host}/activities/{uuid4()}',
 			'to': [actor],
 			'object': actor,
-			'id': f'https://{host}/activities/{uuid4()}',
 			'actor': f'https://{host}/actor'
 		})
 
 
 	@classmethod
 	def new_unfollow(cls: type[Self], host: str, actor: str, follow: dict[str, str]) -> Self:
-		return cls({
-			'@context': 'https://www.w3.org/ns/activitystreams',
+		return cls.new(aputils.ObjectType.UNDO, {
 			'id': f'https://{host}/activities/{uuid4()}',
-			'type': 'Undo',
 			'to': [actor],
 			'actor': f'https://{host}/actor',
 			'object': follow
@@ -191,10 +183,8 @@ class Message(aputils.Message):
 
 	@classmethod
 	def new_response(cls: type[Self], host: str, actor: str, followid: str, accept: bool) -> Self:
-		return cls({
-			'@context': 'https://www.w3.org/ns/activitystreams',
+		return cls.new(aputils.ObjectType.ACCEPT if accept else aputils.ObjectType.REJECT, {
 			'id': f'https://{host}/activities/{uuid4()}',
-			'type': 'Accept' if accept else 'Reject',
 			'to': [actor],
 			'actor': f'https://{host}/actor',
 			'object': {

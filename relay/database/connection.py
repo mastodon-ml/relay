@@ -98,6 +98,8 @@ class Connection(SqlConnection):
 		with self.run('put-config', params):
 			pass
 
+		return data.get(key)
+
 
 	def get_inbox(self, value: str) -> Row:
 		with self.run('get-inbox', {'value': value}) as cur:
@@ -192,7 +194,7 @@ class Connection(SqlConnection):
 
 	def put_user(self, username: str, password: str | None, handle: str | None = None) -> Row:
 		if self.get_user(username):
-			data: dict[str, str] = {}
+			data: dict[str, str | datetime | None] = {}
 
 			if password:
 				data['hash'] = self.hasher.hash(password)
@@ -204,7 +206,7 @@ class Connection(SqlConnection):
 			stmt.set_where("username", username)
 
 			with self.query(stmt) as cur:
-				return cur.one()
+				return cur.one() # type: ignore
 
 		if password is None:
 			raise ValueError('Password cannot be empty')
