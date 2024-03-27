@@ -35,8 +35,8 @@ async def handle_relay(view: ActorView, conn: Connection) -> None:
 	message = Message.new_announce(view.config.domain, view.message.object_id)
 	logging.debug('>> relay: %s', message)
 
-	for inbox in conn.distill_inboxes(view.message):
-		view.app.push_message(inbox, message, view.instance)
+	for instance in conn.distill_inboxes(view.message):
+		view.app.push_message(instance["inbox"], message, instance)
 
 	view.cache.set('handle-relay', view.message.object_id, message.id, 'str')
 
@@ -53,8 +53,8 @@ async def handle_forward(view: ActorView, conn: Connection) -> None:
 	message = Message.new_announce(view.config.domain, view.message)
 	logging.debug('>> forward: %s', message)
 
-	for inbox in conn.distill_inboxes(view.message):
-		view.app.push_message(inbox, message, view.instance)
+	for instance in conn.distill_inboxes(view.message):
+		view.app.push_message(instance["inbox"], await view.request.read(), instance)
 
 	view.cache.set('handle-relay', view.message.id, message.id, 'str')
 

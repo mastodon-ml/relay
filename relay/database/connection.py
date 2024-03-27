@@ -42,15 +42,15 @@ class Connection(SqlConnection):
 		return get_app()
 
 
-	def distill_inboxes(self, message: Message) -> Iterator[str]:
+	def distill_inboxes(self, message: Message) -> Iterator[Row]:
 		src_domains = {
 			message.domain,
 			urlparse(message.object_id).netloc
 		}
 
-		for inbox in self.get_inboxes():
-			if inbox['domain'] not in src_domains:
-				yield inbox['inbox']
+		for instance in self.get_inboxes():
+			if instance['domain'] not in src_domains:
+				yield instance
 
 
 	def get_config(self, key: str) -> Any:
