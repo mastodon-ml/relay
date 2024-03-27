@@ -4,6 +4,7 @@ Description=ActivityPub Relay
 [Service]
 WorkingDirectory=/home/relay/relay
 ExecStart=/usr/bin/python3 -m relay run
+Environment="IS_SYSTEMD=1"
 
 [Install]
 WantedBy=multi-user.target

@@ -87,7 +87,7 @@ handlers: list[Any] = [logging.StreamHandler()]
 if env_log_file:
 	handlers.append(logging.FileHandler(env_log_file))
 
-if os.environ.get('INVOCATION_ID'):
+if os.environ.get('IS_SYSTEMD'):
 	logging_format = '%(levelname)s: %(message)s'
 
 else:
