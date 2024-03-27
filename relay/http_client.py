@@ -7,7 +7,7 @@ import typing
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
-from aputils import JsonBase, Nodeinfo, WellKnownNodeinfo
+from aputils import AlgorithmType, JsonBase, Nodeinfo, ObjectType, WellKnownNodeinfo
 from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
 
@@ -111,7 +111,7 @@ class HttpClient:
 		headers = {}
 
 		if sign_headers:
-			headers = self.signer.sign_headers('GET', url, algorithm = 'original')
+			headers = self.signer.sign_headers('GET', url, algorithm = AlgorithmType.HS2019)
 
 		try:
 			logging.debug('Fetching resource: %s', url)
@@ -164,31 +164,50 @@ class HttpClient:
 		return cls.parse(data)
 
 
-	async def post(self, url: str, message: Message, instance: Row | None = None) -> None:
+	async def post(self, url: str, data: Message | bytes, instance: Row | None = None) -> None:
 		if not self._session:
 			raise RuntimeError('Client not open')
 
-		# Using the old algo by default is probably a better idea right now
+		# akkoma and pleroma do not support HS2019 and other software still needs to be tested
 		if instance and instance['software'] in {'mastodon'}:
-			algorithm = 'hs2019'
+			algorithm = AlgorithmType.HS2019
 
 		else:
-			algorithm = 'original'
+			algorithm = AlgorithmType.RSASHA256
 
-		headers = {'Content-Type': 'application/activity+json'}
-		headers.update(get_app().signer.sign_headers('POST', url, message, algorithm=algorithm))
+		body: bytes
+		message: Message
+
+		if isinstance(data, bytes):
+			body = data
+			message = Message.parse(data)
+
+		else:
+			body = data.to_json().encode("utf-8")
+			message = data
+
+		mtype = message.type.value if isinstance(message.type, ObjectType) else message.type
+		headers = self.signer.sign_headers(
+			'POST',
+			url,
+			body,
+			headers = {'Content-Type': 'application/activity+json'},
+			algorithm = algorithm
+		)
 
 		try:
-			logging.verbose('Sending "%s" to %s', message.type.value, url)
+			logging.verbose('Sending "%s" to %s', mtype, url)
 
-			async with self._session.post(url, headers = headers, data = message.to_json()) as resp:
+			async with self._session.post(url, headers = headers, data = body) as resp:
 				# Not expecting a response, so just return
 				if resp.status in {200, 202}:
-					logging.verbose('Successfully sent "%s" to %s', message.type.value, url)
+					logging.verbose('Successfully sent "%s" to %s', mtype, url)
 					return
 
 				logging.verbose('Received error when pushing to %s: %i', url, resp.status)
 				logging.debug(await resp.read())
+				logging.debug("message: %s", body.decode("utf-8"))
+				logging.debug("headers: %s", json.dumps(headers, indent = 4))
 				return
 
 		except ClientSSLError:
