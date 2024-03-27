@@ -3,6 +3,7 @@ from __future__ import annotations
 import aputils
 import traceback
 import typing
+import json
 
 from .base import View, register_route
 
@@ -71,7 +72,7 @@ class ActorView(View):
 
 	async def get_post_data(self) -> Response | None:
 		try:
-			self.signature = aputils.Signature.new_from_signature(self.request.headers['signature'])
+			self.signature = aputils.Signature.parse(self.request.headers['signature'])
 
 		except KeyError:
 			logging.verbose('Missing signature header')
@@ -116,43 +117,13 @@ class ActorView(View):
 			return Response.new_error(400, 'actor missing public key', 'json')
 
 		try:
-			self.validate_signature(await self.request.read())
+			await self.signer.validate_aiohttp_request(self.request)
 
 		except aputils.SignatureFailureError as e:
 			logging.verbose('signature validation failed for "%s": %s', self.actor.id, e)
 			return Response.new_error(401, str(e), 'json')
 
 		return None
-
-
-	def validate_signature(self, body: bytes) -> None:
-		headers = {key.lower(): value for key, value in self.request.headers.items()}
-		headers["(request-target)"] = " ".join([self.request.method.lower(), self.request.path])
-
-		if (digest := aputils.Digest.new_from_digest(headers.get("digest"))):
-			if not body:
-				raise aputils.SignatureFailureError("Missing body for digest verification")
-
-			if not digest.validate(body):
-				raise aputils.SignatureFailureError("Body digest does not match")
-
-		if self.signature.algorithm_type == aputils.AlgorithmType.HS2019:
-			if self.signature.created is None or self.signature.expires is None:
-				raise aputils.SignatureFailureError("Missing 'created' or 'expireds' parameter")
-
-			current_timestamp = aputils.HttpDate.new_utc().timestamp()
-
-			if self.signature.created > current_timestamp:
-				raise aputils.SignatureFailureError("Creation date after current date")
-
-			if self.signature.expires < current_timestamp:
-				raise aputils.SignatureFailureError("Signature has expired")
-
-			headers["(created)"] = str(self.signature.created)
-			headers["(expires)"] = str(self.signature.expires)
-
-		if not self.signer._validate_signature(headers, self.signature):
-			raise aputils.SignatureFailureError("Signature does not match")
 
 
 @register_route('/.well-known/webfinger')

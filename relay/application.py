@@ -65,7 +65,7 @@ class Application(web.Application):
 
 		Application.DEFAULT = self
 
-		self['running'] = None
+		self['running'] = False
 		self['signer'] = None
 		self['start_time'] = None
 		self['cleanup_thread'] = None
@@ -142,7 +142,7 @@ class Application(web.Application):
 		return timedelta(seconds=uptime.seconds)
 
 
-	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
+	def push_message(self, inbox: str, message: Message | bytes, instance: Row) -> None:
 		self['push_queue'].put((inbox, message, instance))
 
 
