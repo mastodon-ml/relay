@@ -204,6 +204,37 @@ textarea {
 	text-align: center;
 }
 
+#notifications {
+	position: fixed;
+	top: 40px;
+	left: 50%;
+	transform: translateX(-50%);
+}
+
+#notifications li {
+	position: relative;
+	overflow: hidden;
+	list-style: none;
+	border-radius: 5px;
+	padding: 5px;;
+	margin-bottom: var(--spacing);
+	animation: show_toast 0.3s ease forwards;
+	display: grid;
+	grid-template-columns: auto max-content;
+	grid-gap: 5px;
+	align-items: center;
+}
+
+#notifications a {
+	font-size: 1.5em;
+	line-height: 1em;
+	text-decoration: none;
+}
+
+#notifications li.hide {
+	animation: hide_toast 0.3s ease forwards;
+}
+
 #footer {
 	display: grid;
 	grid-template-columns: auto auto;
@@ -293,6 +324,44 @@ textarea {
 /* config */
 #content.page-config input[type="checkbox"] {
 	justify-self: left;
+}
+
+
+@keyframes show_toast {
+	0% {
+		transform: translateX(100%);
+	}
+
+	40% {
+		transform: translateX(-5%);
+	}
+
+	80% {
+		transform: translateX(0%);
+	}
+
+	100% {
+		transform: translateX(-10px);
+	}
+}
+
+
+@keyframes hide_toast {
+	0% {
+		transform: translateX(-10px);
+	}
+
+	40% {
+		transform: translateX(0%);
+	}
+
+	80% {
+		transform: translateX(-5%);
+	}
+
+	100% {
+		transform: translateX(calc(100% + 20px));
+	}
 }
 
 

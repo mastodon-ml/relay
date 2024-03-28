@@ -1,3 +1,61 @@
+// toast notifications
+
+const notifications = document.querySelector("#notifications")
+
+
+function remove_toast(toast) {
+	toast.classList.add("hide");
+
+	if (toast.timeoutId) {
+		clearTimeout(toast.timeoutId);
+	}
+
+	setTimeout(() => toast.remove(), 300);
+}
+
+function toast(text, type="error", timeout=5) {
+	const toast = document.createElement("li");
+	toast.className = `section ${type}`
+	toast.innerHTML = `<span class=".text">${text}</span><a href="#">&#10006;</span>`
+
+	toast.querySelector("a").addEventListener("click", async (event) => {
+		event.preventDefault();
+		await remove_toast(toast);
+	});
+
+	notifications.appendChild(toast);
+	toast.timeoutId = setTimeout(() => remove_toast(toast), timeout * 1000);
+}
+
+
+// menu
+
+const body = document.getElementById("container")
+const menu = document.getElementById("menu");
+const menu_open = document.getElementById("menu-open");
+const menu_close = document.getElementById("menu-close");
+
+
+menu_open.addEventListener("click", (event) => {
+	var new_value = menu.attributes.visible.nodeValue === "true" ? "false" : "true";
+	menu.attributes.visible.nodeValue = new_value;
+});
+
+menu_close.addEventListener("click", (event) => {
+	menu.attributes.visible.nodeValue = "false"
+});
+
+body.addEventListener("click", (event) => {
+	if (event.target === menu_open) {
+		return;
+	}
+
+	menu.attributes.visible.nodeValue = "false";
+});
+
+
+// misc
+
 function get_date_string(date) {
 	var year = date.getFullYear().toString();
 	var month = date.getMonth().toString();
