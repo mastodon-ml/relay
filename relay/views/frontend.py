@@ -210,11 +210,27 @@ class AdminConfig(View):
 		return Response.new(data, ctype = 'html')
 
 
-@register_route('/style.css')
-class StyleCss(View):
+@register_route('/manifest.json')
+class ManifestJson(View):
 	async def get(self, request: Request) -> Response:
-		data = self.template.render('style.css', self)
-		return Response.new(data, ctype = 'css')
+		with self.database.session(False) as conn:
+			config = conn.get_config_all()
+			theme = THEMES[config.theme]
+
+		data = {
+			'background_color': theme['background'],
+			'categories': ['activitypub'],
+			'description': 'Message relay for the ActivityPub network',
+			'display': 'standalone',
+			'name': config['name'],
+			'orientation': 'portrait',
+			'scope': f"https://{self.config.domain}/",
+			'short_name': 'ActivityRelay',
+			'start_url': f"https://{self.config.domain}/",
+			'theme_color': theme['primary']
+		}
+
+		return Response.new(data, ctype = 'webmanifest')
 
 
 @register_route('/theme/{theme}.css')

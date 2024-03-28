@@ -38,7 +38,8 @@ MIMETYPES = {
 	'css': 'text/css',
 	'html': 'text/html',
 	'json': 'application/json',
-	'text': 'text/plain'
+	'text': 'text/plain',
+	'webmanifest': 'application/manifest+json'
 }
 
 NODEINFO_NS = {
