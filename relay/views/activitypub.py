@@ -3,7 +3,6 @@ from __future__ import annotations
 import aputils
 import traceback
 import typing
-import json
 
 from .base import View, register_route
 

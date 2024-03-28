@@ -100,6 +100,7 @@ async function req_response(domain, accept) {
 	}
 
 	if (!accept) {
+		toast("Denied instance request", "message");
 		return;
 	}
 
@@ -117,7 +118,7 @@ async function req_response(domain, accept) {
 		}
 	});
 
-	toast("Removed instance", "message");
+	toast("Accepted instance request", "message");
 }
 
 
