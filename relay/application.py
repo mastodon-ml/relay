@@ -315,11 +315,11 @@ class PushWorker(multiprocessing.Process):
 
 		while not self.shutdown.is_set():
 			try:
-				inbox, message, instance = self.queue.get(block=True, timeout=0.25)
-				await client.post(inbox, message, instance)
+				inbox, message, instance = self.queue.get(block=True, timeout=0.1)
+				asyncio.create_task(client.post(inbox, message, instance))
 
 			except Empty:
-				pass
+				await asyncio.sleep(0)
 
 			# make sure an exception doesn't bring down the worker
 			except Exception:
