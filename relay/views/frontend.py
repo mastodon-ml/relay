@@ -44,7 +44,7 @@ async def handle_frontend_path(request: web.Request, handler: Callable) -> Respo
 
 	response = await handler(request)
 
-	if not request['user'] and request['token']:
+	if not request.path.startswith('/api') and not request['user'] and request['token']:
 		response.del_cookie('user-token')
 
 	return response

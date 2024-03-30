@@ -62,6 +62,10 @@ class View(AbstractView):
 		return await handler(self.request, **self.request.match_info, **kwargs)
 
 
+	async def options(self, request: Request) -> Response:
+		return Response.new()
+
+
 	@cached_property
 	def allowed_methods(self) -> Sequence[str]:
 		return tuple(self.handlers.keys())

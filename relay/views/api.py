@@ -18,6 +18,12 @@ if typing.TYPE_CHECKING:
 	from typing import Any
 
 
+ALLOWED_HEADERS = {
+	'accept',
+	'authorization',
+	'content-type'
+}
+
 PUBLIC_API_PATHS: Sequence[tuple[str, str]] = (
 	('GET', '/api/v1/relay'),
 	('GET', '/api/v1/instance'),
@@ -48,14 +54,20 @@ async def handle_api_path(request: Request, handler: Callable) -> Response:
 		request['token'] = None
 		request['user'] = None
 
-	if check_api_path(request.method, request.path):
+	if request.method != "OPTIONS" and check_api_path(request.method, request.path):
 		if not request['token']:
 			return Response.new_error(401, 'Missing token', 'json')
 
 		if not request['user']:
 			return Response.new_error(401, 'Invalid token', 'json')
 
-	return await handler(request)
+	response = await handler(request)
+
+	if request.path.startswith('/api'):
+		response.headers['Access-Control-Allow-Origin'] = '*'
+		response.headers['Access-Control-Allow-Headers'] = ', '.join(ALLOWED_HEADERS)
+
+	return response
 
 
 @register_route('/api/v1/token')

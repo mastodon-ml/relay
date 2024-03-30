@@ -116,7 +116,7 @@ class ActorView(View):
 			return Response.new_error(400, 'actor missing public key', 'json')
 
 		try:
-			await self.signer.validate_aiohttp_request(self.request)
+			await self.signer.validate_request_async(self.request)
 
 		except aputils.SignatureFailureError as e:
 			logging.verbose('signature validation failed for "%s": %s', self.actor.id, e)

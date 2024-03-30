@@ -137,11 +137,13 @@ class HttpClient:
 			logging.verbose('Failed to parse JSON')
 			return None
 
-		except ClientSSLError:
+		except ClientSSLError as e:
 			logging.verbose('SSL error when connecting to %s', urlparse(url).netloc)
+			logging.warning(str(e))
 
-		except (AsyncTimeoutError, ClientConnectionError):
+		except (AsyncTimeoutError, ClientConnectionError) as e:
 			logging.verbose('Failed to connect to %s', urlparse(url).netloc)
+			logging.warning(str(e))
 
 		except Exception:
 			traceback.print_exc()
@@ -210,11 +212,13 @@ class HttpClient:
 				logging.debug("headers: %s", json.dumps(headers, indent = 4))
 				return
 
-		except ClientSSLError:
+		except ClientSSLError as e:
 			logging.warning('SSL error when pushing to %s', urlparse(url).netloc)
+			logging.warning(str(e))
 
-		except (AsyncTimeoutError, ClientConnectionError):
+		except (AsyncTimeoutError, ClientConnectionError) as e:
 			logging.warning('Failed to connect to %s for message push', urlparse(url).netloc)
+			logging.warning(str(e))
 
 		# prevent workers from being brought down
 		except Exception:
