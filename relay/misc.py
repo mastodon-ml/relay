@@ -18,8 +18,14 @@ except ImportError:
 	from importlib_resources import files as pkgfiles # type: ignore
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Self
+	from typing import Any
 	from .application import Application
+
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 T = typing.TypeVar('T')

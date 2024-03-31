@@ -9,7 +9,13 @@ from pathlib import Path
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Callable
-	from typing import Any, Self
+	from typing import Any
+
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 class LogLevel(IntEnum):

@@ -10,7 +10,13 @@ from ..misc import boolean
 if typing.TYPE_CHECKING:
 	from bsql import Row
 	from collections.abc import Callable, Sequence
-	from typing import Any, Self
+	from typing import Any
+
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 THEMES = {

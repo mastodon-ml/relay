@@ -13,7 +13,13 @@ from platformdirs import user_config_dir
 from .misc import IS_DOCKER
 
 if typing.TYPE_CHECKING:
-	from typing import Any, Self
+	from typing import Any
+
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 if platform.system() == 'Windows':

@@ -16,12 +16,18 @@ if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
 	from collections.abc import Callable, Generator, Sequence, Mapping
 	from bsql import Database
-	from typing import Any, Self
+	from typing import Any
 	from ..application import Application
 	from ..cache import Cache
 	from ..config import Config
 	from ..http_client import HttpClient
 	from ..template import Template
+
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 VIEWS: list[tuple[str, type[View]]] = []
