@@ -54,6 +54,8 @@ class Connection(SqlConnection):
 
 
 	def get_config(self, key: str) -> Any:
+		key = key.replace('_', '-')
+
 		with self.run('get-config', {'key': key}) as cur:
 			if not (row := cur.one()):
 				return ConfigData.DEFAULT(key)
@@ -72,10 +74,10 @@ class Connection(SqlConnection):
 		field = ConfigData.FIELD(key)
 		key = field.name.replace('_', '-')
 
-		if key == 'private_key':
+		if key == 'private-key':
 			self.app.signer = value
 
-		elif key == 'log_level':
+		elif key == 'log-level':
 			value = logging.LogLevel.parse(value)
 			logging.set_level(value)
 
