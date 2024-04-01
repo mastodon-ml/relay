@@ -54,6 +54,7 @@ case $1 in
 		COLS="%-22s %s\n"
 
 		echo "Valid commands:"
+
 		printf "$COLS" "- start" "Run the relay in the background"
 		printf "$COLS" "- stop" "Stop the relay"
 		printf "$COLS" "- manage <cmd> [args]" "Run a relay management command"
@@ -62,5 +63,8 @@ case $1 in
 		printf "$COLS" "- rescue" "Drop into a bash shell on a temp container with the data volume mounted"
 		printf "$COLS" "- install" "Build the image, create a new container and volume, and run relay setup"
 		printf "$COLS" "- uninstall" "Delete the relay image, container, and volume"
+
+		echo ""
+		echo "Note: This script may not work. It is recommended to manually install and manage the container if you know what you're doing."
 	;;
 esac

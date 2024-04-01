@@ -15,8 +15,23 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
+dependencies = [
+	"activitypub-utils == 0.2.1",
+	"aiohttp >= 3.9.1",
+	"aiohttp-swagger[performance] == 1.0.16",
+	"argon2-cffi == 23.1.0",
+	"barkshark-sql == 0.1.2",
+	"click >= 8.1.2",
+	"hiredis == 2.3.2",
+	"jinja2-haml == 0.3.5",
+	"markdown == 3.5.2",
+	"platformdirs == 4.2.0",
+	"pyyaml >= 6.0",
+	"redis == 5.0.1",
+	"importlib_resources == 6.1.1; python_version < '3.9'"
+]
 requires-python = ">=3.8"
-dynamic = ["version", "dependencies", "optional-dependencies"]
+dynamic = ["version"]
 
 [project.readme]
 file = "README.md"
@@ -29,6 +44,15 @@ Tracker = "https://git.pleroma.social/pleroma/relay/-/issues"
 
 [project.scripts]
 activityrelay = "relay.manage:main"
+
+[project.optional-dependencies]
+dev = [
+	"flake8 == 7.0.0",
+	"mypy == 1.9.0",
+	"pyinstaller == 6.3.0",
+	"watchdog == 4.0.0",
+	"typing_extensions >= 4.10.0; python_version < '3.11.0'"
+]
 
 [tool.setuptools]
 zip-safe = false
@@ -50,7 +74,6 @@ relay = [
 
 [tool.setuptools.dynamic]
 version = {attr = "relay.__version__"}
-dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.dynamic.optional-dependencies]
 dev = {file = ["dev-requirements.txt"]}
