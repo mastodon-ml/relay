@@ -53,15 +53,16 @@ def cli_install():
 	help = 'Automatically, re-run the linters on source change')
 def cli_lint(path: Path, strict: bool, watch: bool) -> None:
 	path = path.expanduser().resolve()
+
+	if watch:
+		handle_run_watcher([sys.executable, "-m", "relay.dev", "lint", str(path)], wait = True)
+		return
+
 	flake8 = [sys.executable, '-m', 'flake8', str(path)]
 	mypy = [sys.executable, '-m', 'mypy', str(path)]
 
 	if strict:
 		mypy.append('--strict')
-
-	if watch:
-		handle_run_watcher(mypy, flake8, wait = True)
-		return
 
 	click.echo('----- flake8 -----')
 	subprocess.run(flake8)
