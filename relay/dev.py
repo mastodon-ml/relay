@@ -1,5 +1,6 @@
 import click
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -46,13 +47,14 @@ def cli_install():
 
 
 @cli.command('lint')
-@click.argument('path', required = False, default = 'relay')
+@click.argument('path', required = False, type = Path, default = REPO.joinpath('relay'))
 @click.option('--strict', '-s', is_flag = True, help = 'Enable strict mode for mypy')
 @click.option('--watch', '-w', is_flag = True,
 	help = 'Automatically, re-run the linters on source change')
-def cli_lint(path: str, strict: bool, watch: bool) -> None:
-	flake8 = [sys.executable, '-m', 'flake8', path]
-	mypy = [sys.executable, '-m', 'mypy', path]
+def cli_lint(path: Path, strict: bool, watch: bool) -> None:
+	path = path.expanduser().resolve()
+	flake8 = [sys.executable, '-m', 'flake8', str(path)]
+	mypy = [sys.executable, '-m', 'mypy', str(path)]
 
 	if strict:
 		mypy.append('--strict')
@@ -66,6 +68,24 @@ def cli_lint(path: str, strict: bool, watch: bool) -> None:
 
 	click.echo('\n\n----- mypy -----')
 	subprocess.run(mypy)
+
+
+@cli.command('clean')
+def cli_clean():
+	dirs = {
+		'dist',
+		'build',
+		'dist-pypi'
+	}
+
+	for directory in dirs:
+		shutil.rmtree(directory, ignore_errors = True)
+
+	for path in REPO.glob('*.egg-info'):
+		shutil.rmtree(path)
+
+	for path in REPO.glob('*.spec'):
+		path.unlink()
 
 
 @cli.command('build')
