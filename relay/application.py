@@ -22,7 +22,7 @@ from .cache import get_cache
 from .config import Config
 from .database import get_database
 from .http_client import HttpClient
-from .misc import check_open_port, get_resource
+from .misc import IS_WINDOWS, check_open_port, get_resource
 from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
@@ -296,9 +296,14 @@ class CacheCleanupThread(Thread):
 
 class PushWorker(multiprocessing.Process):
 	def __init__(self, queue: multiprocessing.Queue):
+		if Application.DEFAULT is None:
+			raise RuntimeError('Application not setup yet')
+
 		multiprocessing.Process.__init__(self)
+
 		self.queue = queue
 		self.shutdown = multiprocessing.Event()
+		self.path = Application.DEFAULT.config.path
 
 
 	def stop(self) -> None:
@@ -310,8 +315,17 @@ class PushWorker(multiprocessing.Process):
 
 
 	async def handle_queue(self) -> None:
-		client = HttpClient()
-		client.open()
+		if IS_WINDOWS:
+			app = Application(self.path)
+			client = app.client
+
+			client.open()
+			app.database.connect()
+			app.cache.setup()
+
+		else:
+			client = HttpClient()
+			client.open()
 
 		while not self.shutdown.is_set():
 			try:
@@ -324,6 +338,10 @@ class PushWorker(multiprocessing.Process):
 			# make sure an exception doesn't bring down the worker
 			except Exception:
 				traceback.print_exc()
+
+		if IS_WINDOWS:
+			app.database.disconnect()
+			app.cache.close()
 
 		await client.close()
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import aputils
 import json
 import os
+import platform
 import socket
 import typing
 
@@ -38,6 +39,7 @@ ResponseType = typing.TypedDict('ResponseType', {
 })
 
 IS_DOCKER = bool(os.environ.get('DOCKER_RUNNING'))
+IS_WINDOWS = platform.system() == 'Windows'
 
 MIMETYPES = {
 	'activity': 'application/activity+json',
