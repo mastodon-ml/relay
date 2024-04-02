@@ -7,11 +7,9 @@ import time
 
 from datetime import datetime, timedelta
 from pathlib import Path
+from relay import __version__, logger as logging
 from tempfile import TemporaryDirectory
 from typing import Sequence
-
-from . import __version__
-from . import logger as logging
 
 try:
 	from watchdog.observers import Observer
@@ -22,8 +20,7 @@ except ImportError:
 		pass
 
 
-SCRIPT = Path(__file__).parent
-REPO = SCRIPT.parent
+REPO = Path(__file__).parent
 IGNORE_EXT = {
 	'.py',
 	'.pyc'
@@ -58,8 +55,8 @@ def cli_lint(path: Path, strict: bool, watch: bool) -> None:
 		handle_run_watcher([sys.executable, "-m", "relay.dev", "lint", str(path)], wait = True)
 		return
 
-	flake8 = [sys.executable, '-m', 'flake8', str(path)]
-	mypy = [sys.executable, '-m', 'mypy', str(path)]
+	flake8 = [sys.executable, '-m', 'flake8', "dev.py", str(path)]
+	mypy = [sys.executable, '-m', 'mypy', "dev.py", str(path)]
 
 	if strict:
 		mypy.append('--strict')
@@ -108,7 +105,7 @@ def cli_build():
 			cmd.append('--console')
 
 			# putting the spec path on a different drive than the source dir breaks
-			if str(SCRIPT)[0] == tmp[0]:
+			if str(REPO)[0] == tmp[0]:
 				cmd.extend(['--specpath', tmp])
 
 		else:
@@ -136,7 +133,7 @@ def handle_run_watcher(*commands: Sequence[str], wait: bool = False):
 	handler.run_procs()
 
 	watcher = Observer()
-	watcher.schedule(handler, str(SCRIPT), recursive=True)
+	watcher.schedule(handler, str(REPO), recursive=True)
 	watcher.start()
 
 	try:
@@ -149,7 +146,6 @@ def handle_run_watcher(*commands: Sequence[str], wait: bool = False):
 	handler.kill_procs()
 	watcher.stop()
 	watcher.join()
-
 
 
 class WatchHandler(PatternMatchingEventHandler):
