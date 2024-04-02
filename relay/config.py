@@ -33,7 +33,7 @@ else:
 DOCKER_VALUES = {
 	'listen': '0.0.0.0',
 	'port': 8080,
-	'sq_path': '/data/relay.jsonld'
+	'sq_path': '/data/relay.sqlite3'
 }
 
 
@@ -65,7 +65,7 @@ class Config:
 	rd_prefix: str = 'activityrelay'
 
 
-	def __init__(self, path: str | None = None, load: bool = False):
+	def __init__(self, path: Path | None = None, load: bool = False):
 		self.path = Config.get_config_dir(path)
 		self.reset()
 
@@ -92,9 +92,12 @@ class Config:
 
 
 	@staticmethod
-	def get_config_dir(path: str | None = None) -> Path:
-		if path:
-			return Path(path).expanduser().resolve()
+	def get_config_dir(path: Path | str | None = None) -> Path:
+		if isinstance(path, str):
+			path = Path(path)
+
+		if path is not None:
+			return path.expanduser().resolve()
 
 		paths = (
 			Path("relay.yaml").resolve(),

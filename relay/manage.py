@@ -32,24 +32,15 @@ def check_alphanumeric(text: str) -> str:
 	return text
 
 
-@click.group('cli', context_settings={'show_default': True}, invoke_without_command=True)
-@click.option('--config', '-c', help='path to the relay\'s config')
-@click.version_option(version=__version__, prog_name='ActivityRelay')
+@click.group('cli', context_settings = {'show_default': True})
+@click.option('--config', '-c', type = Path, help = 'path to the relay\'s config')
+@click.version_option(version = __version__, prog_name = 'ActivityRelay')
 @click.pass_context
-def cli(ctx: click.Context, config: str | None) -> None:
+def cli(ctx: click.Context, config: Path | None) -> None:
+	if IS_DOCKER:
+		config = Path("/data/relay.yaml")
+
 	ctx.obj = Application(config)
-
-	if not ctx.invoked_subcommand:
-		if ctx.obj.config.domain.endswith('example.com'):
-			cli_setup.callback() # type: ignore
-
-		else:
-			click.echo(
-				'[DEPRECATED] Running the relay without the "run" command will be removed in the ' +
-				'future.'
-			)
-
-			cli_run.callback() # type: ignore
 
 
 @cli.command('setup')
@@ -86,7 +77,7 @@ def cli_setup(ctx: click.Context) -> None:
 		type = click.Choice(['postgres', 'sqlite'], case_sensitive = False)
 	)
 
-	if ctx.obj.config.db_type == 'sqlite':
+	if ctx.obj.config.db_type == 'sqlite' and not IS_DOCKER:
 		ctx.obj.config.sq_path = click.prompt(
 			'Where should the database be stored?',
 			default = ctx.obj.config.sq_path
@@ -174,7 +165,11 @@ def cli_setup(ctx: click.Context) -> None:
 		for key, value in config.items():
 			conn.put_config(key, value)
 
-	if not IS_DOCKER and click.confirm('Relay all setup! Would you like to run it now?'):
+	if IS_DOCKER:
+		click.echo("Relay all setup! Start the container to run the relay.")
+		return
+
+	if click.confirm('Relay all setup! Would you like to run it now?'):
 		cli_run.callback() # type: ignore
 
 
@@ -185,10 +180,14 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 	'Run the relay'
 
 	if ctx.obj.config.domain.endswith('example.com') or not ctx.obj.signer:
-		click.echo(
-			'Relay is not set up. Please edit your relay config or run "activityrelay setup".'
-		)
+		if not IS_DOCKER:
+			click.echo(
+				'Relay is not set up. Please edit your relay config or run "activityrelay setup".'
+			)
 
+			return
+
+		cli_setup.callback() # type: ignore
 		return
 
 	vers_split = platform.python_version().split('.')

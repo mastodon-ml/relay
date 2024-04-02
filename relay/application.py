@@ -55,7 +55,7 @@ class Application(web.Application):
 	DEFAULT: Application | None = None
 
 
-	def __init__(self, cfgpath: str | None, dev: bool = False):
+	def __init__(self, cfgpath: Path | None, dev: bool = False):
 		web.Application.__init__(self,
 			middlewares = [
 				handle_api_path,

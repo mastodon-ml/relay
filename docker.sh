@@ -2,9 +2,21 @@
 
 case $1 in
 	install)
+		if [[ -z ${2#$} ]]; then
+			host=127.0.0.1
+		else
+			host=$2
+		fi
+
+		if [[ -z ${3#$} ]]; then
+			port=8080
+		else
+			port=$3
+		fi
+
 		docker build -f Dockerfile -t activityrelay . && \
 		docker volume create activityrelay-data && \
-		docker run -it -p 8080:8080 -v activityrelay-data:/data --name activityrelay activityrelay
+		docker run -it -p target=8080,published=${host}:${port} -v activityrelay-data:/data --name activityrelay activityrelay
 	;;
 
 	uninstall)
@@ -20,6 +32,10 @@ case $1 in
 
 	stop)
 		docker stop activityrelay
+	;;
+
+	restart)
+		docker restart activityrelay
 	;;
 
 	manage)
@@ -61,10 +77,7 @@ case $1 in
 		printf "$COLS" "- edit" "Edit the relay's config in \$EDITOR"
 		printf "$COLS" "- shell" "Drop into a bash shell on the running container"
 		printf "$COLS" "- rescue" "Drop into a bash shell on a temp container with the data volume mounted"
-		printf "$COLS" "- install" "Build the image, create a new container and volume, and run relay setup"
+		printf "$COLS" "- install [address] [port]" "Build the image, create a new container and volume, and run relay setup"
 		printf "$COLS" "- uninstall" "Delete the relay image, container, and volume"
-
-		echo ""
-		echo "Note: This script may not work. It is recommended to manually install and manage the container if you know what you're doing."
 	;;
 esac

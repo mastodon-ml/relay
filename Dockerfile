@@ -5,7 +5,7 @@ ENV DOCKER_RUNNING=true
 
 # setup various container properties
 VOLUME ["/data"]
-CMD ["python3", "-m", "relay"]
+CMD ["python3", "-m", "relay", "run"]
 EXPOSE 8080/tcp
 WORKDIR /opt/activityrelay
 
