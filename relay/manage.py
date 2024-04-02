@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import Crypto
 import aputils
 import asyncio
 import click
+import json
 import os
-import platform
 import typing
 
 from pathlib import Path
@@ -40,122 +39,144 @@ def cli(ctx: click.Context, config: Path | None) -> None:
 	if IS_DOCKER:
 		config = Path("/data/relay.yaml")
 
+		# The database was named "relay.jsonld" even though it's an sqlite file. Fix it.
+		db = Path('/data/relay.sqlite3')
+		wrongdb = Path('/data/relay.jsonld')
+
+		if wrongdb.exists() and not db.exists():
+			try:
+				with wrongdb.open('rb') as fd:
+					json.load(fd)
+
+			except json.JSONDecodeError:
+				wrongdb.rename(db)
+
 	ctx.obj = Application(config)
 
 
 @cli.command('setup')
+@click.option('--skip-questions', '-s', is_flag = True, help = 'Just setup the database')
 @click.pass_context
-def cli_setup(ctx: click.Context) -> None:
+def cli_setup(ctx: click.Context, skip_questions: bool) -> None:
 	'Generate a new config and create the database'
 
-	while True:
-		ctx.obj.config.domain = click.prompt(
-			'What domain will the relay be hosted on?',
-			default = ctx.obj.config.domain
+	if ctx.obj.signer is not None:
+		if not click.prompt('The database is already setup. Are you sure you want to continue?'):
+			return
+
+	if skip_questions and ctx.obj.config.domain.endswith('example.com'):
+		click.echo('You cannot skip the questions if the relay is not configured yet')
+		return
+
+	if not skip_questions:
+		while True:
+			ctx.obj.config.domain = click.prompt(
+				'What domain will the relay be hosted on?',
+				default = ctx.obj.config.domain
+			)
+
+			if not ctx.obj.config.domain.endswith('example.com'):
+				break
+
+			click.echo('The domain must not end with "example.com"')
+
+		if not IS_DOCKER:
+			ctx.obj.config.listen = click.prompt(
+				'Which address should the relay listen on?',
+				default = ctx.obj.config.listen
+			)
+
+			ctx.obj.config.port = click.prompt(
+				'What TCP port should the relay listen on?',
+				default = ctx.obj.config.port,
+				type = int
+			)
+
+		ctx.obj.config.db_type = click.prompt(
+			'Which database backend will be used?',
+			default = ctx.obj.config.db_type,
+			type = click.Choice(['postgres', 'sqlite'], case_sensitive = False)
 		)
 
-		if not ctx.obj.config.domain.endswith('example.com'):
-			break
+		if ctx.obj.config.db_type == 'sqlite' and not IS_DOCKER:
+			ctx.obj.config.sq_path = click.prompt(
+				'Where should the database be stored?',
+				default = ctx.obj.config.sq_path
+			)
 
-		click.echo('The domain must not end with "example.com"')
+		elif ctx.obj.config.db_type == 'postgres':
+			ctx.obj.config.pg_name = click.prompt(
+				'What is the name of the database?',
+				default = ctx.obj.config.pg_name
+			)
 
-	if not IS_DOCKER:
-		ctx.obj.config.listen = click.prompt(
-			'Which address should the relay listen on?',
-			default = ctx.obj.config.listen
+			ctx.obj.config.pg_host = click.prompt(
+				'What IP address, hostname, or unix socket does the server listen on?',
+				default = ctx.obj.config.pg_host,
+				type = int
+			)
+
+			ctx.obj.config.pg_port = click.prompt(
+				'What port does the server listen on?',
+				default = ctx.obj.config.pg_port,
+				type = int
+			)
+
+			ctx.obj.config.pg_user = click.prompt(
+				'Which user will authenticate with the server?',
+				default = ctx.obj.config.pg_user
+			)
+
+			ctx.obj.config.pg_pass = click.prompt(
+				'User password',
+				hide_input = True,
+				show_default = False,
+				default = ctx.obj.config.pg_pass or ""
+			) or None
+
+		ctx.obj.config.ca_type = click.prompt(
+			'Which caching backend?',
+			default = ctx.obj.config.ca_type,
+			type = click.Choice(['database', 'redis'], case_sensitive = False)
 		)
 
-		ctx.obj.config.port = click.prompt(
-			'What TCP port should the relay listen on?',
-			default = ctx.obj.config.port,
-			type = int
-		)
+		if ctx.obj.config.ca_type == 'redis':
+			ctx.obj.config.rd_host = click.prompt(
+				'What IP address, hostname, or unix socket does the server listen on?',
+				default = ctx.obj.config.rd_host
+			)
 
-	ctx.obj.config.db_type = click.prompt(
-		'Which database backend will be used?',
-		default = ctx.obj.config.db_type,
-		type = click.Choice(['postgres', 'sqlite'], case_sensitive = False)
-	)
+			ctx.obj.config.rd_port = click.prompt(
+				'What port does the server listen on?',
+				default = ctx.obj.config.rd_port,
+				type = int
+			)
 
-	if ctx.obj.config.db_type == 'sqlite' and not IS_DOCKER:
-		ctx.obj.config.sq_path = click.prompt(
-			'Where should the database be stored?',
-			default = ctx.obj.config.sq_path
-		)
+			ctx.obj.config.rd_user = click.prompt(
+				'Which user will authenticate with the server',
+				default = ctx.obj.config.rd_user
+			)
 
-	elif ctx.obj.config.db_type == 'postgres':
-		ctx.obj.config.pg_name = click.prompt(
-			'What is the name of the database?',
-			default = ctx.obj.config.pg_name
-		)
+			ctx.obj.config.rd_pass = click.prompt(
+				'User password',
+				hide_input = True,
+				show_default = False,
+				default = ctx.obj.config.rd_pass or ""
+			) or None
 
-		ctx.obj.config.pg_host = click.prompt(
-			'What IP address, hostname, or unix socket does the server listen on?',
-			default = ctx.obj.config.pg_host,
-			type = int
-		)
+			ctx.obj.config.rd_database = click.prompt(
+				'Which database number to use?',
+				default = ctx.obj.config.rd_database,
+				type = int
+			)
 
-		ctx.obj.config.pg_port = click.prompt(
-			'What port does the server listen on?',
-			default = ctx.obj.config.pg_port,
-			type = int
-		)
+			ctx.obj.config.rd_prefix = click.prompt(
+				'What text should each cache key be prefixed with?',
+				default = ctx.obj.config.rd_database,
+				type = check_alphanumeric
+			)
 
-		ctx.obj.config.pg_user = click.prompt(
-			'Which user will authenticate with the server?',
-			default = ctx.obj.config.pg_user
-		)
-
-		ctx.obj.config.pg_pass = click.prompt(
-			'User password',
-			hide_input = True,
-			show_default = False,
-			default = ctx.obj.config.pg_pass or ""
-		) or None
-
-	ctx.obj.config.ca_type = click.prompt(
-		'Which caching backend?',
-		default = ctx.obj.config.ca_type,
-		type = click.Choice(['database', 'redis'], case_sensitive = False)
-	)
-
-	if ctx.obj.config.ca_type == 'redis':
-		ctx.obj.config.rd_host = click.prompt(
-			'What IP address, hostname, or unix socket does the server listen on?',
-			default = ctx.obj.config.rd_host
-		)
-
-		ctx.obj.config.rd_port = click.prompt(
-			'What port does the server listen on?',
-			default = ctx.obj.config.rd_port,
-			type = int
-		)
-
-		ctx.obj.config.rd_user = click.prompt(
-			'Which user will authenticate with the server',
-			default = ctx.obj.config.rd_user
-		)
-
-		ctx.obj.config.rd_pass = click.prompt(
-			'User password',
-			hide_input = True,
-			show_default = False,
-			default = ctx.obj.config.rd_pass or ""
-		) or None
-
-		ctx.obj.config.rd_database = click.prompt(
-			'Which database number to use?',
-			default = ctx.obj.config.rd_database,
-			type = int
-		)
-
-		ctx.obj.config.rd_prefix = click.prompt(
-			'What text should each cache key be prefixed with?',
-			default = ctx.obj.config.rd_database,
-			type = check_alphanumeric
-		)
-
-	ctx.obj.config.save()
+		ctx.obj.config.save()
 
 	config = {
 		'private-key': aputils.Signer.new('n/a').export()
@@ -179,32 +200,13 @@ def cli_setup(ctx: click.Context) -> None:
 def cli_run(ctx: click.Context, dev: bool = False) -> None:
 	'Run the relay'
 
-	if ctx.obj.config.domain.endswith('example.com') or not ctx.obj.signer:
+	if ctx.obj.config.domain.endswith('example.com') or ctx.obj.signer is None:
 		if not IS_DOCKER:
-			click.echo(
-				'Relay is not set up. Please edit your relay config or run "activityrelay setup".'
-			)
+			click.echo('Relay is not set up. Please run "activityrelay setup".')
 
 			return
 
 		cli_setup.callback() # type: ignore
-		return
-
-	vers_split = platform.python_version().split('.')
-	pip_command = 'pip3 uninstall pycrypto && pip3 install pycryptodome'
-
-	if Crypto.__version__ == '2.6.1':
-		if int(vers_split[1]) > 7:
-			click.echo(
-				'Error: PyCrypto is broken on Python 3.8+. Please replace it with pycryptodome ' +
-				'before running again. Exiting...'
-			)
-
-			click.echo(pip_command)
-			return
-
-		click.echo('Warning: PyCrypto is old and should be replaced with pycryptodome')
-		click.echo(pip_command)
 		return
 
 	ctx.obj['dev'] = dev
