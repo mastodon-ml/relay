@@ -154,6 +154,8 @@ When enabled, instances that try to follow the relay will have to be manually ap
 
 Maximum level of messages to log.
 
+Note: Changing this setting via CLI does not actually take effect until restart.
+
 Valid values: `DEBUG`, `VERBOSE`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
 
 	log-level: INFO
