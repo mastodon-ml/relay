@@ -13,9 +13,9 @@ the [official pipx docs](https://pypa.github.io/pipx/installation/) for more in-
 
 	python3 -m pip install pipx
 
-Now simply install ActivityRelay directly from git
+Now simply install ActivityRelay from pypi
 
-	pipx install git+https://git.pleroma.social/pleroma/relay@0.3.0
+	pipx install activityrelay
 
 Or from a cloned git repo.
 
@@ -36,10 +36,9 @@ be installed via [pyenv](https://github.com/pyenv/pyenv).
 
 ## Pip
 
-The instructions for installation via pip are very similar to pipx. Installation can be done from
-git
+The instructions for installation via pip are very similar to pipx
 
-	python3 -m pip install git+https://git.pleroma.social/pleroma/relay@0.3.0
+	python3 -m pip install activityrelay
 
 or a cloned git repo.
 
@@ -58,10 +57,11 @@ And start the relay when finished
 
 Installation and management via Docker can be handled with the `docker.sh` script. To install
 ActivityRelay, run the install command. Once the image is built and the container is created,
-your will be asked to fill out some config options for your relay.
+you will be asked to fill out some config options for your relay. An address and port can be
+specified to change what the relay listens on.
 
-	./docker.sh install
+	./docker.sh install 0.0.0.0 6942
 
-Finally start it up. It will be listening on TCP port 8080.
+Finally start it up. It will be listening on TCP localhost:8080 by default.
 
 	./docker.sh start
