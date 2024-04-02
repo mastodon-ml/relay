@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import typing
 
-from bsql import Column, Connection, Table, Tables
+from bsql import Column, Table, Tables
 
-from .config import get_default_value
+from .config import ConfigData
 
 if typing.TYPE_CHECKING:
 	from collections.abc import Callable
+	from .connection import Connection
 
 
 VERSIONS: dict[int, Callable] = {}
@@ -25,6 +26,7 @@ TABLES: Tables = Tables(
 		Column('inbox', 'text', unique = True, nullable = False),
 		Column('followid', 'text'),
 		Column('software', 'text'),
+		Column('accepted', 'boolean'),
 		Column('created', 'timestamp', nullable = False)
 	),
 	Table(
@@ -70,9 +72,15 @@ def migration(func: Callable) -> Callable:
 
 def migrate_0(conn: Connection) -> None:
 	conn.create_tables()
-	conn.put_config('schema-version', get_default_value('schema-version'))
+	conn.put_config('schema-version', ConfigData.DEFAULT('schema-version'))
 
 
 @migration
 def migrate_20240206(conn: Connection) -> None:
 	conn.create_tables()
+
+
+@migration
+def migrate_20240310(conn: Connection) -> None:
+	conn.execute("ALTER TABLE inboxes ADD COLUMN accepted BOOLEAN")
+	conn.execute("UPDATE inboxes SET accepted = 1")

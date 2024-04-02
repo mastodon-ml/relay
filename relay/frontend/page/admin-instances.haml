@@ -1,44 +1,81 @@
 -extends "base.haml"
 -set page="Instances"
+
+-block head
+	%script(type="application/javascript" src="/static/instance.js" nonce="{{view.request['hash']}}" defer)
+
 -block content
 	%details.section
 		%summary << Add Instance
-		%form(action="/admin/instances" method="POST")
-			#add-item
-				%label(for="domain") << Domain
-				%input(type="domain" id="domain" name="domain" placeholder="Domain")
+		#add-item
+			%label(for="new-actor") << Actor
+			%input(type="url" id="new-actor" placeholder="Actor URL")
 
-				%label(for="actor") << Actor URL
-				%input(type="url" id="actor" name="actor" placeholder="Actor URL")
+			%label(for="new-inbox") << Inbox
+			%input(type="url" id="new-inbox" placeholder="Inbox URL")
 
-				%label(for="inbox") << Inbox URL
-				%input(type="url" id="inbox" name="inbox" placeholder="Inbox URL")
+			%label(for="new-followid") << Follow ID
+			%input(type="url" id="new-followid" placeholder="Follow ID URL")
 
-				%label(for="software") << Software
-				%input(name="software" id="software" placeholder="software")
+			%label(for="new-software") << Software
+			%input(id="new-software" placeholder="software")
 
-			%input(type="submit" value="Add Instance")
+		%input#add-instance(type="button" value="Add Instance")
 
-	#data-table.section
-		%table
-			%thead
-				%tr
-					%td.instance << Instance
-					%td.software << Software
-					%td.date << Joined
-					%td.remove
+	-if requests
+		%fieldset.section.requests
+			%legend << Follow Requests
+			.data-table
+				%table#requests
+					%thead
+						%tr
+							%td.instance << Instance
+							%td.software << Software
+							%td.date << Joined
+							%td.approve
+							%td.deny
 
-			%tbody
-				-for instance in instances
+					%tbody
+						-for request in requests
+							%tr(id="{{request.domain}}")
+								%td.instance
+									%a(href="https://{{request.domain}}" target="_new") -> =request.domain
+
+								%td.software
+									=request.software or "n/a"
+
+								%td.date
+									=request.created.strftime("%Y-%m-%d")
+
+								%td.approve
+									%a(href="#" title="Approve Request") << &check;
+									
+								%td.deny
+									%a(href="#" title="Deny Request") << &#10006;
+
+	%fieldset.section.instances
+		%legend << Instances
+
+		.data-table
+			%table#instances
+				%thead
 					%tr
-						%td.instance
-							%a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain
-
-						%td.software
-							=instance.software or "n/a"
-
-						%td.date
-							=instance.created.strftime("%Y-%m-%d")
-
+						%td.instance << Instance
+						%td.software << Software
+						%td.date << Joined
 						%td.remove
-							%a(href="/admin/instances/delete/{{instance.domain}}" title="Remove Instance") << &#10006;
+
+				%tbody
+					-for instance in instances
+						%tr(id="{{instance.domain}}")
+							%td.instance
+								%a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain
+
+							%td.software
+								=instance.software or "n/a"
+
+							%td.date
+								=instance.created.strftime("%Y-%m-%d")
+
+							%td.remove
+								%a(href="#" title="Remove Instance") << &#10006;

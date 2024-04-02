@@ -8,9 +8,12 @@ import traceback
 import typing
 
 from aiohttp import web
+from aiohttp.web import StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
 from datetime import datetime, timedelta
+from mimetypes import guess_type
+from pathlib import Path
 from queue import Empty
 from threading import Event, Thread
 
@@ -26,18 +29,33 @@ from .views.api import handle_api_path
 from .views.frontend import handle_frontend_path
 
 if typing.TYPE_CHECKING:
-	from collections.abc import Coroutine
-	from tinysql import Database, Row
+	from collections.abc import Callable
+	from bsql import Database, Row
 	from .cache import Cache
 	from .misc import Message, Response
 
 
-# pylint: disable=unsubscriptable-object
+def get_csp(request: web.Request) -> str:
+	data = [
+		"default-src 'none'",
+		f"script-src 'nonce-{request['hash']}'",
+		f"style-src 'self' 'nonce-{request['hash']}'",
+		"form-action 'self'",
+		"connect-src 'self'",
+		"img-src 'self'",
+		"object-src 'none'",
+		"frame-ancestors 'none'",
+		f"manifest-src 'self' https://{request.app['config'].domain}"
+	]
+
+	return '; '.join(data) + ';'
+
 
 class Application(web.Application):
-	DEFAULT: Application = None
+	DEFAULT: Application | None = None
 
-	def __init__(self, cfgpath: str | None, dev: bool = False):
+
+	def __init__(self, cfgpath: Path | None, dev: bool = False):
 		web.Application.__init__(self,
 			middlewares = [
 				handle_api_path,
@@ -48,7 +66,7 @@ class Application(web.Application):
 
 		Application.DEFAULT = self
 
-		self['running'] = None
+		self['running'] = False
 		self['signer'] = None
 		self['start_time'] = None
 		self['cleanup_thread'] = None
@@ -64,14 +82,13 @@ class Application(web.Application):
 		self['workers'] = []
 
 		self.cache.setup()
-
-		# self.on_response_prepare.append(handle_access_log)
-		self.on_cleanup.append(handle_cleanup)
+		self.on_cleanup.append(handle_cleanup) # type: ignore
 
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
 
-		setup_swagger(self,
+		setup_swagger(
+			self,
 			ui_version = 3,
 			swagger_from_file = get_resource('data/swagger.yaml')
 		)
@@ -112,6 +129,11 @@ class Application(web.Application):
 
 
 	@property
+	def template(self) -> Template:
+		return self['template']
+
+
+	@property
 	def uptime(self) -> timedelta:
 		if not self['start_time']:
 			return timedelta(seconds=0)
@@ -121,8 +143,18 @@ class Application(web.Application):
 		return timedelta(seconds=uptime.seconds)
 
 
-	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
+	def push_message(self, inbox: str, message: Message | bytes, instance: Row) -> None:
 		self['push_queue'].put((inbox, message, instance))
+
+
+	def register_static_routes(self) -> None:
+		if self['dev']:
+			static = StaticResource('/static', get_resource('frontend/static'))
+
+		else:
+			static = CachedStaticResource('/static', get_resource('frontend/static'))
+
+		self.router.register_resource(static)
 
 
 	def run(self) -> None:
@@ -136,6 +168,8 @@ class Application(web.Application):
 		if not check_open_port(host, port):
 			logging.error(f'A server is already running on {host}:{port}')
 			return
+
+		self.register_static_routes()
 
 		logging.info(f'Starting webserver at {domain} ({host}:{port})')
 		asyncio.run(self.handle_run())
@@ -160,6 +194,7 @@ class Application(web.Application):
 
 		self.set_signal_handler(True)
 
+		self['client'].open()
 		self['database'].connect()
 		self['cache'].setup()
 		self['cleanup_thread'] = CacheCleanupThread(self)
@@ -174,7 +209,8 @@ class Application(web.Application):
 		runner = web.AppRunner(self, access_log_format='%{X-Forwarded-For}i "%r" %s %b "%{User-Agent}i"')
 		await runner.setup()
 
-		site = web.TCPSite(runner,
+		site = web.TCPSite(
+			runner,
 			host = self.config.listen,
 			port = self.config.port,
 			reuse_address = True
@@ -188,7 +224,7 @@ class Application(web.Application):
 
 		await site.stop()
 
-		for worker in self['workers']: # pylint: disable=not-an-iterable
+		for worker in self['workers']:
 			worker.stop()
 
 		self.set_signal_handler(False)
@@ -199,6 +235,39 @@ class Application(web.Application):
 		self['workers'].clear()
 		self['database'].disconnect()
 		self['cache'].close()
+
+
+class CachedStaticResource(StaticResource):
+	def __init__(self, prefix: str, path: Path):
+		StaticResource.__init__(self, prefix, path)
+
+		self.cache: dict[str, bytes] = {}
+
+		for filename in path.rglob('*'):
+			if filename.is_dir():
+				continue
+
+			rel_path = str(filename.relative_to(path))
+
+			with filename.open('rb') as fd:
+				logging.debug('Loading static resource "%s"', rel_path)
+				self.cache[rel_path] = fd.read()
+
+
+	async def _handle(self, request: web.Request) -> web.StreamResponse:
+		rel_url = request.match_info['filename']
+
+		if Path(rel_url).anchor:
+			raise web.HTTPForbidden()
+
+		try:
+			return web.Response(
+				body = self.cache[rel_url],
+				content_type = guess_type(rel_url)[0]
+			)
+
+		except KeyError:
+			raise web.HTTPNotFound()
 
 
 class CacheCleanupThread(Thread):
@@ -242,16 +311,17 @@ class PushWorker(multiprocessing.Process):
 
 	async def handle_queue(self) -> None:
 		client = HttpClient()
+		client.open()
 
 		while not self.shutdown.is_set():
 			try:
-				inbox, message, instance = self.queue.get(block=True, timeout=0.25)
-				await client.post(inbox, message, instance)
+				inbox, message, instance = self.queue.get(block=True, timeout=0.1)
+				asyncio.create_task(client.post(inbox, message, instance))
 
 			except Empty:
-				pass
+				await asyncio.sleep(0)
 
-			## make sure an exception doesn't bring down the worker
+			# make sure an exception doesn't bring down the worker
 			except Exception:
 				traceback.print_exc()
 
@@ -259,9 +329,13 @@ class PushWorker(multiprocessing.Process):
 
 
 @web.middleware
-async def handle_response_headers(request: web.Request, handler: Coroutine) -> Response:
+async def handle_response_headers(request: web.Request, handler: Callable) -> Response:
 	resp = await handler(request)
 	resp.headers['Server'] = 'ActivityRelay'
+
+	# Still have to figure out how csp headers work
+	if resp.content_type == 'text/html' and not request.path.startswith("/api"):
+		resp.headers['Content-Security-Policy'] = get_csp(request)
 
 	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
 		# cache for 2 weeks

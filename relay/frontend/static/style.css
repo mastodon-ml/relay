@@ -23,9 +23,27 @@ details summary {
 	cursor: pointer;
 }
 
+fieldset {
+	margin-left: 0px;
+	margin-right: 0px;
+}
+
+fieldset > *:nth-child(2) {
+	margin-top: 0px !important;
+}
+
 form input[type="submit"] {
 	display: block;
 	margin: 0 auto;
+}
+
+legend {
+	background-color: var(--table-background);
+	padding: 5px;
+	border: 1px solid var(--border);
+	border-radius: 5px;
+	font-size: 10pt;
+	font-weight: bold;
 }
 
 p {
@@ -89,6 +107,17 @@ textarea {
 #container {
 	width: 1024px;
 	margin: 0px auto;
+}
+
+#content .title {
+	font-size: 24px;
+	text-align: center;
+	font-weight: bold;
+	margin-bottom: 10px;
+}
+
+#content .title:not(:first-child) {
+	margin-top: 10px;
 }
 
 #header {
@@ -175,6 +204,37 @@ textarea {
 	text-align: center;
 }
 
+#notifications {
+	position: fixed;
+	top: 40px;
+	left: 50%;
+	transform: translateX(-50%);
+}
+
+#notifications li {
+	position: relative;
+	overflow: hidden;
+	list-style: none;
+	border-radius: 5px;
+	padding: 5px;;
+	margin-bottom: var(--spacing);
+	animation: show_toast 0.3s ease forwards;
+	display: grid;
+	grid-template-columns: auto max-content;
+	grid-gap: 5px;
+	align-items: center;
+}
+
+#notifications a {
+	font-size: 1.5em;
+	line-height: 1em;
+	text-decoration: none;
+}
+
+#notifications li.hide {
+	animation: hide_toast 0.3s ease forwards;
+}
+
 #footer {
 	display: grid;
 	grid-template-columns: auto auto;
@@ -193,15 +253,6 @@ textarea {
 	align-items: center;
 }
 
-#data-table td:first-child {
-	width: 100%;
-}
-
-#data-table .date {
-	width: max-content;
-	text-align: right;
-}
-
 .button {
 	background-color: var(--primary);
 	border: 1px solid var(--primary);
@@ -218,6 +269,15 @@ textarea {
 .container {
 	display: grid;
 	grid-template-columns: max-content auto;
+}
+
+.data-table td:first-child {
+	width: 100%;
+}
+
+.data-table .date {
+	width: max-content;
+	text-align: right;
 }
 
 .error, .message {
@@ -264,6 +324,44 @@ textarea {
 /* config */
 #content.page-config input[type="checkbox"] {
 	justify-self: left;
+}
+
+
+@keyframes show_toast {
+	0% {
+		transform: translateX(100%);
+	}
+
+	40% {
+		transform: translateX(-5%);
+	}
+
+	80% {
+		transform: translateX(0%);
+	}
+
+	100% {
+		transform: translateX(-10px);
+	}
+}
+
+
+@keyframes hide_toast {
+	0% {
+		transform: translateX(-10px);
+	}
+
+	40% {
+		transform: translateX(0%);
+	}
+
+	80% {
+		transform: translateX(-5%);
+	}
+
+	100% {
+		transform: translateX(calc(100% + 20px));
+	}
 }
 
 

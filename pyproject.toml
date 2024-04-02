@@ -1,56 +1,90 @@
 [build-system]
-requires = ["setuptools","wheel"]
-build-backend = 'setuptools.build_meta'
+requires = ["setuptools>=61.2"]
+build-backend = "setuptools.build_meta"
 
+[project]
+name = "ActivityRelay"
+description = "Generic LitePub relay (works with all LitePub consumers and Mastodon)"
+license = {text = "AGPLv3"}
+classifiers = [
+    "Environment :: Console",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+	"activitypub-utils == 0.2.1",
+	"aiohttp >= 3.9.1",
+	"aiohttp-swagger[performance] == 1.0.16",
+	"argon2-cffi == 23.1.0",
+	"barkshark-sql == 0.1.2",
+	"click >= 8.1.2",
+	"hiredis == 2.3.2",
+	"jinja2-haml == 0.3.5",
+	"markdown == 3.5.2",
+	"platformdirs == 4.2.0",
+	"pyyaml >= 6.0",
+	"redis == 5.0.1",
+	"importlib_resources == 6.1.1; python_version < '3.9'"
+]
+requires-python = ">=3.8"
+dynamic = ["version"]
 
-[tool.pylint.main]
-jobs = 0
-persistent = true
-load-plugins = [
-	"pylint.extensions.code_style",
-	"pylint.extensions.comparison_placement",
-	"pylint.extensions.confusing_elif",
-	"pylint.extensions.for_any_all",
-	"pylint.extensions.consider_ternary_expression",
-	"pylint.extensions.bad_builtin",
-	"pylint.extensions.dict_init_mutate",
-	"pylint.extensions.check_elif",
-	"pylint.extensions.empty_comment",
-	"pylint.extensions.private_import",
-	"pylint.extensions.redefined_variable_type",
-	"pylint.extensions.no_self_use",
-	"pylint.extensions.overlapping_exceptions",
-	"pylint.extensions.set_membership",
-	"pylint.extensions.typing"
+[project.readme]
+file = "README.md"
+content-type = "text/markdown; charset=UTF-8"
+
+[project.urls]
+Documentation = "https://git.pleroma.social/pleroma/relay/-/blob/main/docs/index.md"
+Source = "https://git.pleroma.social/pleroma/relay"
+Tracker = "https://git.pleroma.social/pleroma/relay/-/issues"
+
+[project.scripts]
+activityrelay = "relay.manage:main"
+
+[project.optional-dependencies]
+dev = [
+	"flake8 == 7.0.0",
+	"mypy == 1.9.0",
+	"pyinstaller == 6.3.0",
+	"watchdog == 4.0.0",
+	"typing_extensions >= 4.10.0; python_version < '3.11.0'"
 ]
 
-
-[tool.pylint.design]
-max-args = 10
-max-attributes = 100
-
-
-[tool.pylint.format]
-indent-str = "\t"
-indent-after-paren = 1
-max-line-length = 100
-single-line-if-stmt = true
-
-
-[tool.pylint.messages_control]
-disable = [
-	"fixme",
-	"broad-exception-caught",
-	"cyclic-import",
-	"global-statement",
-	"invalid-name",
-	"missing-module-docstring",
-	"too-few-public-methods",
-	"too-many-public-methods",
-	"too-many-return-statements",
-	"wrong-import-order",
-	"missing-function-docstring",
-	"missing-class-docstring",
-	"consider-using-namedtuple-or-dataclass",
-	"confusing-consecutive-elif"
+[tool.setuptools]
+zip-safe = false
+packages = [
+    "relay",
+    "relay.database",
+    "relay.views",
 ]
+include-package-data = true
+license-files = ["LICENSE"]
+
+[tool.setuptools.package-data]
+relay = [
+    "data/*",
+    "frontend/*",
+    "frontend/page/*",
+    "frontend/static/*"
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "relay.__version__"}
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = {file = ["dev-requirements.txt"]}
+
+[tool.mypy]
+show_traceback = true
+install_types = true
+pretty = true
+disallow_untyped_decorators = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+follow_imports = "silent"

@@ -12,27 +12,31 @@ from ..processors import run_processor
 
 if typing.TYPE_CHECKING:
 	from aiohttp.web import Request
-	from tinysql import Row
+	from bsql import Row
 
-
-# pylint: disable=unused-argument
 
 @register_route('/actor', '/inbox')
 class ActorView(View):
+	signature: aputils.Signature
+	message: Message
+	actor: Message
+	instancce: Row
+	signer: aputils.Signer
+
+
 	def __init__(self, request: Request):
 		View.__init__(self, request)
 
-		self.signature: aputils.Signature = None
-		self.message: Message = None
-		self.actor: Message = None
-		self.instance: Row = None
-		self.signer: aputils.Signer = None
-
 
 	async def get(self, request: Request) -> Response:
+		with self.database.session(False) as conn:
+			config = conn.get_config_all()
+
 		data = Message.new_actor(
 			host = self.config.domain,
-			pubkey = self.app.signer.pubkey
+			pubkey = self.app.signer.pubkey,
+			description = self.app.template.render_markdown(config.note),
+			approves = config.approval_required
 		)
 
 		return Response.new(data, ctype='activity')
@@ -44,19 +48,13 @@ class ActorView(View):
 
 		with self.database.session() as conn:
 			self.instance = conn.get_inbox(self.actor.shared_inbox)
-			config = conn.get_config_all()
 
-			## reject if the actor isn't whitelisted while the whiltelist is enabled
-			if config['whitelist-enabled'] and not conn.get_domain_whitelist(self.actor.domain):
-				logging.verbose('Rejected actor for not being in the whitelist: %s', self.actor.id)
-				return Response.new_error(403, 'access denied', 'json')
-
-			## reject if actor is banned
+			# reject if actor is banned
 			if conn.get_domain_ban(self.actor.domain):
 				logging.verbose('Ignored request from banned actor: %s', self.actor.id)
 				return Response.new_error(403, 'access denied', 'json')
 
-			## reject if activity type isn't 'Follow' and the actor isn't following
+			# reject if activity type isn't 'Follow' and the actor isn't following
 			if self.message.type != 'Follow' and not self.instance:
 				logging.verbose(
 					'Rejected actor for trying to post while not following: %s',
@@ -73,35 +71,33 @@ class ActorView(View):
 
 	async def get_post_data(self) -> Response | None:
 		try:
-			self.signature = aputils.Signature.new_from_signature(self.request.headers['signature'])
+			self.signature = aputils.Signature.parse(self.request.headers['signature'])
 
 		except KeyError:
 			logging.verbose('Missing signature header')
 			return Response.new_error(400, 'missing signature header', 'json')
 
 		try:
-			self.message = await self.request.json(loads = Message.parse)
+			message: Message | None = await self.request.json(loads = Message.parse)
 
 		except Exception:
 			traceback.print_exc()
 			logging.verbose('Failed to parse inbox message')
 			return Response.new_error(400, 'failed to parse message', 'json')
 
-		if self.message is None:
+		if message is None:
 			logging.verbose('empty message')
 			return Response.new_error(400, 'missing message', 'json')
+
+		self.message = message
 
 		if 'actor' not in self.message:
 			logging.verbose('actor not in message')
 			return Response.new_error(400, 'no actor in message', 'json')
 
-		self.actor = await self.client.get(
-			self.signature.keyid,
-			sign_headers = True,
-			loads = Message.parse
-		)
+		actor: Message | None = await self.client.get(self.signature.keyid, True, Message)
 
-		if not self.actor:
+		if actor is None:
 			# ld signatures aren't handled atm, so just ignore it
 			if self.message.type == 'Delete':
 				logging.verbose('Instance sent a delete which cannot be handled')
@@ -109,6 +105,8 @@ class ActorView(View):
 
 			logging.verbose(f'Failed to fetch actor: {self.signature.keyid}')
 			return Response.new_error(400, 'failed to fetch actor', 'json')
+
+		self.actor = actor
 
 		try:
 			self.signer = self.actor.signer
@@ -118,42 +116,13 @@ class ActorView(View):
 			return Response.new_error(400, 'actor missing public key', 'json')
 
 		try:
-			self.validate_signature(await self.request.read())
+			await self.signer.validate_request_async(self.request)
 
 		except aputils.SignatureFailureError as e:
 			logging.verbose('signature validation failed for "%s": %s', self.actor.id, e)
 			return Response.new_error(401, str(e), 'json')
 
-
-	def validate_signature(self, body: bytes) -> None:
-		headers = {key.lower(): value for key, value in self.request.headers.items()}
-		headers["(request-target)"] = " ".join([self.request.method.lower(), self.request.path])
-
-		if (digest := aputils.Digest.new_from_digest(headers.get("digest"))):
-			if not body:
-				raise aputils.SignatureFailureError("Missing body for digest verification")
-
-			if not digest.validate(body):
-				raise aputils.SignatureFailureError("Body digest does not match")
-
-		if self.signature.algorithm_type == "hs2019":
-			if "(created)" not in self.signature.headers:
-				raise aputils.SignatureFailureError("'(created)' header not used")
-
-			current_timestamp = aputils.HttpDate.new_utc().timestamp()
-
-			if self.signature.created > current_timestamp:
-				raise aputils.SignatureFailureError("Creation date after current date")
-
-			if current_timestamp > self.signature.expires:
-				raise aputils.SignatureFailureError("Expiration date before current date")
-
-			headers["(created)"] = self.signature.created
-			headers["(expires)"] = self.signature.expires
-
-		# pylint: disable=protected-access
-		if not self.signer._validate_signature(headers, self.signature):
-			raise aputils.SignatureFailureError("Signature does not match")
+		return None
 
 
 @register_route('/.well-known/webfinger')

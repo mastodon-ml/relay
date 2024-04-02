@@ -13,6 +13,10 @@ schemes:
   - https
 
 securityDefinitions:
+  Cookie:
+    type: apiKey
+    in: cookie
+    name: user-token
   Bearer:
     type: apiKey
     name: Authorization
@@ -285,6 +289,50 @@ paths:
           schema:
             $ref: "#/definitions/Error"
 
+  /v1/request:
+    get:
+      tags:
+      - Follow Request
+      description: Get the list of follow requests
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of instances
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Instance"
+
+    post:
+      tags:
+      - Follow Request
+      description: Approve or deny a follow request
+      parameters:
+      - in: formData
+        name: domain
+        required: true
+        type: string
+      - in: formData
+        name: accept
+        required: true
+        type: boolean
+      consumes:
+      - application/json
+      - multipart/form-data
+      - application/x-www-form-urlencoded
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Follow request successfully accepted or denied
+          schema:
+            $ref: "#/definitions/Message"
+        "500":
+          description: Follow request does not exist
+          schema:
+            $ref: "#/definitions/Error"
+
   /v1/domain_ban:
     get:
       tags:
@@ -505,6 +553,104 @@ paths:
           schema:
             $ref: "#/definitions/Error"
 
+  /v1/user:
+    get:
+      tags:
+      - User
+      description: Get a list of all local users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of users
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/User"
+
+    post:
+      tags:
+      - User
+      description: Create a new user
+      parameters:
+      - in: formData
+        name: username
+        required: true
+        type: string
+      - in: formData
+        name: password
+        required: true
+        type: string
+        format: password
+      - in: formData
+        name: handle
+        required: false
+        type: string
+        format: email
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Newly created user
+          schema:
+            $ref: "#/definitions/User"
+        "404":
+          description: User already exists
+          schema:
+            $ref: "#/definitions/Error"
+
+    patch:
+      tags:
+      - User
+      description: Update a user's password or handle
+      parameters:
+      - in: formData
+        name: username
+        required: true
+        type: string
+      - in: formData
+        name: password
+        required: false
+        type: string
+        format: password
+      - in: formData
+        name: handle
+        required: false
+        type: string
+        format: email
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated user data
+          schema:
+            $ref: "#/definitions/User"
+        "404":
+          description: User does not exist
+          schema:
+            $ref: "#/definitions/Error"
+
+    delete:
+      tags:
+      - User
+      description: Delete a user
+      parameters:
+      - in: formData
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Successfully deleted user
+          schema:
+            $ref: "#/definitions/Message"
+        "404":
+          description: User not found
+          schema:
+            $ref: "#/definitions/Error"
+
   /v1/whitelist:
     get:
       tags:
@@ -672,6 +818,9 @@ definitions:
       software:
         description: Nodeinfo-formatted name of the instance's software
         type: string
+      accepted:
+        description: Whether or not the follow request has been accepted
+        type: boolean
       created:
         description: Date the instance joined or was added
         type: string
@@ -700,6 +849,21 @@ definitions:
       token:
         description: Character string used for authenticating with the api
         type: string
+
+  User:
+    type: object
+    properties:
+      username:
+        description: Username of the account
+        type: string
+      handle:
+        description: Fediverse handle associated with the account
+        type: string
+        format: email
+      created:
+        description: Date the account was created
+        type: string
+        format: date-time
 
   Whitelist:
     type: object

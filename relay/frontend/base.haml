@@ -11,8 +11,10 @@
 		%title << {{config.name}}: {{page}}
 		%meta(charset="UTF-8")
 		%meta(name="viewport" content="width=device-width, initial-scale=1")
-		%link(rel="stylesheet" type="text/css" href="/theme/{{theme_name}}.css")
-		%link(rel="stylesheet" type="text/css" href="/style.css")
+		%link(rel="stylesheet" type="text/css" href="/theme/{{config.theme}}.css" nonce="{{view.request['hash']}}" class="theme")
+		%link(rel="stylesheet" type="text/css" href="/static/style.css" nonce="{{view.request['hash']}}")
+		%link(rel="manifest" href="/manifest.json")
+		%script(type="application/javascript" src="/static/api.js" nonce="{{view.request['hash']}}" defer)
 		-block head
 
 	%body
@@ -35,22 +37,23 @@
 			-else
 				{{menu_item("Login", "/login")}}
 
+		%ul#notifications
+
 		#container
 			#header.section
 				%span#menu-open << &#8286;
-				%span.title-container
-					%a.title(href="/") -> =config.name
-
-					-if view.request.path not in ["/", "/login"]
-						.page -> =page
-
+				%a.title(href="/") -> =config.name
 				.empty
 
 			-if error
-				.error.section -> =error
+				%fieldset.error.section
+					%legend << Error
+					=error
 
 			-if message
-				.message.section -> =message
+				%fieldset.message.section
+					%legend << Message
+					=message
 
 			#content(class="page-{{page.lower().replace(' ', '_')}}")
 				-block content
@@ -69,26 +72,3 @@
 				.version
 					%a(href="https://git.pleroma.social/pleroma/relay")
 						ActivityRelay/{{version}}
-
-	%script(type="application/javascript")
-		const body = document.getElementById("container")
-		const menu = document.getElementById("menu");
-		const menu_open = document.getElementById("menu-open");
-		const menu_close = document.getElementById("menu-close");
-
-		menu_open.addEventListener("click", (event) => {
-			var new_value = menu.attributes.visible.nodeValue === "true" ? "false" : "true";
-			menu.attributes.visible.nodeValue = new_value;
-		});
-
-		menu_close.addEventListener("click", (event) => {
-			menu.attributes.visible.nodeValue = "false"
-		});
-
-		body.addEventListener("click", (event) => {
-			if (event.target === menu_open) {
-				return;
-			}
-
-			menu.attributes.visible.nodeValue = "false";
-		});

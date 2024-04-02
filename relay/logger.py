@@ -11,6 +11,12 @@ if typing.TYPE_CHECKING:
 	from collections.abc import Callable
 	from typing import Any
 
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
+
 
 class LogLevel(IntEnum):
 	DEBUG = logging.DEBUG
@@ -26,7 +32,13 @@ class LogLevel(IntEnum):
 
 
 	@classmethod
-	def parse(cls: type[IntEnum], data: object) -> IntEnum:
+	def parse(cls: type[Self], data: Any) -> Self:
+		try:
+			data = int(data)
+
+		except ValueError:
+			pass
+
 		if isinstance(data, cls):
 			return data
 
@@ -57,10 +69,10 @@ def set_level(level: LogLevel | str) -> None:
 
 
 def verbose(message: str, *args: Any, **kwargs: Any) -> None:
-	if not logging.root.isEnabledFor(LogLevel['VERBOSE']):
+	if not logging.root.isEnabledFor(LogLevel.VERBOSE):
 		return
 
-	logging.log(LogLevel['VERBOSE'], message, *args, **kwargs)
+	logging.log(LogLevel.VERBOSE, message, *args, **kwargs)
 
 
 debug: Callable = logging.debug
@@ -70,23 +82,27 @@ error: Callable = logging.error
 critical: Callable = logging.critical
 
 
-env_log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
-
 try:
-	env_log_file = Path(os.environ['LOG_FILE']).expanduser().resolve()
+	env_log_file: Path | None = Path(os.environ['LOG_FILE']).expanduser().resolve()
 
 except KeyError:
 	env_log_file = None
 
-handlers = [logging.StreamHandler()]
+handlers: list[Any] = [logging.StreamHandler()]
 
 if env_log_file:
 	handlers.append(logging.FileHandler(env_log_file))
 
-logging.addLevelName(LogLevel['VERBOSE'], 'VERBOSE')
+if os.environ.get('IS_SYSTEMD'):
+	logging_format = '%(levelname)s: %(message)s'
+
+else:
+	logging_format = '[%(asctime)s] %(levelname)s: %(message)s'
+
+logging.addLevelName(LogLevel.VERBOSE, 'VERBOSE')
 logging.basicConfig(
 	level = LogLevel.INFO,
-	format = '[%(asctime)s] %(levelname)s: %(message)s',
+	format = logging_format,
 	datefmt = '%Y-%m-%d %H:%M:%S',
 	handlers = handlers
 )

@@ -1,37 +1,29 @@
 -extends "base.haml"
 -set page="Config"
+
+-block head
+	%script(type="application/javascript" src="/static/config.js" nonce="{{view.request['hash']}}" defer)
+
+-import "functions.haml" as func
 -block content
-	%form.section(action="/admin/config" method="POST")
+	%fieldset.section
+		%legend << Config
+
 		.grid-2col
 			%label(for="name") << Name
-			%input(id = "name" name="name" placeholder="Relay Name" value="{{config.name or ''}}")
+			%input(id = "name" placeholder="Relay Name" value="{{config.name or ''}}")
 
-			%label(for="description") << Description
-			%textarea(id="description" name="note" value="{{config.note}}") << {{config.note}}
+			%label(for="note") << Description
+			%textarea(id="note" value="{{config.note or ''}}") << {{config.note}}
 
 			%label(for="theme") << Color Theme
-			%select(id="theme" name="theme")
-				-for theme in themes
-					-if theme == config.theme
-						%option(value="{{theme}}" selected) -> =theme.title()
-
-					-else
-						%option(value="{{theme}}") -> =theme.title()
+			=func.new_select("theme", config.theme, themes)
 
 			%label(for="log-level") << Log Level
-			%select(id="log-level" name="log-level")
-				-for level in LogLevel
-					-if level == config["log-level"]
-						%option(value="{{level.name}}" selected) -> =level.name.title()
-
-					-else
-						%option(value="{{level.name}}") -> =level.name.title()
+			=func.new_select("log-level", config.log_level.name, levels)
 
 			%label(for="whitelist-enabled") << Whitelist
-			-if config["whitelist-enabled"]
-				%input(id="whitelist-enabled" name="whitelist-enabled" type="checkbox" checked)
+			=func.new_checkbox("whitelist-enabled", config.whitelist_enabled)
 
-			-else
-				%input(id="whitelist-enabled" name="whitelist-enabled" type="checkbox")
-
-		%input(type="submit" value="Save")
+			%label(for="approval-required") << Approval Required
+			=func.new_checkbox("approval-required", config.approval_required)

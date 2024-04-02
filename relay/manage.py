@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import Crypto
 import aputils
 import asyncio
 import click
+import json
 import os
-import platform
 import typing
 
 from pathlib import Path
@@ -21,17 +20,8 @@ from .database import RELAY_SOFTWARE, get_database
 from .misc import ACTOR_FORMATS, SOFTWARE, IS_DOCKER, Message
 
 if typing.TYPE_CHECKING:
-	from tinysql import Row
+	from bsql import Row
 	from typing import Any
-
-
-# pylint: disable=unsubscriptable-object,unsupported-assignment-operation
-
-
-CONFIG_IGNORE = (
-	'schema-version',
-	'private-key'
-)
 
 
 def check_alphanumeric(text: str) -> str:
@@ -41,139 +31,152 @@ def check_alphanumeric(text: str) -> str:
 	return text
 
 
-@click.group('cli', context_settings={'show_default': True}, invoke_without_command=True)
-@click.option('--config', '-c', help='path to the relay\'s config')
-@click.version_option(version=__version__, prog_name='ActivityRelay')
+@click.group('cli', context_settings = {'show_default': True})
+@click.option('--config', '-c', type = Path, help = 'path to the relay\'s config')
+@click.version_option(version = __version__, prog_name = 'ActivityRelay')
 @click.pass_context
-def cli(ctx: click.Context, config: str | None) -> None:
+def cli(ctx: click.Context, config: Path | None) -> None:
+	if IS_DOCKER:
+		config = Path("/data/relay.yaml")
+
+		# The database was named "relay.jsonld" even though it's an sqlite file. Fix it.
+		db = Path('/data/relay.sqlite3')
+		wrongdb = Path('/data/relay.jsonld')
+
+		if wrongdb.exists() and not db.exists():
+			try:
+				with wrongdb.open('rb') as fd:
+					json.load(fd)
+
+			except json.JSONDecodeError:
+				wrongdb.rename(db)
+
 	ctx.obj = Application(config)
-
-	if not ctx.invoked_subcommand:
-		if ctx.obj.config.domain.endswith('example.com'):
-			cli_setup.callback()
-
-		else:
-			click.echo(
-				'[DEPRECATED] Running the relay without the "run" command will be removed in the ' +
-				'future.'
-			)
-
-			cli_run.callback()
 
 
 @cli.command('setup')
+@click.option('--skip-questions', '-s', is_flag = True, help = 'Just setup the database')
 @click.pass_context
-def cli_setup(ctx: click.Context) -> None:
+def cli_setup(ctx: click.Context, skip_questions: bool) -> None:
 	'Generate a new config and create the database'
 
-	while True:
-		ctx.obj.config.domain = click.prompt(
-			'What domain will the relay be hosted on?',
-			default = ctx.obj.config.domain
+	if ctx.obj.signer is not None:
+		if not click.prompt('The database is already setup. Are you sure you want to continue?'):
+			return
+
+	if skip_questions and ctx.obj.config.domain.endswith('example.com'):
+		click.echo('You cannot skip the questions if the relay is not configured yet')
+		return
+
+	if not skip_questions:
+		while True:
+			ctx.obj.config.domain = click.prompt(
+				'What domain will the relay be hosted on?',
+				default = ctx.obj.config.domain
+			)
+
+			if not ctx.obj.config.domain.endswith('example.com'):
+				break
+
+			click.echo('The domain must not end with "example.com"')
+
+		if not IS_DOCKER:
+			ctx.obj.config.listen = click.prompt(
+				'Which address should the relay listen on?',
+				default = ctx.obj.config.listen
+			)
+
+			ctx.obj.config.port = click.prompt(
+				'What TCP port should the relay listen on?',
+				default = ctx.obj.config.port,
+				type = int
+			)
+
+		ctx.obj.config.db_type = click.prompt(
+			'Which database backend will be used?',
+			default = ctx.obj.config.db_type,
+			type = click.Choice(['postgres', 'sqlite'], case_sensitive = False)
 		)
 
-		if not ctx.obj.config.domain.endswith('example.com'):
-			break
+		if ctx.obj.config.db_type == 'sqlite' and not IS_DOCKER:
+			ctx.obj.config.sq_path = click.prompt(
+				'Where should the database be stored?',
+				default = ctx.obj.config.sq_path
+			)
 
-		click.echo('The domain must not end with "example.com"')
+		elif ctx.obj.config.db_type == 'postgres':
+			ctx.obj.config.pg_name = click.prompt(
+				'What is the name of the database?',
+				default = ctx.obj.config.pg_name
+			)
 
-	if not IS_DOCKER:
-		ctx.obj.config.listen = click.prompt(
-			'Which address should the relay listen on?',
-			default = ctx.obj.config.listen
+			ctx.obj.config.pg_host = click.prompt(
+				'What IP address, hostname, or unix socket does the server listen on?',
+				default = ctx.obj.config.pg_host,
+				type = int
+			)
+
+			ctx.obj.config.pg_port = click.prompt(
+				'What port does the server listen on?',
+				default = ctx.obj.config.pg_port,
+				type = int
+			)
+
+			ctx.obj.config.pg_user = click.prompt(
+				'Which user will authenticate with the server?',
+				default = ctx.obj.config.pg_user
+			)
+
+			ctx.obj.config.pg_pass = click.prompt(
+				'User password',
+				hide_input = True,
+				show_default = False,
+				default = ctx.obj.config.pg_pass or ""
+			) or None
+
+		ctx.obj.config.ca_type = click.prompt(
+			'Which caching backend?',
+			default = ctx.obj.config.ca_type,
+			type = click.Choice(['database', 'redis'], case_sensitive = False)
 		)
 
-		ctx.obj.config.port = click.prompt(
-			'What TCP port should the relay listen on?',
-			default = ctx.obj.config.port,
-			type = int
-		)
+		if ctx.obj.config.ca_type == 'redis':
+			ctx.obj.config.rd_host = click.prompt(
+				'What IP address, hostname, or unix socket does the server listen on?',
+				default = ctx.obj.config.rd_host
+			)
 
-	ctx.obj.config.db_type = click.prompt(
-		'Which database backend will be used?',
-		default = ctx.obj.config.db_type,
-		type = click.Choice(['postgres', 'sqlite'], case_sensitive = False)
-	)
+			ctx.obj.config.rd_port = click.prompt(
+				'What port does the server listen on?',
+				default = ctx.obj.config.rd_port,
+				type = int
+			)
 
-	if ctx.obj.config.db_type == 'sqlite':
-		ctx.obj.config.sq_path = click.prompt(
-			'Where should the database be stored?',
-			default = ctx.obj.config.sq_path
-		)
+			ctx.obj.config.rd_user = click.prompt(
+				'Which user will authenticate with the server',
+				default = ctx.obj.config.rd_user
+			)
 
-	elif ctx.obj.config.db_type == 'postgres':
-		ctx.obj.config.pg_name = click.prompt(
-			'What is the name of the database?',
-			default = ctx.obj.config.pg_name
-		)
+			ctx.obj.config.rd_pass = click.prompt(
+				'User password',
+				hide_input = True,
+				show_default = False,
+				default = ctx.obj.config.rd_pass or ""
+			) or None
 
-		ctx.obj.config.pg_host = click.prompt(
-			'What IP address, hostname, or unix socket does the server listen on?',
-			default = ctx.obj.config.pg_host,
-			type = int
-		)
+			ctx.obj.config.rd_database = click.prompt(
+				'Which database number to use?',
+				default = ctx.obj.config.rd_database,
+				type = int
+			)
 
-		ctx.obj.config.pg_port = click.prompt(
-			'What port does the server listen on?',
-			default = ctx.obj.config.pg_port,
-			type = int
-		)
+			ctx.obj.config.rd_prefix = click.prompt(
+				'What text should each cache key be prefixed with?',
+				default = ctx.obj.config.rd_database,
+				type = check_alphanumeric
+			)
 
-		ctx.obj.config.pg_user = click.prompt(
-			'Which user will authenticate with the server?',
-			default = ctx.obj.config.pg_user
-		)
-
-		ctx.obj.config.pg_pass = click.prompt(
-			'User password',
-			hide_input = True,
-			show_default = False,
-			default = ctx.obj.config.pg_pass or ""
-		) or None
-
-	ctx.obj.config.ca_type = click.prompt(
-		'Which caching backend?',
-		default = ctx.obj.config.ca_type,
-		type = click.Choice(['database', 'redis'], case_sensitive = False)
-	)
-
-	if ctx.obj.config.ca_type == 'redis':
-		ctx.obj.config.rd_host = click.prompt(
-			'What IP address, hostname, or unix socket does the server listen on?',
-			default = ctx.obj.config.rd_host
-		)
-
-		ctx.obj.config.rd_port = click.prompt(
-			'What port does the server listen on?',
-			default = ctx.obj.config.rd_port,
-			type = int
-		)
-
-		ctx.obj.config.rd_user = click.prompt(
-			'Which user will authenticate with the server',
-			default = ctx.obj.config.rd_user
-		)
-
-		ctx.obj.config.rd_pass = click.prompt(
-			'User password',
-			hide_input = True,
-			show_default = False,
-			default = ctx.obj.config.rd_pass or ""
-		) or None
-
-		ctx.obj.config.rd_database = click.prompt(
-			'Which database number to use?',
-			default = ctx.obj.config.rd_database,
-			type = int
-		)
-
-		ctx.obj.config.rd_prefix = click.prompt(
-			'What text should each cache key be prefixed with?',
-			default = ctx.obj.config.rd_database,
-			type = check_alphanumeric
-		)
-
-	ctx.obj.config.save()
+		ctx.obj.config.save()
 
 	config = {
 		'private-key': aputils.Signer.new('n/a').export()
@@ -183,8 +186,12 @@ def cli_setup(ctx: click.Context) -> None:
 		for key, value in config.items():
 			conn.put_config(key, value)
 
-	if not IS_DOCKER and click.confirm('Relay all setup! Would you like to run it now?'):
-		cli_run.callback()
+	if IS_DOCKER:
+		click.echo("Relay all setup! Start the container to run the relay.")
+		return
+
+	if click.confirm('Relay all setup! Would you like to run it now?'):
+		cli_run.callback() # type: ignore
 
 
 @cli.command('run')
@@ -193,28 +200,13 @@ def cli_setup(ctx: click.Context) -> None:
 def cli_run(ctx: click.Context, dev: bool = False) -> None:
 	'Run the relay'
 
-	if ctx.obj.config.domain.endswith('example.com') or not ctx.obj.signer:
-		click.echo(
-			'Relay is not set up. Please edit your relay config or run "activityrelay setup".'
-		)
+	if ctx.obj.config.domain.endswith('example.com') or ctx.obj.signer is None:
+		if not IS_DOCKER:
+			click.echo('Relay is not set up. Please run "activityrelay setup".')
 
-		return
-
-	vers_split = platform.python_version().split('.')
-	pip_command = 'pip3 uninstall pycrypto && pip3 install pycryptodome'
-
-	if Crypto.__version__ == '2.6.1':
-		if int(vers_split[1]) > 7:
-			click.echo(
-				'Error: PyCrypto is broken on Python 3.8+. Please replace it with pycryptodome ' +
-				'before running again. Exiting...'
-			)
-
-			click.echo(pip_command)
 			return
 
-		click.echo('Warning: PyCrypto is old and should be replaced with pycryptodome')
-		click.echo(pip_command)
+		cli_setup.callback() # type: ignore
 		return
 
 	ctx.obj['dev'] = dev
@@ -257,7 +249,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 			conn.put_config('note', config['note'])
 			conn.put_config('whitelist-enabled', config['whitelist_enabled'])
 
-			with click.progressbar(
+			with click.progressbar( # type: ignore
 				database['relay-list'].values(),
 				label = 'Inboxes'.ljust(15),
 				width = 0
@@ -281,7 +273,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 						software = inbox['software']
 					)
 
-			with click.progressbar(
+			with click.progressbar( # type: ignore
 				config['blocked_software'],
 				label = 'Banned software'.ljust(15),
 				width = 0
@@ -293,7 +285,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 						reason = 'relay' if software in RELAY_SOFTWARE else None
 					)
 
-			with click.progressbar(
+			with click.progressbar( # type: ignore
 				config['blocked_instances'],
 				label = 'Banned domains'.ljust(15),
 				width = 0
@@ -302,7 +294,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 				for domain in banned_software:
 					conn.put_domain_ban(domain)
 
-			with click.progressbar(
+			with click.progressbar( # type: ignore
 				config['whitelist'],
 				label = 'Whitelist'.ljust(15),
 				width = 0
@@ -339,10 +331,17 @@ def cli_config_list(ctx: click.Context) -> None:
 	click.echo('Relay Config:')
 
 	with ctx.obj.database.session() as conn:
-		for key, value in conn.get_config_all().items():
-			if key not in CONFIG_IGNORE:
-				key = f'{key}:'.ljust(20)
-				click.echo(f'- {key} {value}')
+		config = conn.get_config_all()
+
+		for key, value in config.to_dict().items():
+			if key in type(config).SYSTEM_KEYS():
+				continue
+
+			if key == 'log-level':
+				value = value.name
+
+			key_str = f'{key}:'.ljust(20)
+			click.echo(f'- {key_str} {repr(value)}')
 
 
 @cli_config.command('set')
@@ -477,7 +476,7 @@ def cli_inbox_list(ctx: click.Context) -> None:
 	click.echo('Connected to the following instances or relays:')
 
 	with ctx.obj.database.session() as conn:
-		for inbox in conn.execute('SELECT * FROM inboxes'):
+		for inbox in conn.get_inboxes():
 			click.echo(f'- {inbox["inbox"]}')
 
 
@@ -520,7 +519,7 @@ def cli_inbox_follow(ctx: click.Context, actor: str) -> None:
 def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 	'Unfollow an actor (Relay must be running)'
 
-	inbox_data: Row = None
+	inbox_data: Row | None = None
 
 	with ctx.obj.database.session() as conn:
 		if conn.get_domain_ban(actor):
@@ -540,6 +539,11 @@ def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 				actor = f'https://{actor}/actor'
 
 			actor_data = asyncio.run(http.get(actor, sign_headers = True))
+
+			if not actor_data:
+				click.echo("Failed to fetch actor")
+				return
+
 			inbox = actor_data.shared_inbox
 			message = Message.new_unfollow(
 				host = ctx.obj.config.domain,
@@ -616,6 +620,80 @@ def cli_inbox_remove(ctx: click.Context, inbox: str) -> None:
 			return
 
 	click.echo(f'Removed inbox from the database: {inbox}')
+
+
+@cli.group('request')
+def cli_request() -> None:
+	'Manage follow requests'
+
+
+@cli_request.command('list')
+@click.pass_context
+def cli_request_list(ctx: click.Context) -> None:
+	'List all current follow requests'
+
+	click.echo('Follow requests:')
+
+	with ctx.obj.database.session() as conn:
+		for instance in conn.get_requests():
+			date = instance['created'].strftime('%Y-%m-%d')
+			click.echo(f'- [{date}] {instance["domain"]}')
+
+
+@cli_request.command('accept')
+@click.argument('domain')
+@click.pass_context
+def cli_request_accept(ctx: click.Context, domain: str) -> None:
+	'Accept a follow request'
+
+	try:
+		with ctx.obj.database.session() as conn:
+			instance = conn.put_request_response(domain, True)
+
+	except KeyError:
+		click.echo('Request not found')
+		return
+
+	message = Message.new_response(
+		host = ctx.obj.config.domain,
+		actor = instance['actor'],
+		followid = instance['followid'],
+		accept = True
+	)
+
+	asyncio.run(http.post(instance['inbox'], message, instance))
+
+	if instance['software'] != 'mastodon':
+		message = Message.new_follow(
+			host = ctx.obj.config.domain,
+			actor = instance['actor']
+		)
+
+		asyncio.run(http.post(instance['inbox'], message, instance))
+
+
+@cli_request.command('deny')
+@click.argument('domain')
+@click.pass_context
+def cli_request_deny(ctx: click.Context, domain: str) -> None:
+	'Accept a follow request'
+
+	try:
+		with ctx.obj.database.session() as conn:
+			instance = conn.put_request_response(domain, False)
+
+	except KeyError:
+		click.echo('Request not found')
+		return
+
+	response = Message.new_response(
+		host = ctx.obj.config.domain,
+		actor = instance['actor'],
+		followid = instance['followid'],
+		accept = False
+	)
+
+	asyncio.run(http.post(instance['inbox'], response, instance))
 
 
 @cli.group('instance')
@@ -893,7 +971,6 @@ def cli_whitelist_import(ctx: click.Context) -> None:
 
 
 def main() -> None:
-	# pylint: disable=no-value-for-parameter
 	cli(prog_name='relay')
 
 

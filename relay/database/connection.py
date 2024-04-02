@@ -9,22 +9,18 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from .config import (
-	CONFIG_DEFAULTS,
 	THEMES,
-	get_default_type,
-	get_default_value,
-	serialize,
-	deserialize
+	ConfigData
 )
 
 from .. import logger as logging
 from ..misc import boolean, get_app
 
 if typing.TYPE_CHECKING:
-	from collections.abc import Iterator
+	from collections.abc import Iterator, Sequence
 	from bsql import Row
 	from typing import Any
-	from .application import Application
+	from ..application import Application
 	from ..misc import Message
 
 
@@ -46,54 +42,37 @@ class Connection(SqlConnection):
 		return get_app()
 
 
-	def distill_inboxes(self, message: Message) -> Iterator[str]:
+	def distill_inboxes(self, message: Message) -> Iterator[Row]:
 		src_domains = {
 			message.domain,
 			urlparse(message.object_id).netloc
 		}
 
-		for inbox in self.execute('SELECT * FROM inboxes'):
-			if inbox['domain'] not in src_domains:
-				yield inbox['inbox']
+		for instance in self.get_inboxes():
+			if instance['domain'] not in src_domains:
+				yield instance
 
 
 	def get_config(self, key: str) -> Any:
-		if key not in CONFIG_DEFAULTS:
-			raise KeyError(key)
+		key = key.replace('_', '-')
 
 		with self.run('get-config', {'key': key}) as cur:
 			if not (row := cur.one()):
-				return get_default_value(key)
+				return ConfigData.DEFAULT(key)
 
-		if row['value']:
-			return deserialize(row['key'], row['value'])
+		data = ConfigData()
+		data.set(row['key'], row['value'])
+		return data.get(key)
 
-		return None
 
-
-	def get_config_all(self) -> dict[str, Any]:
+	def get_config_all(self) -> ConfigData:
 		with self.run('get-config-all', None) as cur:
-			db_config = {row['key']: row['value'] for row in cur}
-
-		config = {}
-
-		for key, data in CONFIG_DEFAULTS.items():
-			try:
-				config[key] = deserialize(key, db_config[key])
-
-			except KeyError:
-				if key == 'schema-version':
-					config[key] = 0
-
-				else:
-					config[key] = data[1]
-
-		return config
+			return ConfigData.from_rows(tuple(cur.all()))
 
 
 	def put_config(self, key: str, value: Any) -> Any:
-		if key not in CONFIG_DEFAULTS:
-			raise KeyError(key)
+		field = ConfigData.FIELD(key)
+		key = field.name.replace('_', '-')
 
 		if key == 'private-key':
 			self.app.signer = value
@@ -102,73 +81,70 @@ class Connection(SqlConnection):
 			value = logging.LogLevel.parse(value)
 			logging.set_level(value)
 
-		elif key == 'whitelist-enabled':
+		elif key in {'approval-required', 'whitelist-enabled'}:
 			value = boolean(value)
 
 		elif key == 'theme':
 			if value not in THEMES:
 				raise ValueError(f'"{value}" is not a valid theme')
 
+		data = ConfigData()
+		data.set(key, value)
+
 		params = {
 			'key': key,
-			'value': serialize(key, value) if value is not None else None,
-			'type': get_default_type(key)
+			'value': data.get(key, serialize = True),
+			'type': 'LogLevel' if field.type == 'logging.LogLevel' else field.type
 		}
 
 		with self.run('put-config', params):
-			return value
+			pass
+
+		return data.get(key)
 
 
 	def get_inbox(self, value: str) -> Row:
 		with self.run('get-inbox', {'value': value}) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
+
+
+	def get_inboxes(self) -> Sequence[Row]:
+		with self.execute("SELECT * FROM inboxes WHERE accepted = 1") as cur:
+			return tuple(cur.all())
 
 
 	def put_inbox(self,
 				domain: str,
-				inbox: str,
+				inbox: str | None = None,
 				actor: str | None = None,
 				followid: str | None = None,
-				software: str | None = None) -> Row:
+				software: str | None = None,
+				accepted: bool = True) -> Row:
 
-		params = {
-			'domain': domain,
+		params: dict[str, Any] = {
 			'inbox': inbox,
 			'actor': actor,
 			'followid': followid,
 			'software': software,
-			'created': datetime.now(tz = timezone.utc)
+			'accepted': accepted
 		}
 
-		with self.run('put-inbox', params) as cur:
-			return cur.one()
+		if not self.get_inbox(domain):
+			if not inbox:
+				raise ValueError("Missing inbox")
 
+			params['domain'] = domain
+			params['created'] = datetime.now(tz = timezone.utc)
 
-	def update_inbox(self,
-					inbox: str,
-					actor: str | None = None,
-					followid: str | None = None,
-					software: str | None = None) -> Row:
+			with self.run('put-inbox', params) as cur:
+				return cur.one() # type: ignore
 
-		if not (actor or followid or software):
-			raise ValueError('Missing "actor", "followid", and/or "software"')
+		for key, value in tuple(params.items()):
+			if value is None:
+				del params[key]
 
-		data = {}
-
-		if actor:
-			data['actor'] = actor
-
-		if followid:
-			data['followid'] = followid
-
-		if software:
-			data['software'] = software
-
-		statement = Update('inboxes', data)
-		statement.set_where("inbox", inbox)
-
-		with self.query(statement):
-			return self.get_inbox(inbox)
+		with self.update('inboxes', params, domain = domain) as cur:
+			return cur.one() # type: ignore
 
 
 	def del_inbox(self, value: str) -> bool:
@@ -179,17 +155,64 @@ class Connection(SqlConnection):
 			return cur.row_count == 1
 
 
+	def get_request(self, domain: str) -> Row:
+		with self.run('get-request', {'domain': domain}) as cur:
+			if not (row := cur.one()):
+				raise KeyError(domain)
+
+			return row
+
+
+	def get_requests(self) -> Sequence[Row]:
+		with self.execute('SELECT * FROM inboxes WHERE accepted = 0') as cur:
+			return tuple(cur.all())
+
+
+	def put_request_response(self, domain: str, accepted: bool) -> Row:
+		instance = self.get_request(domain)
+
+		if not accepted:
+			self.del_inbox(domain)
+			return instance
+
+		params = {
+			'domain': domain,
+			'accepted': accepted
+		}
+
+		with self.run('put-inbox-accept', params) as cur:
+			return cur.one() # type: ignore
+
+
 	def get_user(self, value: str) -> Row:
 		with self.run('get-user', {'value': value}) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def get_user_by_token(self, code: str) -> Row:
 		with self.run('get-user-by-token', {'code': code}) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
-	def put_user(self, username: str, password: str, handle: str | None = None) -> Row:
+	def put_user(self, username: str, password: str | None, handle: str | None = None) -> Row:
+		if self.get_user(username):
+			data: dict[str, str | datetime | None] = {}
+
+			if password:
+				data['hash'] = self.hasher.hash(password)
+
+			if handle:
+				data['handle'] = handle
+
+			stmt = Update("users", data)
+			stmt.set_where("username", username)
+
+			with self.query(stmt) as cur:
+				return cur.one() # type: ignore
+
+		if password is None:
+			raise ValueError('Password cannot be empty')
+
 		data = {
 			'username': username,
 			'hash': self.hasher.hash(password),
@@ -198,7 +221,7 @@ class Connection(SqlConnection):
 		}
 
 		with self.run('put-user', data) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def del_user(self, username: str) -> None:
@@ -213,7 +236,7 @@ class Connection(SqlConnection):
 
 	def get_token(self, code: str) -> Row:
 		with self.run('get-token', {'code': code}) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def put_token(self, username: str) -> Row:
@@ -224,7 +247,7 @@ class Connection(SqlConnection):
 		}
 
 		with self.run('put-token', data) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def del_token(self, code: str) -> None:
@@ -237,7 +260,7 @@ class Connection(SqlConnection):
 			domain = urlparse(domain).netloc
 
 		with self.run('get-domain-ban', {'domain': domain}) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def put_domain_ban(self,
@@ -253,7 +276,7 @@ class Connection(SqlConnection):
 		}
 
 		with self.run('put-domain-ban', params) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def update_domain_ban(self,
@@ -292,7 +315,7 @@ class Connection(SqlConnection):
 
 	def get_software_ban(self, name: str) -> Row:
 		with self.run('get-software-ban', {'name': name}) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def put_software_ban(self,
@@ -308,7 +331,7 @@ class Connection(SqlConnection):
 		}
 
 		with self.run('put-software-ban', params) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def update_software_ban(self,
@@ -347,7 +370,7 @@ class Connection(SqlConnection):
 
 	def get_domain_whitelist(self, domain: str) -> Row:
 		with self.run('get-domain-whitelist', {'domain': domain}) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def put_domain_whitelist(self, domain: str) -> Row:
@@ -357,7 +380,7 @@ class Connection(SqlConnection):
 		}
 
 		with self.run('put-domain-whitelist', params) as cur:
-			return cur.one()
+			return cur.one() # type: ignore
 
 
 	def del_domain_whitelist(self, domain: str) -> bool:

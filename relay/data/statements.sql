@@ -23,15 +23,24 @@ SELECT * FROM inboxes WHERE domain = :value or inbox = :value or actor = :value;
 
 
 -- name: put-inbox
-INSERT INTO inboxes (domain, actor, inbox, followid, software, created)
-VALUES (:domain, :actor, :inbox, :followid, :software, :created)
-ON CONFLICT (domain) DO UPDATE SET followid = :followid
+INSERT INTO inboxes (domain, actor, inbox, followid, software, accepted, created)
+VALUES (:domain, :actor, :inbox, :followid, :software, :accepted, :created)
+ON CONFLICT (domain) DO
+UPDATE SET followid = :followid, inbox = :inbox, software = :software, created = :created
 RETURNING *;
+
+
+-- name: put-inbox-accept
+UPDATE inboxes SET accepted = :accepted WHERE domain = :domain RETURNING *;
 
 
 -- name: del-inbox
 DELETE FROM inboxes
 WHERE domain = :value or inbox = :value or actor = :value;
+
+
+-- name: get-request
+SELECT * FROM inboxes WHERE accepted = 0 and domain = :domain;
 
 
 -- name: get-user

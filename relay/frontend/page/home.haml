@@ -1,10 +1,9 @@
 -extends "base.haml"
 -set page = "Home"
 -block content
-	.section
-		-for line in config.note.splitlines()
-			-if line
-				%p -> =line
+	-if config.note
+		.section
+			-markdown -> =config.note
 
 	.section
 		%p
@@ -14,23 +13,35 @@
 			You may subscribe to this relay with the address:
 			%a(href="https://{{domain}}/actor") << https://{{domain}}/actor</a>
 
-	-if config["whitelist-enabled"]
-		%p.section.message
-			Note: The whitelist is enabled on this instance. Ask the admin to add your instance
-			before joining.
+	-if config.approval_required
+		%fieldset.section.message
+			%legend << Require Approval
 
-	#data-table.section
-		%table
-			%thead
-				%tr
-					%td.instance << Instance
-					%td.date << Joined
+			Follow requests require approval. You will need to wait for an admin to accept or deny
+			your request.
 
-			%tbody
-				-for instance in instances
+	-elif config.whitelist_enabled
+		%fieldset.section.message
+			%legend << Whitelist Enabled
+
+			The whitelist is enabled on this instance. Ask the admin to add your instance before
+			joining.
+
+	%fieldset.section
+		%legend << Instances
+
+		.data-table
+			%table
+				%thead
 					%tr
-						%td.instance -> %a(href="https://{{instance.domain}}/" target="_new")
-							=instance.domain
+						%td.instance << Instance
+						%td.date << Joined
 
-						%td.date
-							=instance.created.strftime("%Y-%m-%d")
+				%tbody
+					-for instance in instances
+						%tr
+							%td.instance -> %a(href="https://{{instance.domain}}/" target="_new")
+								=instance.domain
+
+							%td.date
+								=instance.created.strftime("%Y-%m-%d")

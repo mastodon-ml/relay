@@ -13,15 +13,16 @@ from .database import get_database
 from .misc import Message, boolean
 
 if typing.TYPE_CHECKING:
-	from typing import Any
+	from blib import Database
 	from collections.abc import Callable, Iterator
+	from typing import Any
 	from .application import Application
 
 
 # todo: implement more caching backends
 
 
-BACKENDS: dict[str, Cache] = {}
+BACKENDS: dict[str, type[Cache]] = {}
 CONVERTERS: dict[str, tuple[Callable, Callable]] = {
 	'str': (str, str),
 	'int': (str, int),
@@ -71,7 +72,7 @@ class Item:
 		data.value = deserialize_value(data.value, data.value_type)
 
 		if not isinstance(data.updated, datetime):
-			data.updated = datetime.fromtimestamp(data.updated, tz = timezone.utc)
+			data.updated = datetime.fromtimestamp(data.updated, tz = timezone.utc) # type: ignore
 
 		return data
 
@@ -143,7 +144,7 @@ class Cache(ABC):
 			item.namespace,
 			item.key,
 			item.value,
-			item.type
+			item.value_type
 		)
 
 
@@ -158,7 +159,7 @@ class SqlCache(Cache):
 
 	def __init__(self, app: Application):
 		Cache.__init__(self, app)
-		self._db = None
+		self._db: Database = None
 
 
 	def get(self, namespace: str, key: str) -> Item:
@@ -257,7 +258,7 @@ class RedisCache(Cache):
 
 	def __init__(self, app: Application):
 		Cache.__init__(self, app)
-		self._rd = None
+		self._rd: Redis = None # type: ignore
 
 
 	@property
@@ -275,7 +276,7 @@ class RedisCache(Cache):
 		if not (raw_value := self._rd.get(key_name)):
 			raise KeyError(f'{namespace}:{key}')
 
-		value_type, updated, value = raw_value.split(':', 2)
+		value_type, updated, value = raw_value.split(':', 2) # type: ignore
 		return Item.from_data(
 			namespace,
 			key,
@@ -302,7 +303,7 @@ class RedisCache(Cache):
 				yield namespace
 
 
-	def set(self, namespace: str, key: str, value: Any, value_type: str = 'key') -> None:
+	def set(self, namespace: str, key: str, value: Any, value_type: str = 'key') -> Item:
 		date = datetime.now(tz = timezone.utc).timestamp()
 		value = serialize_value(value, value_type)
 
@@ -310,6 +311,8 @@ class RedisCache(Cache):
 			self.get_key_name(namespace, key),
 			f'{value_type}:{date}:{value}'
 		)
+
+		return self.get(namespace, key)
 
 
 	def delete(self, namespace: str, key: str) -> None:
@@ -350,7 +353,7 @@ class RedisCache(Cache):
 			options['host'] = self.app.config.rd_host
 			options['port'] = self.app.config.rd_port
 
-		self._rd = Redis(**options)
+		self._rd = Redis(**options) # type: ignore
 
 
 	def close(self) -> None:
@@ -358,4 +361,4 @@ class RedisCache(Cache):
 			return
 
 		self._rd.close()
-		self._rd = None
+		self._rd = None # type: ignore
