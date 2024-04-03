@@ -16,7 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-	"activitypub-utils == 0.2.1",
+	"activitypub-utils == 0.2.2",
 	"aiohttp >= 3.9.1",
 	"aiohttp-swagger[performance] == 1.0.16",
 	"argon2-cffi == 23.1.0",
