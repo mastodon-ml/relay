@@ -90,7 +90,12 @@ class HttpClient:
 		self._session = None
 
 
-	async def _get(self, url: str, sign_headers: bool, force: bool) -> dict[str, Any] | None:
+	async def _get(self,
+					url: str,
+					sign_headers: bool,
+					force: bool,
+					old_algo: bool) -> dict[str, Any] | None:
+
 		if not self._session:
 			raise RuntimeError('Client not open')
 
@@ -111,7 +116,8 @@ class HttpClient:
 		headers = {}
 
 		if sign_headers:
-			headers = self.signer.sign_headers('GET', url, algorithm = AlgorithmType.HS2019)
+			algo = AlgorithmType.RSASHA256 if old_algo else AlgorithmType.HS2019
+			headers = self.signer.sign_headers('GET', url, algorithm = algo)
 
 		try:
 			logging.debug('Fetching resource: %s', url)
@@ -135,6 +141,7 @@ class HttpClient:
 
 		except JSONDecodeError:
 			logging.verbose('Failed to parse JSON')
+			logging.debug(data)
 			return None
 
 		except ClientSSLError as e:
@@ -155,12 +162,13 @@ class HttpClient:
 				url: str,
 				sign_headers: bool,
 				cls: type[T],
-				force: bool = False) -> T | None:
+				force: bool = False,
+				old_algo: bool = True) -> T | None:
 
 		if not issubclass(cls, JsonBase):
 			raise TypeError('cls must be a sub-class of "aputils.JsonBase"')
 
-		if (data := (await self._get(url, sign_headers, force))) is None:
+		if (data := (await self._get(url, sign_headers, force, old_algo))) is None:
 			return None
 
 		return cls.parse(data)
