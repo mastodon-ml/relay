@@ -13,7 +13,7 @@ from .database import get_database
 from .misc import Message, boolean
 
 if typing.TYPE_CHECKING:
-	from blib import Database
+	from bsql import Database
 	from collections.abc import Callable, Iterator
 	from typing import Any
 	from .application import Application
@@ -159,10 +159,13 @@ class SqlCache(Cache):
 
 	def __init__(self, app: Application):
 		Cache.__init__(self, app)
-		self._db: Database = None
+		self._db: Database | None = None
 
 
 	def get(self, namespace: str, key: str) -> Item:
+		if self._db is None:
+			raise RuntimeError("Database has not been setup")
+
 		params = {
 			'namespace': namespace,
 			'key': key
@@ -178,18 +181,27 @@ class SqlCache(Cache):
 
 
 	def get_keys(self, namespace: str) -> Iterator[str]:
+		if self._db is None:
+			raise RuntimeError("Database has not been setup")
+
 		with self._db.session(False) as conn:
 			for row in conn.run('get-cache-keys', {'namespace': namespace}):
 				yield row['key']
 
 
 	def get_namespaces(self) -> Iterator[str]:
+		if self._db is None:
+			raise RuntimeError("Database has not been setup")
+
 		with self._db.session(False) as conn:
 			for row in conn.run('get-cache-namespaces', None):
 				yield row['namespace']
 
 
 	def set(self, namespace: str, key: str, value: Any, value_type: str = 'str') -> Item:
+		if self._db is None:
+			raise RuntimeError("Database has not been setup")
+
 		params = {
 			'namespace': namespace,
 			'key': key,
@@ -206,6 +218,9 @@ class SqlCache(Cache):
 
 
 	def delete(self, namespace: str, key: str) -> None:
+		if self._db is None:
+			raise RuntimeError("Database has not been setup")
+
 		params = {
 			'namespace': namespace,
 			'key': key
@@ -217,6 +232,9 @@ class SqlCache(Cache):
 
 
 	def delete_old(self, days: int = 14) -> None:
+		if self._db is None:
+			raise RuntimeError("Database has not been setup")
+
 		limit = datetime.now(tz = timezone.utc) - timedelta(days = days)
 		params = {"limit": limit.timestamp()}
 
@@ -226,6 +244,9 @@ class SqlCache(Cache):
 
 
 	def clear(self) -> None:
+		if self._db is None:
+			raise RuntimeError("Database has not been setup")
+
 		with self._db.session(True) as conn:
 			with conn.execute("DELETE FROM cache"):
 				pass
