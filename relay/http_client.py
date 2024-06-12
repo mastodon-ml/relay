@@ -7,7 +7,8 @@ import typing
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
-from aputils import AlgorithmType, JsonBase, Nodeinfo, ObjectType, WellKnownNodeinfo
+from aputils import AlgorithmType, Nodeinfo, ObjectType, WellKnownNodeinfo
+from blib import JsonBase
 from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
 
@@ -166,7 +167,7 @@ class HttpClient:
 				old_algo: bool = True) -> T | None:
 
 		if not issubclass(cls, JsonBase):
-			raise TypeError('cls must be a sub-class of "aputils.JsonBase"')
+			raise TypeError('cls must be a sub-class of "blib.JsonBase"')
 
 		if (data := (await self._get(url, sign_headers, force, old_algo))) is None:
 			return None
@@ -178,12 +179,13 @@ class HttpClient:
 		if not self._session:
 			raise RuntimeError('Client not open')
 
+		# there seems to be a problem with HS2019, so defaulting to RSASHA256 for now
 		# akkoma and pleroma do not support HS2019 and other software still needs to be tested
-		if instance and instance['software'] in {'mastodon'}:
-			algorithm = AlgorithmType.HS2019
+		# if instance and instance['software'] in {'mastodon'}:
+		# 	algorithm = AlgorithmType.HS2019
 
-		else:
-			algorithm = AlgorithmType.RSASHA256
+		# else:
+		# 	algorithm = AlgorithmType.RSASHA256
 
 		body: bytes
 		message: Message
@@ -202,7 +204,7 @@ class HttpClient:
 			url,
 			body,
 			headers = {'Content-Type': 'application/activity+json'},
-			algorithm = algorithm
+			algorithm = AlgorithmType.RSASHA256
 		)
 
 		try:
