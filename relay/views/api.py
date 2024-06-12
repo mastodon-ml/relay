@@ -26,7 +26,6 @@ ALLOWED_HEADERS = {
 
 PUBLIC_API_PATHS: Sequence[tuple[str, str]] = (
 	('GET', '/api/v1/relay'),
-	('GET', '/api/v1/instance'),
 	('POST', '/api/v1/token')
 )
 
