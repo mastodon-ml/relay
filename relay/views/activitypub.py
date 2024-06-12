@@ -125,6 +125,39 @@ class ActorView(View):
 		return None
 
 
+@register_route('/outbox')
+class OutboxView(View):
+	async def get(self, request: Request) -> Response:
+		msg = aputils.Message.new(
+			aputils.ObjectType.ORDERED_COLLECTION,
+			{
+				"id": f'https://{self.config.domain}/outbox',
+				"totalItems": 0,
+				"orderedItems": []
+			}
+		)
+
+		return Response.new(msg, ctype = 'activity')
+
+
+@register_route('/following', '/followers')
+class RelationshipView(View):
+	async def get(self, request: Request) -> Response:
+		with self.database.session(False) as s:
+			inboxes = [row['actor'] for row in s.get_inboxes()]
+
+		msg = aputils.Message.new(
+			aputils.ObjectType.COLLECTION,
+			{
+				"id": f'https://{self.config.domain}{request.path}',
+				"totalItems": len(inboxes),
+				"items": inboxes
+			}
+		)
+
+		return Response.new(msg, ctype = 'activity')
+
+
 @register_route('/.well-known/webfinger')
 class WebfingerView(View):
 	async def get(self, request: Request) -> Response:

@@ -148,6 +148,7 @@ class Message(aputils.Message):
 			'followers': f'https://{host}/followers',
 			'following': f'https://{host}/following',
 			'inbox': f'https://{host}/inbox',
+			'outbox': f'https://{host}/outbox',
 			'url': f'https://{host}/',
 			'endpoints': {
 				'sharedInbox': f'https://{host}/inbox'
