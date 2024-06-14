@@ -50,21 +50,17 @@ def cli_install(no_dev: bool) -> None:
 
 @cli.command('lint')
 @click.argument('path', required = False, type = Path, default = REPO.joinpath('relay'))
-@click.option('--strict', '-s', is_flag = True, help = 'Enable strict mode for mypy')
 @click.option('--watch', '-w', is_flag = True,
 	help = 'Automatically, re-run the linters on source change')
-def cli_lint(path: Path, strict: bool, watch: bool) -> None:
+def cli_lint(path: Path, watch: bool) -> None:
 	path = path.expanduser().resolve()
 
 	if watch:
-		handle_run_watcher([sys.executable, "-m", "relay.dev", "lint", str(path)], wait = True)
+		handle_run_watcher([sys.executable, "dev.py", "lint", str(path)], wait = True)
 		return
 
 	flake8 = [sys.executable, '-m', 'flake8', "dev.py", str(path)]
 	mypy = [sys.executable, '-m', 'mypy', "dev.py", str(path)]
-
-	if strict:
-		mypy.append('--strict')
 
 	click.echo('----- flake8 -----')
 	subprocess.run(flake8)

@@ -89,6 +89,7 @@ warn_unreachable = true
 warn_unused_ignores = true
 ignore_missing_imports = true
 implicit_reexport = true
+strict = true
 follow_imports = "silent"
 
 [[tool.mypy.overrides]]
