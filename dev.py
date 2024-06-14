@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -29,19 +30,22 @@ IGNORE_EXT = {
 
 
 @click.group('cli')
-def cli():
+def cli() -> None:
 	'Useful commands for development'
 
 
 @cli.command('install')
-def cli_install():
-	cmd = [
-		sys.executable, '-m', 'pip', 'install',
-		'-r', 'requirements.txt',
-		'-r', 'dev-requirements.txt'
-	]
+@click.option('--no-dev', '-d', is_flag = True, help = 'Do not install development dependencies')
+def cli_install(no_dev: bool) -> None:
+	with open('pyproject.toml', 'rb') as fd:
+		data = tomllib.load(fd)
 
-	subprocess.run(cmd, check = False)
+	deps = data['project']['dependencies']
+
+	if not no_dev:
+		deps.extend(data['project']['optional-dependencies']['dev'])
+
+	subprocess.run([sys.executable, '-m', 'pip', 'install', '-U', *deps], check = False)
 
 
 @cli.command('lint')
