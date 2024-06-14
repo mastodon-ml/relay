@@ -1,25 +1,22 @@
 from __future__ import annotations
 
 import textwrap
-import typing
 
 from collections.abc import Callable
 from hamlish_jinja import HamlishExtension
 from jinja2 import Environment, FileSystemLoader
 from jinja2.ext import Extension
-from jinja2.nodes import CallBlock
+from jinja2.nodes import CallBlock, Node
+from jinja2.parser import Parser
 from markdown import Markdown
-
+from typing import TYPE_CHECKING, Any
 
 from . import __version__
 from .misc import get_resource
+from .views.base import View
 
-if typing.TYPE_CHECKING:
-	from jinja2.nodes import Node
-	from jinja2.parser import Parser
-	from typing import Any
+if TYPE_CHECKING:
 	from .application import Application
-	from .views.base import View
 
 
 class Template(Environment):

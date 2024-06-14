@@ -1,33 +1,33 @@
 from __future__ import annotations
 
-import typing
-
 from Crypto.Random import get_random_bytes
 from aiohttp.abc import AbstractView
 from aiohttp.hdrs import METH_ALL as METHODS
-from aiohttp.web import HTTPMethodNotAllowed
+from aiohttp.web import HTTPMethodNotAllowed, Request
 from base64 import b64encode
+from bsql import Database
+from collections.abc import Awaitable, Callable, Generator, Sequence, Mapping
 from functools import cached_property
 from json.decoder import JSONDecodeError
+from typing import TYPE_CHECKING, Any
 
+from ..cache import Cache
+from ..config import Config
+from ..database import Connection
+from ..http_client import HttpClient
 from ..misc import Response, get_app
 
-if typing.TYPE_CHECKING:
-	from aiohttp.web import Request
-	from collections.abc import Callable, Generator, Sequence, Mapping
-	from bsql import Database
-	from typing import Any
+if TYPE_CHECKING:
 	from ..application import Application
-	from ..cache import Cache
-	from ..config import Config
-	from ..http_client import HttpClient
 	from ..template import Template
 
-	try:
-		from typing import Self
+try:
+	from typing import Self
 
-	except ImportError:
-		from typing_extensions import Self
+except ImportError:
+	from typing_extensions import Self
+
+HandlerCallback = Callable[[Request], Awaitable[Response]]
 
 
 VIEWS: list[tuple[str, type[View]]] = []
@@ -37,7 +37,7 @@ def convert_data(data: Mapping[str, Any]) -> dict[str, str]:
 	return {key: str(value) for key, value in data.items()}
 
 
-def register_route(*paths: str) -> Callable:
+def register_route(*paths: str) -> Callable[[type[View]], type[View]]:
 	def wrapper(view: type[View]) -> type[View]:
 		for path in paths:
 			VIEWS.append((path, view))
@@ -63,7 +63,7 @@ class View(AbstractView):
 		return await view.handlers[method](request, **kwargs)
 
 
-	async def _run_handler(self, handler: Callable[..., Any], **kwargs: Any) -> Response:
+	async def _run_handler(self, handler: HandlerCallback, **kwargs: Any) -> Response:
 		self.request['hash'] = b64encode(get_random_bytes(16)).decode('ascii')
 		return await handler(self.request, **self.request.match_info, **kwargs)
 
@@ -78,7 +78,7 @@ class View(AbstractView):
 
 
 	@cached_property
-	def handlers(self) -> dict[str, Callable[..., Any]]:
+	def handlers(self) -> dict[str, HandlerCallback]:
 		data = {}
 
 		for method in METHODS:
@@ -112,13 +112,13 @@ class View(AbstractView):
 
 
 	@property
-	def database(self) -> Database:
+	def database(self) -> Database[Connection]:
 		return self.app.database
 
 
 	@property
 	def template(self) -> Template:
-		return self.app['template']
+		return self.app['template'] # type: ignore[no-any-return]
 
 
 	async def get_api_data(self,

@@ -1,22 +1,20 @@
 from __future__ import annotations
+# removing the above line turns annotations into types instead of str objects which messes with
+# `Field.type`
 
-import typing
-
+from bsql import Row
+from collections.abc import Callable, Sequence
 from dataclasses import Field, asdict, dataclass, fields
+from typing import Any
 
 from .. import logger as logging
 from ..misc import boolean
 
-if typing.TYPE_CHECKING:
-	from bsql import Row
-	from collections.abc import Callable, Sequence
-	from typing import Any
+try:
+	from typing import Self
 
-	try:
-		from typing import Self
-
-	except ImportError:
-		from typing_extensions import Self
+except ImportError:
+	from typing_extensions import Self
 
 
 THEMES = {
@@ -120,7 +118,7 @@ class ConfigData:
 
 
 	@classmethod
-	def FIELD(cls: type[Self], key: str) -> Field:
+	def FIELD(cls: type[Self], key: str) -> Field[Any]:
 		for field in fields(cls):
 			if field.name == key.replace('-', '_'):
 				return field

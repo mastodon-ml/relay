@@ -1,21 +1,19 @@
-from __future__ import annotations
-
 import logging
 import os
-import typing
 
 from enum import IntEnum
 from pathlib import Path
+from typing import Any, Protocol
 
-if typing.TYPE_CHECKING:
-	from collections.abc import Callable
-	from typing import Any
+try:
+	from typing import Self
 
-	try:
-		from typing import Self
+except ImportError:
+	from typing_extensions import Self
 
-	except ImportError:
-		from typing_extensions import Self
+
+class LoggingMethod(Protocol):
+	def __call__(self, msg: Any, *args: Any, **kwargs: Any) -> None: ...
 
 
 class LogLevel(IntEnum):
@@ -75,11 +73,11 @@ def verbose(message: str, *args: Any, **kwargs: Any) -> None:
 	logging.log(LogLevel.VERBOSE, message, *args, **kwargs)
 
 
-debug: Callable = logging.debug
-info: Callable = logging.info
-warning: Callable = logging.warning
-error: Callable = logging.error
-critical: Callable = logging.critical
+debug: LoggingMethod = logging.debug
+info: LoggingMethod = logging.info
+warning: LoggingMethod = logging.warning
+error: LoggingMethod = logging.error
+critical: LoggingMethod = logging.critical
 
 
 try:

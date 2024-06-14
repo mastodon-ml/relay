@@ -1,9 +1,7 @@
-from __future__ import annotations
-
-import typing
-
-from aiohttp import web
+from aiohttp.web import Request, middleware
 from argon2.exceptions import VerifyMismatchError
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 from .base import View, register_route
@@ -11,11 +9,6 @@ from .base import View, register_route
 from .. import __version__
 from ..database import ConfigData
 from ..misc import Message, Response, boolean, get_app
-
-if typing.TYPE_CHECKING:
-	from aiohttp.web import Request
-	from collections.abc import Callable, Sequence
-	from typing import Any
 
 
 ALLOWED_HEADERS = {
@@ -37,8 +30,10 @@ def check_api_path(method: str, path: str) -> bool:
 	return path.startswith('/api')
 
 
-@web.middleware
-async def handle_api_path(request: Request, handler: Callable) -> Response:
+@middleware
+async def handle_api_path(
+						request: Request,
+						handler: Callable[[Request], Awaitable[Response]]) -> Response:
 	try:
 		if (token := request.cookies.get('user-token')):
 			request['token'] = token
@@ -222,7 +217,7 @@ class Inbox(View):
 				if nodeinfo is not None:
 					data['software'] = nodeinfo.sw_name
 
-			row = conn.put_inbox(**data)
+			row = conn.put_inbox(**data) # type: ignore[arg-type]
 
 		return Response.new(row, ctype = 'json')
 
@@ -237,7 +232,7 @@ class Inbox(View):
 			if not (instance := conn.get_inbox(data['domain'])):
 				return Response.new_error(404, 'Instance with domain not found', 'json')
 
-			instance = conn.put_inbox(instance['domain'], **data)
+			instance = conn.put_inbox(instance['domain'], **data) # type: ignore[arg-type]
 
 		return Response.new(instance, ctype = 'json')
 

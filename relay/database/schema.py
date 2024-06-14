@@ -1,17 +1,11 @@
-from __future__ import annotations
-
-import typing
-
 from bsql import Column, Table, Tables
+from collections.abc import Callable
 
 from .config import ConfigData
-
-if typing.TYPE_CHECKING:
-	from collections.abc import Callable
-	from .connection import Connection
+from .connection import Connection
 
 
-VERSIONS: dict[int, Callable] = {}
+VERSIONS: dict[int, Callable[[Connection], None]] = {}
 TABLES: Tables = Tables(
 	Table(
 		'config',
@@ -64,7 +58,7 @@ TABLES: Tables = Tables(
 )
 
 
-def migration(func: Callable) -> Callable:
+def migration(func: Callable[[Connection], None]) -> Callable[[Connection], None]:
 	ver = int(func.__name__.replace('migrate_', ''))
 	VERSIONS[ver] = func
 	return func

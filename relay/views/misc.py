@@ -1,18 +1,13 @@
-from __future__ import annotations
-
 import aputils
 import subprocess
-import typing
 
+from aiohttp.web import Request
 from pathlib import Path
 
 from .base import View, register_route
 
 from .. import __version__
 from ..misc import Response
-
-if typing.TYPE_CHECKING:
-	from aiohttp.web import Request
 
 
 VERSION = __version__

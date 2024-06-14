@@ -1,20 +1,15 @@
-from __future__ import annotations
-
-import bsql
-import typing
+from bsql import Database
 
 from .config import THEMES, ConfigData
 from .connection import RELAY_SOFTWARE, Connection
 from .schema import TABLES, VERSIONS, migrate_0
 
 from .. import logger as logging
+from ..config import Config
 from ..misc import get_resource
 
-if typing.TYPE_CHECKING:
-	from ..config import Config
 
-
-def get_database(config: Config, migrate: bool = True) -> bsql.Database:
+def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
 	options = {
 		'connection_class': Connection,
 		'pool_size': 5,
@@ -22,10 +17,10 @@ def get_database(config: Config, migrate: bool = True) -> bsql.Database:
 	}
 
 	if config.db_type == 'sqlite':
-		db = bsql.Database.sqlite(config.sqlite_path, **options)
+		db = Database.sqlite(config.sqlite_path, **options)
 
 	elif config.db_type == 'postgres':
-		db = bsql.Database.postgresql(
+		db = Database.postgresql(
 			config.pg_name,
 			config.pg_host,
 			config.pg_port,

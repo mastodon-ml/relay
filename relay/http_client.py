@@ -2,26 +2,23 @@ from __future__ import annotations
 
 import json
 import traceback
-import typing
 
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
+from aputils import AlgorithmType, Nodeinfo, ObjectType, Signer, WellKnownNodeinfo
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
-from aputils import AlgorithmType, Nodeinfo, ObjectType, WellKnownNodeinfo
 from blib import JsonBase
+from bsql import Row
 from json.decoder import JSONDecodeError
+from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import urlparse
 
-from . import __version__
-from . import logger as logging
+from . import __version__, logger as logging
+from .cache import Cache
 from .misc import MIMETYPES, Message, get_app
 
-if typing.TYPE_CHECKING:
-	from aputils import Signer
-	from bsql import Row
-	from typing import Any
+if TYPE_CHECKING:
 	from .application import Application
-	from .cache import Cache
 
 
 SUPPORTS_HS2019 = {
@@ -39,7 +36,7 @@ SUPPORTS_HS2019 = {
 	'sharkey'
 }
 
-T = typing.TypeVar('T', bound = JsonBase)
+T = TypeVar('T', bound = JsonBase)
 HEADERS = {
 	'Accept': f'{MIMETYPES["activity"]}, {MIMETYPES["json"]};q=0.9',
 	'User-Agent': f'ActivityRelay/{__version__}'
@@ -124,7 +121,7 @@ class HttpClient:
 		if not force:
 			try:
 				if not (item := self.cache.get('request', url)).older_than(48):
-					return json.loads(item.value)
+					return json.loads(item.value) # type: ignore[no-any-return]
 
 			except KeyError:
 				logging.verbose('No cached data for url: %s', url)
@@ -153,7 +150,7 @@ class HttpClient:
 			self.cache.set('request', url, data, 'str')
 			logging.debug('%s >> resp %s', url, json.dumps(json.loads(data), indent = 4))
 
-			return json.loads(data)
+			return json.loads(data) # type: ignore [no-any-return]
 
 		except JSONDecodeError:
 			logging.verbose('Failed to parse JSON')

@@ -5,11 +5,12 @@ import json
 import os
 import platform
 import socket
-import typing
 
 from aiohttp.web import Response as AiohttpResponse
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypedDict, TypeVar
 from uuid import uuid4
 
 try:
@@ -18,21 +19,20 @@ try:
 except ImportError:
 	from importlib_resources import files as pkgfiles # type: ignore
 
-if typing.TYPE_CHECKING:
-	from typing import Any
+try:
+	from typing import Self
+
+except ImportError:
+	from typing_extensions import Self
+
+if TYPE_CHECKING:
 	from .application import Application
 
-	try:
-		from typing import Self
 
-	except ImportError:
-		from typing_extensions import Self
-
-
-T = typing.TypeVar('T')
-ResponseType = typing.TypedDict('ResponseType', {
+T = TypeVar('T')
+ResponseType = TypedDict('ResponseType', {
 	'status': int,
-	'headers': dict[str, typing.Any] | None,
+	'headers': dict[str, Any] | None,
 	'content_type': str,
 	'body': bytes | None,
 	'text': str | None
@@ -128,7 +128,7 @@ class JsonEncoder(json.JSONEncoder):
 		if isinstance(o, datetime):
 			return o.isoformat()
 
-		return json.JSONEncoder.default(self, o)
+		return json.JSONEncoder.default(self, o) # type: ignore[no-any-return]
 
 
 class Message(aputils.Message):
@@ -214,7 +214,7 @@ class Response(AiohttpResponse):
 
 	@classmethod
 	def new(cls: type[Self],
-			body: str | bytes | dict | tuple | list | set = '',
+			body: str | bytes | dict[str, Any] | Sequence[Any] = '',
 			status: int = 200,
 			headers: dict[str, str] | None = None,
 			ctype: str = 'text') -> Self:
@@ -227,14 +227,14 @@ class Response(AiohttpResponse):
 			'text': None
 		}
 
-		if isinstance(body, bytes):
+		if isinstance(body, str):
+			kwargs['text'] = body
+
+		elif isinstance(body, bytes):
 			kwargs['body'] = body
 
-		elif isinstance(body, (dict, list, tuple, set)) or ctype in {'json', 'activity'}:
+		elif isinstance(body, (dict, Sequence)):
 			kwargs['text'] = json.dumps(body, cls = JsonEncoder)
-
-		else:
-			kwargs['text'] = body
 
 		return cls(**kwargs)
 
@@ -242,7 +242,7 @@ class Response(AiohttpResponse):
 	@classmethod
 	def new_error(cls: type[Self],
 				status: int,
-				body: str | bytes | dict,
+				body: str | bytes | dict[str, Any],
 				ctype: str = 'text') -> Self:
 
 		if ctype == 'json':

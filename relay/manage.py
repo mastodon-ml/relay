@@ -5,10 +5,11 @@ import asyncio
 import click
 import json
 import os
-import typing
 
+from bsql import Row
 from pathlib import Path
 from shutil import copyfile
+from typing import Any
 from urllib.parse import urlparse
 
 from . import __version__
@@ -18,10 +19,6 @@ from .application import Application
 from .compat import RelayConfig, RelayDatabase
 from .database import RELAY_SOFTWARE, get_database
 from .misc import ACTOR_FORMATS, SOFTWARE, IS_DOCKER, Message
-
-if typing.TYPE_CHECKING:
-	from bsql import Row
-	from typing import Any
 
 
 def check_alphanumeric(text: str) -> str:

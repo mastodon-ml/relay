@@ -1,21 +1,16 @@
-from __future__ import annotations
-
 import json
 import os
-import typing
 import yaml
 
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from .misc import boolean
 
-if typing.TYPE_CHECKING:
-	from typing import Any
 
-
-class RelayConfig(dict):
+class RelayConfig(dict[str, Any]):
 	def __init__(self, path: str):
 		dict.__init__(self, {})
 
@@ -122,7 +117,7 @@ class RelayConfig(dict):
 			self[key] = value
 
 
-class RelayDatabase(dict):
+class RelayDatabase(dict[str, Any]):
 	def __init__(self, config: RelayConfig):
 		dict.__init__(self, {
 			'relay-list': {},

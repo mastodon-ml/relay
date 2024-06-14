@@ -2,28 +2,27 @@ from __future__ import annotations
 
 import json
 import os
-import typing
 
 from abc import ABC, abstractmethod
+from bsql import Database
+from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from redis import Redis
+from typing import TYPE_CHECKING, Any
 
-from .database import get_database
+from .database import Connection, get_database
 from .misc import Message, boolean
 
-if typing.TYPE_CHECKING:
-	from bsql import Database
-	from collections.abc import Callable, Iterator
-	from typing import Any
+if TYPE_CHECKING:
 	from .application import Application
 
 
-# todo: implement more caching backends
-
+SerializerCallback = Callable[[Any], str]
+DeserializerCallback = Callable[[str], Any]
 
 BACKENDS: dict[str, type[Cache]] = {}
-CONVERTERS: dict[str, tuple[Callable, Callable]] = {
+CONVERTERS: dict[str, tuple[SerializerCallback, DeserializerCallback]] = {
 	'str': (str, str),
 	'int': (str, int),
 	'bool': (str, boolean),
@@ -61,13 +60,13 @@ class Item:
 	updated: datetime
 
 
-	def __post_init__(self):
-		if isinstance(self.updated, str):
-			self.updated = datetime.fromisoformat(self.updated)
+	def __post_init__(self) -> None:
+		if isinstance(self.updated, str): # type: ignore[unreachable]
+			self.updated = datetime.fromisoformat(self.updated) # type: ignore[unreachable]
 
 
 	@classmethod
-	def from_data(cls: type[Item], *args) -> Item:
+	def from_data(cls: type[Item], *args: Any) -> Item:
 		data = cls(*args)
 		data.value = deserialize_value(data.value, data.value_type)
 
@@ -159,7 +158,7 @@ class SqlCache(Cache):
 
 	def __init__(self, app: Application):
 		Cache.__init__(self, app)
-		self._db: Database | None = None
+		self._db: Database[Connection] | None = None
 
 
 	def get(self, namespace: str, key: str) -> Item:
@@ -211,10 +210,10 @@ class SqlCache(Cache):
 		}
 
 		with self._db.session(True) as conn:
-			with conn.run('set-cache-item', params) as conn:
-				row = conn.one()
-				row.pop('id', None)
-				return Item.from_data(*tuple(row.values()))
+			with conn.run('set-cache-item', params) as cur:
+				row = cur.one()
+				row.pop('id', None) # type: ignore[union-attr]
+				return Item.from_data(*tuple(row.values())) # type: ignore[union-attr]
 
 
 	def delete(self, namespace: str, key: str) -> None:
@@ -381,5 +380,5 @@ class RedisCache(Cache):
 		if not self._rd:
 			return
 
-		self._rd.close()
+		self._rd.close() # type: ignore
 		self._rd = None # type: ignore

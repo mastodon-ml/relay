@@ -1,25 +1,20 @@
-from __future__ import annotations
-
 import getpass
 import os
 import platform
-import typing
 import yaml
 
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from platformdirs import user_config_dir
+from typing import Any
 
 from .misc import IS_DOCKER
 
-if typing.TYPE_CHECKING:
-	from typing import Any
+try:
+	from typing import Self
 
-	try:
-		from typing import Self
-
-	except ImportError:
-		from typing_extensions import Self
+except ImportError:
+	from typing_extensions import Self
 
 
 if platform.system() == 'Windows':

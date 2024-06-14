@@ -1,19 +1,12 @@
-from __future__ import annotations
-
-import typing
-
 from aiohttp import web
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from .base import View, register_route
 
 from ..database import THEMES
 from ..logger import LogLevel
 from ..misc import Response, get_app
-
-if typing.TYPE_CHECKING:
-	from aiohttp.web import Request
-	from collections.abc import Callable
-	from typing import Any
 
 
 UNAUTH_ROUTES = {
@@ -23,7 +16,10 @@ UNAUTH_ROUTES = {
 
 
 @web.middleware
-async def handle_frontend_path(request: web.Request, handler: Callable) -> Response:
+async def handle_frontend_path(
+							request: web.Request,
+							handler: Callable[[web.Request], Awaitable[Response]]) -> Response:
+
 	app = get_app()
 
 	if request.path in UNAUTH_ROUTES or request.path.startswith('/admin'):
@@ -52,7 +48,7 @@ async def handle_frontend_path(request: web.Request, handler: Callable) -> Respo
 
 @register_route('/')
 class HomeView(View):
-	async def get(self, request: Request) -> Response:
+	async def get(self, request: web.Request) -> Response:
 		with self.database.session() as conn:
 			context: dict[str, Any] = {
 				'instances': tuple(conn.get_inboxes())
@@ -64,14 +60,14 @@ class HomeView(View):
 
 @register_route('/login')
 class Login(View):
-	async def get(self, request: Request) -> Response:
+	async def get(self, request: web.Request) -> Response:
 		data = self.template.render('page/login.haml', self)
 		return Response.new(data, ctype = 'html')
 
 
 @register_route('/logout')
 class Logout(View):
-	async def get(self, request: Request) -> Response:
+	async def get(self, request: web.Request) -> Response:
 		with self.database.session(True) as conn:
 			conn.del_token(request['token'])
 
@@ -82,14 +78,14 @@ class Logout(View):
 
 @register_route('/admin')
 class Admin(View):
-	async def get(self, request: Request) -> Response:
+	async def get(self, request: web.Request) -> Response:
 		return Response.new('', 302, {'Location': '/admin/instances'})
 
 
 @register_route('/admin/instances')
 class AdminInstances(View):
 	async def get(self,
-				request: Request,
+				request: web.Request,
 				error: str | None = None,
 				message: str | None = None) -> Response:
 
@@ -112,7 +108,7 @@ class AdminInstances(View):
 @register_route('/admin/whitelist')
 class AdminWhitelist(View):
 	async def get(self,
-				request: Request,
+				request: web.Request,
 				error: str | None = None,
 				message: str | None = None) -> Response:
 
@@ -134,7 +130,7 @@ class AdminWhitelist(View):
 @register_route('/admin/domain_bans')
 class AdminDomainBans(View):
 	async def get(self,
-				request: Request,
+				request: web.Request,
 				error: str | None = None,
 				message: str | None = None) -> Response:
 
@@ -156,7 +152,7 @@ class AdminDomainBans(View):
 @register_route('/admin/software_bans')
 class AdminSoftwareBans(View):
 	async def get(self,
-				request: Request,
+				request: web.Request,
 				error: str | None = None,
 				message: str | None = None) -> Response:
 
@@ -178,7 +174,7 @@ class AdminSoftwareBans(View):
 @register_route('/admin/users')
 class AdminUsers(View):
 	async def get(self,
-				request: Request,
+				request: web.Request,
 				error: str | None = None,
 				message: str | None = None) -> Response:
 
@@ -199,7 +195,7 @@ class AdminUsers(View):
 
 @register_route('/admin/config')
 class AdminConfig(View):
-	async def get(self, request: Request, message: str | None = None) -> Response:
+	async def get(self, request: web.Request, message: str | None = None) -> Response:
 		context: dict[str, Any] = {
 			'themes': tuple(THEMES.keys()),
 			'levels': tuple(level.name for level in LogLevel),
@@ -212,7 +208,7 @@ class AdminConfig(View):
 
 @register_route('/manifest.json')
 class ManifestJson(View):
-	async def get(self, request: Request) -> Response:
+	async def get(self, request: web.Request) -> Response:
 		with self.database.session(False) as conn:
 			config = conn.get_config_all()
 			theme = THEMES[config.theme]
@@ -235,7 +231,7 @@ class ManifestJson(View):
 
 @register_route('/theme/{theme}.css')
 class ThemeCss(View):
-	async def get(self, request: Request, theme: str) -> Response:
+	async def get(self, request: web.Request, theme: str) -> Response:
 		try:
 			context: dict[str, Any] = {
 				'theme': THEMES[theme]

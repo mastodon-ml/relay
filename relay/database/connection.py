@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import typing
-
 from argon2 import PasswordHasher
-from bsql import Connection as SqlConnection, Update
+from bsql import Connection as SqlConnection, Row, Update
+from collections.abc import Iterator, Sequence
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -14,15 +14,10 @@ from .config import (
 )
 
 from .. import logger as logging
-from ..misc import boolean, get_app
+from ..misc import Message, boolean, get_app
 
-if typing.TYPE_CHECKING:
-	from collections.abc import Iterator, Sequence
-	from bsql import Row
-	from typing import Any
+if TYPE_CHECKING:
 	from ..application import Application
-	from ..misc import Message
-
 
 RELAY_SOFTWARE = [
 	'activityrelay', # https://git.pleroma.social/pleroma/relay
@@ -94,7 +89,7 @@ class Connection(SqlConnection):
 		params = {
 			'key': key,
 			'value': data.get(key, serialize = True),
-			'type': 'LogLevel' if field.type == 'logging.LogLevel' else field.type
+			'type': 'LogLevel' if field.type == 'logging.LogLevel' else field.type # type: ignore
 		}
 
 		with self.run('put-config', params):

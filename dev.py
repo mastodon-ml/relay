@@ -11,11 +11,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from relay import __version__, logger as logging
 from tempfile import TemporaryDirectory
-from typing import Sequence
+from typing import Any, Sequence
 
 try:
 	from watchdog.observers import Observer
-	from watchdog.events import PatternMatchingEventHandler
+	from watchdog.events import FileSystemEvent, PatternMatchingEventHandler
 
 except ImportError:
 	class PatternMatchingEventHandler: # type: ignore
@@ -70,7 +70,7 @@ def cli_lint(path: Path, watch: bool) -> None:
 
 
 @cli.command('clean')
-def cli_clean():
+def cli_clean() -> None:
 	dirs = {
 		'dist',
 		'build',
@@ -88,7 +88,7 @@ def cli_clean():
 
 
 @cli.command('build')
-def cli_build():
+def cli_build() -> None:
 	with TemporaryDirectory() as tmp:
 		arch = 'amd64' if sys.maxsize >= 2**32 else 'i386'
 		cmd = [
@@ -118,7 +118,7 @@ def cli_build():
 
 @cli.command('run')
 @click.option('--dev', '-d', is_flag = True)
-def cli_run(dev: bool):
+def cli_run(dev: bool) -> None:
 	print('Starting process watcher')
 
 	cmd = [sys.executable, '-m', 'relay', 'run']
@@ -129,13 +129,13 @@ def cli_run(dev: bool):
 	handle_run_watcher(cmd)
 
 
-def handle_run_watcher(*commands: Sequence[str], wait: bool = False):
+def handle_run_watcher(*commands: Sequence[str], wait: bool = False) -> None:
 	handler = WatchHandler(*commands, wait = wait)
 	handler.run_procs()
 
 	watcher = Observer()
-	watcher.schedule(handler, str(REPO), recursive=True)
-	watcher.start()
+	watcher.schedule(handler, str(REPO), recursive=True) # type: ignore
+	watcher.start() # type: ignore
 
 	try:
 		while True:
@@ -145,7 +145,7 @@ def handle_run_watcher(*commands: Sequence[str], wait: bool = False):
 		pass
 
 	handler.kill_procs()
-	watcher.stop()
+	watcher.stop() # type: ignore
 	watcher.join()
 
 
@@ -153,16 +153,16 @@ class WatchHandler(PatternMatchingEventHandler):
 	patterns = ['*.py']
 
 
-	def __init__(self, *commands: Sequence[str], wait: bool = False):
-		PatternMatchingEventHandler.__init__(self)
+	def __init__(self, *commands: Sequence[str], wait: bool = False) -> None:
+		PatternMatchingEventHandler.__init__(self) # type: ignore
 
 		self.commands: Sequence[Sequence[str]] = commands
 		self.wait: bool = wait
-		self.procs: list[subprocess.Popen] = []
+		self.procs: list[subprocess.Popen[Any]] = []
 		self.last_restart: datetime = datetime.now()
 
 
-	def kill_procs(self):
+	def kill_procs(self) -> None:
 		for proc in self.procs:
 			if proc.poll() is not None:
 				continue
@@ -183,7 +183,7 @@ class WatchHandler(PatternMatchingEventHandler):
 			logging.info('Process terminated')
 
 
-	def run_procs(self, restart: bool = False):
+	def run_procs(self, restart: bool = False) -> None:
 		if restart:
 			if datetime.now() - timedelta(seconds = 3) < self.last_restart:
 				return
@@ -205,7 +205,7 @@ class WatchHandler(PatternMatchingEventHandler):
 			logging.info('Started processes with PIDs: %s', ', '.join(pids))
 
 
-	def on_any_event(self, event):
+	def on_any_event(self, event: FileSystemEvent) -> None:
 		if event.event_type not in ['modified', 'created', 'deleted']:
 			return
 

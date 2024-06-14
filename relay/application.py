@@ -5,34 +5,30 @@ import multiprocessing
 import signal
 import time
 import traceback
-import typing
 
 from aiohttp import web
 from aiohttp.web import StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
+from bsql import Database, Row
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from mimetypes import guess_type
 from pathlib import Path
 from queue import Empty
 from threading import Event, Thread
+from typing import Any
 
 from . import logger as logging
-from .cache import get_cache
+from .cache import Cache, get_cache
 from .config import Config
-from .database import get_database
+from .database import Connection, get_database
 from .http_client import HttpClient
-from .misc import IS_WINDOWS, check_open_port, get_resource
+from .misc import IS_WINDOWS, Message, Response, check_open_port, get_resource
 from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
 from .views.frontend import handle_frontend_path
-
-if typing.TYPE_CHECKING:
-	from collections.abc import Callable
-	from bsql import Database, Row
-	from .cache import Cache
-	from .misc import Message, Response
 
 
 def get_csp(request: web.Request) -> str:
@@ -58,9 +54,9 @@ class Application(web.Application):
 	def __init__(self, cfgpath: Path | None, dev: bool = False):
 		web.Application.__init__(self,
 			middlewares = [
-				handle_api_path,
-				handle_frontend_path,
-				handle_response_headers
+				handle_api_path, # type: ignore[list-item]
+				handle_frontend_path, # type: ignore[list-item]
+				handle_response_headers # type: ignore[list-item]
 			]
 		)
 
@@ -96,27 +92,27 @@ class Application(web.Application):
 
 	@property
 	def cache(self) -> Cache:
-		return self['cache']
+		return self['cache'] # type: ignore[no-any-return]
 
 
 	@property
 	def client(self) -> HttpClient:
-		return self['client']
+		return self['client'] # type: ignore[no-any-return]
 
 
 	@property
 	def config(self) -> Config:
-		return self['config']
+		return self['config'] # type: ignore[no-any-return]
 
 
 	@property
-	def database(self) -> Database:
-		return self['database']
+	def database(self) -> Database[Connection]:
+		return self['database'] # type: ignore[no-any-return]
 
 
 	@property
 	def signer(self) -> Signer:
-		return self['signer']
+		return self['signer'] # type: ignore[no-any-return]
 
 
 	@signer.setter
@@ -130,7 +126,7 @@ class Application(web.Application):
 
 	@property
 	def template(self) -> Template:
-		return self['template']
+		return self['template'] # type: ignore[no-any-return]
 
 
 	@property
@@ -185,11 +181,11 @@ class Application(web.Application):
 				pass
 
 
-	def stop(self, *_):
+	def stop(self, *_: Any) -> None:
 		self['running'] = False
 
 
-	async def handle_run(self):
+	async def handle_run(self) -> None:
 		self['running'] = True
 
 		self.set_signal_handler(True)
@@ -295,7 +291,7 @@ class CacheCleanupThread(Thread):
 
 
 class PushWorker(multiprocessing.Process):
-	def __init__(self, queue: multiprocessing.Queue):
+	def __init__(self, queue: multiprocessing.Queue[tuple[str, Message | bytes, Row]]) -> None:
 		if Application.DEFAULT is None:
 			raise RuntimeError('Application not setup yet')
 
@@ -347,7 +343,10 @@ class PushWorker(multiprocessing.Process):
 
 
 @web.middleware
-async def handle_response_headers(request: web.Request, handler: Callable) -> Response:
+async def handle_response_headers(
+								request: web.Request,
+								handler: Callable[[web.Request], Awaitable[Response]]) -> Response:
+
 	resp = await handler(request)
 	resp.headers['Server'] = 'ActivityRelay'
 
