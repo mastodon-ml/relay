@@ -24,6 +24,21 @@ if typing.TYPE_CHECKING:
 	from .cache import Cache
 
 
+SUPPORTS_HS2019 = {
+	'friendica',
+	'gotosocial',
+	'hubzilla'
+	'mastodon',
+	'socialhome',
+	'misskey',
+	'catodon',
+	'cherrypick',
+	'firefish',
+	'foundkey',
+	'iceshrimp',
+	'sharkey'
+}
+
 T = typing.TypeVar('T', bound = JsonBase)
 HEADERS = {
 	'Accept': f'{MIMETYPES["activity"]}, {MIMETYPES["json"]};q=0.9',
@@ -179,13 +194,12 @@ class HttpClient:
 		if not self._session:
 			raise RuntimeError('Client not open')
 
-		# there seems to be a problem with HS2019, so defaulting to RSASHA256 for now
 		# akkoma and pleroma do not support HS2019 and other software still needs to be tested
-		# if instance and instance['software'] in {'mastodon'}:
-		# 	algorithm = AlgorithmType.HS2019
+		if instance and instance['software'] in SUPPORTS_HS2019:
+			algorithm = AlgorithmType.HS2019
 
-		# else:
-		# 	algorithm = AlgorithmType.RSASHA256
+		else:
+			algorithm = AlgorithmType.RSASHA256
 
 		body: bytes
 		message: Message
@@ -204,7 +218,7 @@ class HttpClient:
 			url,
 			body,
 			headers = {'Content-Type': 'application/activity+json'},
-			algorithm = AlgorithmType.RSASHA256
+			algorithm = algorithm
 		)
 
 		try:
