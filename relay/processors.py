@@ -54,7 +54,7 @@ async def handle_forward(view: ActorView, conn: Connection) -> None:
 	logging.debug('>> forward: %s', message)
 
 	for instance in conn.distill_inboxes(view.message):
-		view.app.push_message(instance["inbox"], await view.request.read(), instance)
+		view.app.push_message(instance["inbox"], view.message, instance)
 
 	view.cache.set('handle-relay', view.message.id, message.id, 'str')
 

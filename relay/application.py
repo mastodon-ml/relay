@@ -139,7 +139,7 @@ class Application(web.Application):
 		return timedelta(seconds=uptime.seconds)
 
 
-	def push_message(self, inbox: str, message: Message | bytes, instance: Row) -> None:
+	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
 		self['push_queue'].put((inbox, message, instance))
 
 
@@ -291,7 +291,7 @@ class CacheCleanupThread(Thread):
 
 
 class PushWorker(multiprocessing.Process):
-	def __init__(self, queue: multiprocessing.Queue[tuple[str, Message | bytes, Row]]) -> None:
+	def __init__(self, queue: multiprocessing.Queue[tuple[str, Message, Row]]) -> None:
 		if Application.DEFAULT is None:
 			raise RuntimeError('Application not setup yet')
 
