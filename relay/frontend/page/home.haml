@@ -41,7 +41,7 @@
 					-for instance in instances
 						%tr
 							%td.instance -> %a(href="https://{{instance.domain}}/" target="_new")
-								=instance.domain
+								=instance.domain.encode().decode("idna")
 
 							%td.date
 								=instance.created.strftime("%Y-%m-%d")

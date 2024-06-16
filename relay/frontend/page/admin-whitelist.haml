@@ -27,7 +27,7 @@
 				-for item in whitelist
 					%tr(id="{{item.domain}}")
 						%td.domain
-							=item.domain
+							=item.domain.encode().decode("idna")
 
 						%td.date
 							=item.created.strftime("%Y-%m-%d")

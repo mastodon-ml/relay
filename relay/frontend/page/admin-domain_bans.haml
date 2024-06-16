@@ -35,7 +35,7 @@
 						%tr(id="{{ban.domain}}")
 							%td.domain
 								%details
-									%summary -> =ban.domain
+									%summary -> =ban.domain.encode().decode("idna")
 
 									.grid-2col
 										%label.reason(for="{{ban.domain}}-reason") << Reason

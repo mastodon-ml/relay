@@ -39,7 +39,7 @@
 						-for request in requests
 							%tr(id="{{request.domain}}")
 								%td.instance
-									%a(href="https://{{request.domain}}" target="_new") -> =request.domain
+									%a(href="https://{{request.domain}}" target="_new") -> =request.domain.encode().decode("idna")
 
 								%td.software
 									=request.software or "n/a"
@@ -69,7 +69,7 @@
 					-for instance in instances
 						%tr(id="{{instance.domain}}")
 							%td.instance
-								%a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain
+								%a(href="https://{{instance.domain}}/" target="_new") -> =instance.domain.encode().decode("idna")
 
 							%td.software
 								=instance.software or "n/a"

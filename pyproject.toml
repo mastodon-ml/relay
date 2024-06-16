@@ -24,6 +24,7 @@ dependencies = [
 	"barkshark-sql == 0.1.4-1",
 	"click >= 8.1.2",
 	"hiredis == 2.3.2",
+	"idna == 3.4",
 	"jinja2-haml == 0.3.5",
 	"markdown == 3.6",
 	"platformdirs == 4.2.2",

@@ -203,6 +203,8 @@ class Inbox(View):
 			if conn.get_inbox(data['domain']):
 				return Response.new_error(404, 'Instance already in database', 'json')
 
+			data['domain'] = data['domain'].encode('idna').decode()
+
 			if not data.get('inbox'):
 				actor_data: Message | None = await self.client.get(data['actor'], True, Message)
 
@@ -229,6 +231,8 @@ class Inbox(View):
 			if isinstance(data, Response):
 				return data
 
+			data['domain'] = data['domain'].encode('idna').decode()
+
 			if not (instance := conn.get_inbox(data['domain'])):
 				return Response.new_error(404, 'Instance with domain not found', 'json')
 
@@ -243,6 +247,8 @@ class Inbox(View):
 
 			if isinstance(data, Response):
 				return data
+
+			data['domain'] = data['domain'].encode('idna').decode()
 
 			if not conn.get_inbox(data['domain']):
 				return Response.new_error(404, 'Instance with domain not found', 'json')
@@ -263,7 +269,12 @@ class RequestView(View):
 
 	async def post(self, request: Request) -> Response:
 		data: dict[str, Any] | Response = await self.get_api_data(['domain', 'accept'], [])
+
+		if isinstance(data, Response):
+			return data
+
 		data['accept'] = boolean(data['accept'])
+		data['domain'] = data['domain'].encode('idna').decode()
 
 		try:
 			with self.database.session(True) as conn:
@@ -308,6 +319,8 @@ class DomainBan(View):
 		if isinstance(data, Response):
 			return data
 
+		data['domain'] = data['domain'].encode('idna').decode()
+
 		with self.database.session() as conn:
 			if conn.get_domain_ban(data['domain']):
 				return Response.new_error(400, 'Domain already banned', 'json')
@@ -323,6 +336,8 @@ class DomainBan(View):
 
 			if isinstance(data, Response):
 				return data
+
+			data['domain'] = data['domain'].encode('idna').decode()
 
 			if not conn.get_domain_ban(data['domain']):
 				return Response.new_error(404, 'Domain not banned', 'json')
@@ -341,6 +356,8 @@ class DomainBan(View):
 
 			if isinstance(data, Response):
 				return data
+
+			data['domain'] = data['domain'].encode('idna').decode()
 
 			if not conn.get_domain_ban(data['domain']):
 				return Response.new_error(404, 'Domain not banned', 'json')
@@ -479,6 +496,8 @@ class Whitelist(View):
 		if isinstance(data, Response):
 			return data
 
+		data['domain'] = data['domain'].encode('idna').decode()
+
 		with self.database.session() as conn:
 			if conn.get_domain_whitelist(data['domain']):
 				return Response.new_error(400, 'Domain already added to whitelist', 'json')
@@ -493,6 +512,8 @@ class Whitelist(View):
 
 		if isinstance(data, Response):
 			return data
+
+		data['domain'] = data['domain'].encode('idna').decode()
 
 		with self.database.session() as conn:
 			if not conn.get_domain_whitelist(data['domain']):
