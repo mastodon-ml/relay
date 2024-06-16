@@ -57,17 +57,9 @@ body.addEventListener("click", (event) => {
 // misc
 
 function get_date_string(date) {
-	var year = date.getFullYear().toString();
-	var month = date.getMonth().toString();
-	var day = date.getDay().toString();
-
-	if (month.length === 1) {
-		month = "0" + month;
-	}
-
-	if (day.length === 1) {
-		day = "0" + day
-	}
+	var year = date.getUTCFullYear().toString();
+	var month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+	var day = date.getUTCDate().toString().padStart(2, "0");
 
 	return `${year}-${month}-${day}`;
 }
@@ -127,6 +119,7 @@ async function request(method, path, body = null) {
 
 	} else {
 		if (Object.hasOwn(message, "created")) {
+			console.log(message.created)
 			message.created = new Date(message.created);
 		}
 	}
