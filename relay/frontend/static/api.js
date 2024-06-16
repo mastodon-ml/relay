@@ -32,18 +32,18 @@ function toast(text, type="error", timeout=5) {
 
 const body = document.getElementById("container")
 const menu = document.getElementById("menu");
-const menu_open = document.getElementById("menu-open");
+const menu_open = document.querySelector("#menu-open i");
 const menu_close = document.getElementById("menu-close");
 
 
-menu_open.addEventListener("click", (event) => {
-	var new_value = menu.attributes.visible.nodeValue === "true" ? "false" : "true";
+function toggle_menu() {
+	let new_value = menu.attributes.visible.nodeValue === "true" ? "false" : "true";
 	menu.attributes.visible.nodeValue = new_value;
-});
+}
 
-menu_close.addEventListener("click", (event) => {
-	menu.attributes.visible.nodeValue = "false"
-});
+
+menu_open.addEventListener("click", toggle_menu);
+menu_close.addEventListener("click", toggle_menu);
 
 body.addEventListener("click", (event) => {
 	if (event.target === menu_open) {
@@ -52,6 +52,10 @@ body.addEventListener("click", (event) => {
 
 	menu.attributes.visible.nodeValue = "false";
 });
+
+for (const elem of document.querySelectorAll("#menu-open div")) {
+	elem.addEventListener("click", toggle_menu);
+}
 
 
 // misc

@@ -13,6 +13,7 @@
 		%meta(name="viewport" content="width=device-width, initial-scale=1")
 		%link(rel="stylesheet" type="text/css" href="/theme/{{config.theme}}.css" nonce="{{view.request['hash']}}" class="theme")
 		%link(rel="stylesheet" type="text/css" href="/static/style.css" nonce="{{view.request['hash']}}")
+		%link(rel="stylesheet" type="text/css" href="/static/bootstrap-icons.css" nonce="{{view.request['hash']}}")
 		%link(rel="manifest" href="/manifest.json")
 		%script(type="application/javascript" src="/static/api.js" nonce="{{view.request['hash']}}" defer)
 		-block head
@@ -41,7 +42,7 @@
 
 		#container
 			#header.section
-				%span#menu-open << &#8286;
+				%span#menu-open -> %i(class="bi bi-list")
 				%a.title(href="/") -> =config.name
 				.empty
 

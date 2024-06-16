@@ -155,6 +155,7 @@ textarea {
 	z-index: 1;
 	font-size: 1.5em;
 	min-width: 300px;
+	overflow-x: auto;
 }
 
 #menu[visible="false"] {
@@ -188,11 +189,17 @@ textarea {
 }
 
 #menu-open {
-	color: var(--primary);
+	color: var(--background);
+	background: var(--primary);
+	font-size: 38px;
+	line-height: 38px;
+	border: 1px solid var(--primary);
+	border-radius: 5px;
 }
 
 #menu-open:hover {
-	color: var(--primary-hover);
+	color: var(--primary);
+	background: var(--background);
 }
 
 #menu-open, #menu-close {

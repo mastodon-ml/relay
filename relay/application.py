@@ -33,7 +33,7 @@ from .views.frontend import handle_frontend_path
 
 def get_csp(request: web.Request) -> str:
 	data = [
-		"default-src 'none'",
+		"default-src 'self'",
 		f"script-src 'nonce-{request['hash']}'",
 		f"style-src 'self' 'nonce-{request['hash']}'",
 		"form-action 'self'",
