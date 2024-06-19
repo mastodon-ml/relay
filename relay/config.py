@@ -61,7 +61,7 @@ class Config:
 
 
 	def __init__(self, path: Path | None = None, load: bool = False):
-		self.path = Config.get_config_dir(path)
+		self.path: Path = Config.get_config_dir(path)
 		self.reset()
 
 		if load:

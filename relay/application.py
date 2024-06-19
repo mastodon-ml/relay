@@ -22,7 +22,7 @@ from threading import Event, Thread
 from typing import Any
 from urllib.parse import urlparse
 
-from . import logger as logging
+from . import logger as logging, workers
 from .cache import Cache, get_cache
 from .config import Config
 from .database import Connection, get_database
@@ -78,7 +78,7 @@ class Application(web.Application):
 		self['cache'].setup()
 		self['template'] = Template(self)
 		self['push_queue'] = multiprocessing.Queue()
-		self['workers'] = []
+		self['workers'] = workers.PushWorkers(self.config.workers)
 
 		self.cache.setup()
 		self.on_cleanup.append(handle_cleanup) # type: ignore
@@ -143,7 +143,7 @@ class Application(web.Application):
 
 
 	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
-		self['push_queue'].put((inbox, message, instance))
+		self['workers'].push_message(inbox, message, instance)
 
 
 	def register_static_routes(self) -> None:
@@ -198,12 +198,7 @@ class Application(web.Application):
 		self['cache'].setup()
 		self['cleanup_thread'] = CacheCleanupThread(self)
 		self['cleanup_thread'].start()
-
-		for _ in range(self.config.workers):
-			worker = PushWorker(self['push_queue'])
-			worker.start()
-
-			self['workers'].append(worker)
+		self['workers'].start()
 
 		runner = web.AppRunner(self, access_log_format='%{X-Forwarded-For}i "%r" %s %b "%{User-Agent}i"')
 		await runner.setup()
@@ -223,15 +218,13 @@ class Application(web.Application):
 
 		await site.stop()
 
-		for worker in self['workers']:
-			worker.stop()
+		self['workers'].stop()
 
 		self.set_signal_handler(False)
 
 		self['starttime'] = None
 		self['running'] = False
 		self['cleanup_thread'].stop()
-		self['workers'].clear()
 		self['database'].disconnect()
 		self['cache'].close()
 

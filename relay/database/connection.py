@@ -75,6 +75,7 @@ class Connection(SqlConnection):
 		elif key == 'log-level':
 			value = logging.LogLevel.parse(value)
 			logging.set_level(value)
+			self.app['workers'].set_log_level(value)
 
 		elif key in {'approval-required', 'whitelist-enabled'}:
 			value = boolean(value)
