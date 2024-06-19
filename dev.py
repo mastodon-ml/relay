@@ -126,15 +126,19 @@ def cli_run(dev: bool) -> None:
 	if dev:
 		cmd.append('-d')
 
-	handle_run_watcher(cmd)
+	handle_run_watcher(cmd, watch_path = REPO.joinpath("relay"))
 
 
-def handle_run_watcher(*commands: Sequence[str], wait: bool = False) -> None:
+def handle_run_watcher(
+					*commands: Sequence[str],
+					watch_path: Path | str = REPO,
+					wait: bool = False) -> None:
+
 	handler = WatchHandler(*commands, wait = wait)
 	handler.run_procs()
 
 	watcher = Observer()
-	watcher.schedule(handler, str(REPO), recursive=True) # type: ignore
+	watcher.schedule(handler, str(watch_path), recursive=True) # type: ignore
 	watcher.start() # type: ignore
 
 	try:
