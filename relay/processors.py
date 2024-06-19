@@ -10,14 +10,12 @@ if typing.TYPE_CHECKING:
 	from .views.activitypub import ActorView
 
 
-def person_check(actor: Message, software: str | None) -> bool:
-	# pleroma and akkoma may use Person for the actor type for some reason
-	# akkoma changed this in 3.6.0
-	if software in {'akkoma', 'pleroma'} and actor.id == f'https://{actor.domain}/relay':
-		return False
+def actor_type_check(actor: Message, software: str | None) -> bool:
+	if actor.type == 'Application':
+		return True
 
-	# make sure the actor is an application
-	if actor.type != 'Application':
+	# akkoma (< 3.6.0) and pleroma use Person for the actor type
+	if software in {'akkoma', 'pleroma'} and actor.id == f'https://{actor.domain}/relay':
 		return True
 
 	return False
@@ -88,7 +86,7 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 		return
 
 	# reject if the actor is not an instance actor
-	if person_check(view.actor, software):
+	if actor_type_check(view.actor, software):
 		logging.verbose('Non-application actor tried to follow: %s', view.actor.id)
 
 		view.app.push_message(
