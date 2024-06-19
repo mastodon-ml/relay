@@ -2,7 +2,7 @@
 -set page="Whitelist"
 
 -block head
-	%script(type="application/javascript" src="/static/whitelist.js" nonce="{{view.request['hash']}}" defer)
+	%script(type="application/javascript" src="/static/whitelist.js?{{version}}" nonce="{{view.request['hash']}}" defer)
 
 -block content
 	%details.section

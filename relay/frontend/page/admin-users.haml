@@ -2,7 +2,7 @@
 -set page="Users"
 
 -block head
-	%script(type="application/javascript" src="/static/user.js" nonce="{{view.request['hash']}}" defer)
+	%script(type="application/javascript" src="/static/user.js?{{version}}" nonce="{{view.request['hash']}}" defer)
 
 -block content
 	%details.section

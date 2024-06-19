@@ -2,7 +2,7 @@
 -set page="Domain Bans"
 
 -block head
-	%script(type="application/javascript" src="/static/domain_ban.js" nonce="{{view.request['hash']}}" defer)
+	%script(type="application/javascript" src="/static/domain_ban.js?{{version}}" nonce="{{view.request['hash']}}" defer)
 
 -block content
 	%details.section

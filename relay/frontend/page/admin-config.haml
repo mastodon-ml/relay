@@ -2,7 +2,7 @@
 -set page="Config"
 
 -block head
-	%script(type="application/javascript" src="/static/config.js" nonce="{{view.request['hash']}}" defer)
+	%script(type="application/javascript" src="/static/config.js?{{version}}" nonce="{{view.request['hash']}}" defer)
 
 -import "functions.haml" as func
 -block content

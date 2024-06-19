@@ -2,7 +2,7 @@
 -set page="Software Bans"
 
 -block head
-	%script(type="application/javascript" src="/static/software_ban.js" nonce="{{view.request['hash']}}" defer)
+	%script(type="application/javascript" src="/static/software_ban.js?{{version}}" nonce="{{view.request['hash']}}" defer)
 
 -block content
 	%details.section
