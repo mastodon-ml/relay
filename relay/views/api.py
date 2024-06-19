@@ -1,3 +1,5 @@
+import traceback
+
 from aiohttp.web import Request, middleware
 from argon2.exceptions import VerifyMismatchError
 from collections.abc import Awaitable, Callable, Sequence
@@ -206,18 +208,22 @@ class Inbox(View):
 			data['domain'] = data['domain'].encode('idna').decode()
 
 			if not data.get('inbox'):
-				actor_data: Message | None = await self.client.get(data['actor'], True, Message)
+				try:
+					actor_data = await self.client.get(data['actor'], True, Message)
 
-				if actor_data is None:
+				except Exception:
+					traceback.print_exc()
 					return Response.new_error(500, 'Failed to fetch actor', 'json')
 
 				data['inbox'] = actor_data.shared_inbox
 
 			if not data.get('software'):
-				nodeinfo = await self.client.fetch_nodeinfo(data['domain'])
-
-				if nodeinfo is not None:
+				try:
+					nodeinfo = await self.client.fetch_nodeinfo(data['domain'])
 					data['software'] = nodeinfo.sw_name
+
+				except Exception:
+					pass
 
 			row = conn.put_inbox(**data) # type: ignore[arg-type]
 

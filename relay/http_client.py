@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import json
-import traceback
 
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
-from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from aputils import AlgorithmType, Nodeinfo, ObjectType, Signer, WellKnownNodeinfo
-from asyncio.exceptions import TimeoutError as AsyncTimeoutError
 from blib import JsonBase
 from bsql import Row
-from json.decoder import JSONDecodeError
-from typing import TYPE_CHECKING, Any, TypeVar
-from urllib.parse import urlparse
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from . import __version__, logger as logging
 from .cache import Cache
@@ -107,7 +102,7 @@ class HttpClient:
 					url: str,
 					sign_headers: bool,
 					force: bool,
-					old_algo: bool) -> dict[str, Any] | None:
+					old_algo: bool) -> str | None:
 
 		if not self._session:
 			raise RuntimeError('Client not open')
@@ -121,7 +116,7 @@ class HttpClient:
 		if not force:
 			try:
 				if not (item := self.cache.get('request', url)).older_than(48):
-					return json.loads(item.value) # type: ignore[no-any-return]
+					return item.value # type: ignore [no-any-return]
 
 			except KeyError:
 				logging.verbose('No cached data for url: %s', url)
@@ -132,59 +127,61 @@ class HttpClient:
 			algo = AlgorithmType.RSASHA256 if old_algo else AlgorithmType.HS2019
 			headers = self.signer.sign_headers('GET', url, algorithm = algo)
 
-		try:
-			logging.debug('Fetching resource: %s', url)
+		logging.debug('Fetching resource: %s', url)
 
-			async with self._session.get(url, headers = headers) as resp:
-				# Not expecting a response with 202s, so just return
-				if resp.status == 202:
-					return None
-
-				data = await resp.text()
-
-			if resp.status != 200:
-				logging.verbose('Received error when requesting %s: %i', url, resp.status)
-				logging.debug(data)
+		async with self._session.get(url, headers = headers) as resp:
+			# Not expecting a response with 202s, so just return
+			if resp.status == 202:
 				return None
 
-			self.cache.set('request', url, data, 'str')
-			logging.debug('%s >> resp %s', url, json.dumps(json.loads(data), indent = 4))
+			data = await resp.text()
 
-			return json.loads(data) # type: ignore [no-any-return]
-
-		except JSONDecodeError:
-			logging.verbose('Failed to parse JSON')
+		if resp.status != 200:
+			logging.verbose('Received error when requesting %s: %i', url, resp.status)
 			logging.debug(data)
 			return None
 
-		except ClientSSLError as e:
-			logging.verbose('SSL error when connecting to %s', urlparse(url).netloc)
-			logging.warning(str(e))
+		self.cache.set('request', url, data, 'str')
+		return data
 
-		except (AsyncTimeoutError, ClientConnectionError) as e:
-			logging.verbose('Failed to connect to %s', urlparse(url).netloc)
-			logging.warning(str(e))
 
-		except Exception:
-			traceback.print_exc()
+	@overload
+	async def get(self, # type: ignore[overload-overlap]
+				url: str,
+				sign_headers: bool,
+				cls: None = None,
+				force: bool = False,
+				old_algo: bool = True) -> None: ...
 
-		return None
+
+	@overload
+	async def get(self,
+				url: str,
+				sign_headers: bool,
+				cls: type[T] = JsonBase, # type: ignore[assignment]
+				force: bool = False,
+				old_algo: bool = True) -> T: ...
 
 
 	async def get(self,
 				url: str,
 				sign_headers: bool,
-				cls: type[T],
+				cls: type[T] | None = None,
 				force: bool = False,
 				old_algo: bool = True) -> T | None:
 
-		if not issubclass(cls, JsonBase):
+		if cls is not None and not issubclass(cls, JsonBase):
 			raise TypeError('cls must be a sub-class of "blib.JsonBase"')
 
-		if (data := (await self._get(url, sign_headers, force, old_algo))) is None:
-			return None
+		data = await self._get(url, sign_headers, force, old_algo)
 
-		return cls.parse(data)
+		if cls is not None:
+			if data is None:
+				raise ValueError("Empty response")
+
+			return cls.parse(data)
+
+		return None
 
 
 	async def post(self, url: str, data: Message | bytes, instance: Row | None = None) -> None:
@@ -218,45 +215,28 @@ class HttpClient:
 			algorithm = algorithm
 		)
 
-		try:
-			logging.verbose('Sending "%s" to %s', mtype, url)
+		logging.verbose('Sending "%s" to %s', mtype, url)
 
-			async with self._session.post(url, headers = headers, data = body) as resp:
-				# Not expecting a response, so just return
-				if resp.status in {200, 202}:
-					logging.verbose('Successfully sent "%s" to %s', mtype, url)
-					return
-
-				logging.verbose('Received error when pushing to %s: %i', url, resp.status)
-				logging.debug(await resp.read())
-				logging.debug("message: %s", body.decode("utf-8"))
-				logging.debug("headers: %s", json.dumps(headers, indent = 4))
+		async with self._session.post(url, headers = headers, data = body) as resp:
+			# Not expecting a response, so just return
+			if resp.status in {200, 202}:
+				logging.verbose('Successfully sent "%s" to %s', mtype, url)
 				return
 
-		except ClientSSLError as e:
-			logging.warning('SSL error when pushing to %s', urlparse(url).netloc)
-			logging.warning(str(e))
-
-		except (AsyncTimeoutError, ClientConnectionError) as e:
-			logging.warning('Failed to connect to %s for message push', urlparse(url).netloc)
-			logging.warning(str(e))
-
-		# prevent workers from being brought down
-		except Exception:
-			traceback.print_exc()
+			logging.error('Received error when pushing to %s: %i', url, resp.status)
+			logging.debug(await resp.read())
+			logging.debug("message: %s", body.decode("utf-8"))
+			logging.debug("headers: %s", json.dumps(headers, indent = 4))
+			return
 
 
-	async def fetch_nodeinfo(self, domain: str) -> Nodeinfo | None:
+	async def fetch_nodeinfo(self, domain: str) -> Nodeinfo:
 		nodeinfo_url = None
 		wk_nodeinfo = await self.get(
 			f'https://{domain}/.well-known/nodeinfo',
 			False,
 			WellKnownNodeinfo
 		)
-
-		if wk_nodeinfo is None:
-			logging.verbose('Failed to fetch well-known nodeinfo url for %s', domain)
-			return None
 
 		for version in ('20', '21'):
 			try:
@@ -266,8 +246,7 @@ class HttpClient:
 				pass
 
 		if nodeinfo_url is None:
-			logging.verbose('Failed to fetch nodeinfo url for %s', domain)
-			return None
+			raise ValueError(f'Failed to fetch nodeinfo url for {domain}')
 
 		return await self.get(nodeinfo_url, False, Nodeinfo)
 

@@ -95,9 +95,10 @@ class ActorView(View):
 			logging.verbose('actor not in message')
 			return Response.new_error(400, 'no actor in message', 'json')
 
-		actor: Message | None = await self.client.get(self.signature.keyid, True, Message)
+		try:
+			self.actor = await self.client.get(self.signature.keyid, True, Message)
 
-		if actor is None:
+		except Exception:
 			# ld signatures aren't handled atm, so just ignore it
 			if self.message.type == 'Delete':
 				logging.verbose('Instance sent a delete which cannot be handled')
@@ -105,8 +106,6 @@ class ActorView(View):
 
 			logging.verbose(f'Failed to fetch actor: {self.signature.keyid}')
 			return Response.new_error(400, 'failed to fetch actor', 'json')
-
-		self.actor = actor
 
 		try:
 			self.signer = self.actor.signer

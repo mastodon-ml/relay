@@ -7,9 +7,11 @@ import time
 import traceback
 
 from aiohttp import web
+from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from aiohttp.web import StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
+from asyncio.exceptions import TimeoutError as AsyncTimeoutError
 from bsql import Database, Row
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
@@ -18,6 +20,7 @@ from pathlib import Path
 from queue import Empty
 from threading import Event, Thread
 from typing import Any
+from urllib.parse import urlparse
 
 from . import logger as logging
 from .cache import Cache, get_cache
@@ -330,6 +333,15 @@ class PushWorker(multiprocessing.Process):
 
 			except Empty:
 				await asyncio.sleep(0)
+
+			except ClientSSLError as e:
+				logging.error('SSL error when pushing to %s: %s', urlparse(inbox).netloc, str(e))
+
+			except (AsyncTimeoutError, ClientConnectionError) as e:
+				logging.error(
+					'Failed to connect to %s for message push: %s',
+					urlparse(inbox).netloc, str(e)
+				)
 
 			# make sure an exception doesn't bring down the worker
 			except Exception:
