@@ -55,6 +55,12 @@ document.querySelector("#new-item").addEventListener("click", async (event) => {
 	await add_whitelist();
 });
 
+document.querySelector("#add-item").addEventListener("keydown", async (event) => {
+	if (event.which === 13) {
+		await add_whitelist();
+	}
+});
+
 for (var row of document.querySelector("fieldset.section table").rows) {
 	if (!row.querySelector(".remove a")) {
 		continue;

@@ -123,7 +123,6 @@ async function request(method, path, body = null) {
 
 	} else {
 		if (Object.hasOwn(message, "created")) {
-			console.log(message.created)
 			message.created = new Date(message.created);
 		}
 	}

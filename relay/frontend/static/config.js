@@ -35,6 +35,18 @@ async function handle_config_change(event) {
 }
 
 
+document.querySelector("#name").addEventListener("keydown", async (event) => {
+	if (event.which === 13) {
+		await handle_config_change(event);
+	}
+});
+
+document.querySelector("#note").addEventListener("keydown", async (event) => {
+	if (event.which === 13 && event.ctrlKey) {
+		await handle_config_change(event);
+	}
+});
+
 for (const elem of elems) {
 	elem.addEventListener("change", handle_config_change);
 }

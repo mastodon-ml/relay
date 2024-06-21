@@ -1,10 +1,10 @@
-async function login(event) {
-	fields = {
-		username: document.querySelector("#username"),
-		password: document.querySelector("#password")
-	}
+const fields = {
+	username: document.querySelector("#username"),
+	password: document.querySelector("#password")
+}
 
-	values = {
+async function login(event) {
+	const values = {
 		username: fields.username.value.trim(),
 		password: fields.password.value.trim()
 	}
@@ -25,5 +25,18 @@ async function login(event) {
 	document.location = "/";
 }
 
+
+document.querySelector("#username").addEventListener("keydown", async (event) => {
+	if (event.which === 13) {
+		fields.password.focus();
+		fields.password.select();
+	}
+});
+
+document.querySelector("#password").addEventListener("keydown", async (event) => {
+	if (event.which === 13) {
+		await login(event);
+	}
+});
 
 document.querySelector(".submit").addEventListener("click", login);

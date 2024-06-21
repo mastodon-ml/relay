@@ -76,6 +76,14 @@ document.querySelector("#new-user").addEventListener("click", async (event) => {
 	await add_user();
 });
 
+for (var elem of document.querySelectorAll("#add-item input")) {
+	elem.addEventListener("keydown", async (event) => {
+		if (event.which === 13) {
+			await add_user();
+		}
+	});
+}
+
 for (var row of document.querySelector("#users").rows) {
 	if (!row.querySelector(".remove a")) {
 		continue;

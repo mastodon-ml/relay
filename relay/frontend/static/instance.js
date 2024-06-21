@@ -126,6 +126,14 @@ document.querySelector("#add-instance").addEventListener("click", async (event) 
 	await add_instance();
 })
 
+for (var elem of document.querySelectorAll("#add-item input")) {
+	elem.addEventListener("keydown", async (event) => {
+		if (event.which === 13) {
+			await add_instance();
+		}
+	});
+}
+
 for (var row of document.querySelector("#instances").rows) {
 	if (!row.querySelector(".remove a")) {
 		continue;

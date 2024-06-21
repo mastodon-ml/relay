@@ -113,6 +113,22 @@ document.querySelector("#new-ban").addEventListener("click", async (event) => {
 	await ban();
 });
 
+for (var elem of document.querySelectorAll("#add-item input")) {
+	elem.addEventListener("keydown", async (event) => {
+		if (event.which === 13) {
+			await ban();
+		}
+	});
+}
+
+for (var elem of document.querySelectorAll("#add-item textarea")) {
+	elem.addEventListener("keydown", async (event) => {
+		if (event.which === 13 && event.ctrlKey) {
+			await ban();
+		}
+	});
+}
+
 for (var row of document.querySelector("#bans").rows) {
 	if (!row.querySelector(".update-ban")) {
 		continue;
