@@ -297,13 +297,13 @@ textarea {
 	border: 1px solid var(--error-border) !important;
 }
 
+/* create .grid base class and .2col and 3col classes */
 .grid-2col {
 	display: grid;
 	grid-template-columns: max-content auto;
 	grid-gap: var(--spacing);
 	margin-bottom: var(--spacing);
 	align-items: center;
-	
 }
 
 .message {
@@ -331,6 +331,10 @@ textarea {
 /* config */
 #content.page-config input[type="checkbox"] {
 	justify-self: left;
+}
+
+#content.page-config .grid-2col {
+	grid-template-columns: max-content max-content auto;
 }
 
 

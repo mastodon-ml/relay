@@ -199,7 +199,18 @@ class AdminConfig(View):
 		context: dict[str, Any] = {
 			'themes': tuple(THEMES.keys()),
 			'levels': tuple(level.name for level in LogLevel),
-			'message': message
+			'message': message,
+			'desc': {
+				"name": "Name of the relay to be displayed in the header of the pages and in " +
+					"the actor endpoint.",
+				"note": "Description of the relay to be displayed on the front page and as the " +
+					"bio in the actor endpoint.",
+				"theme": "Color theme to use on the web pages.",
+				"log_level": "Minimum level of logging messages to print to the console.",
+				"whitelist_enabled": "Only allow instances in the whitelist to be able to follow.",
+				"approval_required": "Require instances not on the whitelist to be approved by " +
+					"and admin. The `whitelist-enabled` setting is ignored when this is enabled."
+			}
 		}
 
 		data = self.template.render('page/admin-config.haml', self, **context)
