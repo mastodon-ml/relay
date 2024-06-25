@@ -1,9 +1,6 @@
 -extends "base.haml"
 -set page="Login"
 
--block head
-	%script(type="application/javascript" src="/static/login.js?{{version}}" nonce="{{view.request['hash']}}" defer)
-
 -block content
 	%fieldset.section
 		%legend << Login

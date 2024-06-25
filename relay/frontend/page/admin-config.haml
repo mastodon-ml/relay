@@ -1,10 +1,7 @@
 -extends "base.haml"
 -set page="Config"
-
--block head
-	%script(type="application/javascript" src="/static/config.js?{{version}}" nonce="{{view.request['hash']}}" defer)
-
 -import "functions.haml" as func
+
 -block content
 	%fieldset.section
 		%legend << Config
