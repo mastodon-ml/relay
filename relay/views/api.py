@@ -226,8 +226,9 @@ class Inbox(View):
 					pass
 
 			row = conn.put_inbox(
-				data['domain'],
-				actor = data.get('actor'),
+				domain = data['domain'],
+				actor = data['actor'],
+				inbox = data.get('inbox'),
 				software = data.get('software'),
 				followid = data.get('followid')
 			)
