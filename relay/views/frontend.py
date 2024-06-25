@@ -202,7 +202,7 @@ class AdminConfig(View):
 			'message': message,
 			'desc': {
 				"name": "Name of the relay to be displayed in the header of the pages and in " +
-					"the actor endpoint.",
+					"the actor endpoint.", # noqa: E131
 				"note": "Description of the relay to be displayed on the front page and as the " +
 					"bio in the actor endpoint.",
 				"theme": "Color theme to use on the web pages.",

@@ -4,30 +4,26 @@ import asyncio
 import multiprocessing
 import signal
 import time
-import traceback
 
 from aiohttp import web
-from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from aiohttp.web import StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
-from asyncio.exceptions import TimeoutError as AsyncTimeoutError
-from bsql import Database, Row
+from bsql import Database
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from mimetypes import guess_type
 from pathlib import Path
-from queue import Empty
 from threading import Event, Thread
 from typing import Any
-from urllib.parse import urlparse
 
 from . import logger as logging, workers
 from .cache import Cache, get_cache
 from .config import Config
 from .database import Connection, get_database
+from .database.schema import Instance
 from .http_client import HttpClient
-from .misc import IS_WINDOWS, Message, Response, check_open_port, get_resource
+from .misc import Message, Response, check_open_port, get_resource
 from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
@@ -142,7 +138,7 @@ class Application(web.Application):
 		return timedelta(seconds=uptime.seconds)
 
 
-	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
+	def push_message(self, inbox: str, message: Message, instance: Instance) -> None:
 		self['workers'].push_message(inbox, message, instance)
 
 
@@ -284,67 +280,6 @@ class CacheCleanupThread(Thread):
 
 	def stop(self) -> None:
 		self.running.clear()
-
-
-class PushWorker(multiprocessing.Process):
-	def __init__(self, queue: multiprocessing.Queue[tuple[str, Message, Row]]) -> None:
-		if Application.DEFAULT is None:
-			raise RuntimeError('Application not setup yet')
-
-		multiprocessing.Process.__init__(self)
-
-		self.queue = queue
-		self.shutdown = multiprocessing.Event()
-		self.path = Application.DEFAULT.config.path
-
-
-	def stop(self) -> None:
-		self.shutdown.set()
-
-
-	def run(self) -> None:
-		asyncio.run(self.handle_queue())
-
-
-	async def handle_queue(self) -> None:
-		if IS_WINDOWS:
-			app = Application(self.path)
-			client = app.client
-
-			client.open()
-			app.database.connect()
-			app.cache.setup()
-
-		else:
-			client = HttpClient()
-			client.open()
-
-		while not self.shutdown.is_set():
-			try:
-				inbox, message, instance = self.queue.get(block=True, timeout=0.1)
-				asyncio.create_task(client.post(inbox, message, instance))
-
-			except Empty:
-				await asyncio.sleep(0)
-
-			except ClientSSLError as e:
-				logging.error('SSL error when pushing to %s: %s', urlparse(inbox).netloc, str(e))
-
-			except (AsyncTimeoutError, ClientConnectionError) as e:
-				logging.error(
-					'Failed to connect to %s for message push: %s',
-					urlparse(inbox).netloc, str(e)
-				)
-
-			# make sure an exception doesn't bring down the worker
-			except Exception:
-				traceback.print_exc()
-
-		if IS_WINDOWS:
-			app.database.disconnect()
-			app.cache.close()
-
-		await client.close()
 
 
 @web.middleware

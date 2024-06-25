@@ -1,18 +1,14 @@
-from __future__ import annotations
-
 import aputils
 import traceback
-import typing
+
+from aiohttp.web import Request
 
 from .base import View, register_route
 
 from .. import logger as logging
+from ..database import schema
 from ..misc import Message, Response
 from ..processors import run_processor
-
-if typing.TYPE_CHECKING:
-	from aiohttp.web import Request
-	from bsql import Row
 
 
 @register_route('/actor', '/inbox')
@@ -20,7 +16,7 @@ class ActorView(View):
 	signature: aputils.Signature
 	message: Message
 	actor: Message
-	instancce: Row
+	instance: schema.Instance
 	signer: aputils.Signer
 
 
@@ -47,7 +43,7 @@ class ActorView(View):
 			return response
 
 		with self.database.session() as conn:
-			self.instance = conn.get_inbox(self.actor.shared_inbox)
+			self.instance = conn.get_inbox(self.actor.shared_inbox) # type: ignore[assignment]
 
 			# reject if actor is banned
 			if conn.get_domain_ban(self.actor.domain):

@@ -20,7 +20,7 @@ dependencies = [
 	"aiohttp >= 3.9.5",
 	"aiohttp-swagger[performance] == 1.0.16",
 	"argon2-cffi == 23.1.0",
-	"barkshark-lib >= 0.1.3-1",
+	"barkshark-lib >= 0.2.0-rc1",
 	"barkshark-sql == 0.1.4-1",
 	"click >= 8.1.2",
 	"hiredis == 2.3.2",
@@ -103,8 +103,4 @@ implicit_reexport = true
 
 [[tool.mypy.overrides]]
 module = "blib"
-implicit_reexport = true
-
-[[tool.mypy.overrides]]
-module = "bsql"
 implicit_reexport = true

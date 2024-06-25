@@ -90,10 +90,10 @@ class Login(View):
 
 			token = conn.put_token(data['username'])
 
-		resp = Response.new({'token': token['code']}, ctype = 'json')
+		resp = Response.new({'token': token.code}, ctype = 'json')
 		resp.set_cookie(
 				'user-token',
-				token['code'],
+				token.code,
 				max_age = 60 * 60 * 24 * 365,
 				domain = self.config.domain,
 				path = '/',
@@ -117,7 +117,7 @@ class RelayInfo(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
 			config = conn.get_config_all()
-			inboxes = [row['domain'] for row in conn.get_inboxes()]
+			inboxes = [row.domain for row in conn.get_inboxes()]
 
 		data = {
 			'domain': self.config.domain,
@@ -188,7 +188,7 @@ class Config(View):
 class Inbox(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			data = conn.get_inboxes()
+			data = tuple(conn.get_inboxes())
 
 		return Response.new(data, ctype = 'json')
 
@@ -202,7 +202,7 @@ class Inbox(View):
 		data['domain'] = urlparse(data["actor"]).netloc
 
 		with self.database.session() as conn:
-			if conn.get_inbox(data['domain']):
+			if conn.get_inbox(data['domain']) is not None:
 				return Response.new_error(404, 'Instance already in database', 'json')
 
 			data['domain'] = data['domain'].encode('idna').decode()
@@ -225,7 +225,12 @@ class Inbox(View):
 				except Exception:
 					pass
 
-			row = conn.put_inbox(**data) # type: ignore[arg-type]
+			row = conn.put_inbox(
+				data['domain'],
+				actor = data.get('actor'),
+				software = data.get('software'),
+				followid = data.get('followid')
+			)
 
 		return Response.new(row, ctype = 'json')
 
@@ -239,10 +244,15 @@ class Inbox(View):
 
 			data['domain'] = data['domain'].encode('idna').decode()
 
-			if not (instance := conn.get_inbox(data['domain'])):
+			if (instance := conn.get_inbox(data['domain'])) is None:
 				return Response.new_error(404, 'Instance with domain not found', 'json')
 
-			instance = conn.put_inbox(instance['domain'], **data) # type: ignore[arg-type]
+			instance = conn.put_inbox(
+				instance.domain,
+				actor = data.get('actor'),
+				software = data.get('software'),
+				followid = data.get('followid')
+			)
 
 		return Response.new(instance, ctype = 'json')
 
@@ -268,7 +278,7 @@ class Inbox(View):
 class RequestView(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			instances = conn.get_requests()
+			instances = tuple(conn.get_requests())
 
 		return Response.new(instances, ctype = 'json')
 
@@ -291,20 +301,20 @@ class RequestView(View):
 
 		message = Message.new_response(
 			host = self.config.domain,
-			actor = instance['actor'],
-			followid = instance['followid'],
+			actor = instance.actor,
+			followid = instance.followid,
 			accept = data['accept']
 		)
 
-		self.app.push_message(instance['inbox'], message, instance)
+		self.app.push_message(instance.inbox, message, instance)
 
-		if data['accept'] and instance['software'] != 'mastodon':
+		if data['accept'] and instance.software != 'mastodon':
 			message = Message.new_follow(
 				host = self.config.domain,
-				actor = instance['actor']
+				actor = instance.actor
 			)
 
-			self.app.push_message(instance['inbox'], message, instance)
+			self.app.push_message(instance.inbox, message, instance)
 
 		resp_message = {'message': 'Request accepted' if data['accept'] else 'Request denied'}
 		return Response.new(resp_message, ctype = 'json')
@@ -314,7 +324,7 @@ class RequestView(View):
 class DomainBan(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			bans = tuple(conn.execute('SELECT * FROM domain_bans').all())
+			bans = tuple(conn.get_domain_bans())
 
 		return Response.new(bans, ctype = 'json')
 
@@ -328,10 +338,14 @@ class DomainBan(View):
 		data['domain'] = data['domain'].encode('idna').decode()
 
 		with self.database.session() as conn:
-			if conn.get_domain_ban(data['domain']):
+			if conn.get_domain_ban(data['domain']) is not None:
 				return Response.new_error(400, 'Domain already banned', 'json')
 
-			ban = conn.put_domain_ban(**data)
+			ban = conn.put_domain_ban(
+				domain = data['domain'],
+				reason = data.get('reason'),
+				note = data.get('note')
+			)
 
 		return Response.new(ban, ctype = 'json')
 
@@ -343,15 +357,19 @@ class DomainBan(View):
 			if isinstance(data, Response):
 				return data
 
-			data['domain'] = data['domain'].encode('idna').decode()
-
-			if not conn.get_domain_ban(data['domain']):
-				return Response.new_error(404, 'Domain not banned', 'json')
-
 			if not any([data.get('note'), data.get('reason')]):
 				return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
 
-			ban = conn.update_domain_ban(**data)
+			data['domain'] = data['domain'].encode('idna').decode()
+
+			if conn.get_domain_ban(data['domain']) is None:
+				return Response.new_error(404, 'Domain not banned', 'json')
+
+			ban = conn.update_domain_ban(
+				domain = data['domain'],
+				reason = data.get('reason'),
+				note = data.get('note')
+			)
 
 		return Response.new(ban, ctype = 'json')
 
@@ -365,7 +383,7 @@ class DomainBan(View):
 
 			data['domain'] = data['domain'].encode('idna').decode()
 
-			if not conn.get_domain_ban(data['domain']):
+			if conn.get_domain_ban(data['domain']) is None:
 				return Response.new_error(404, 'Domain not banned', 'json')
 
 			conn.del_domain_ban(data['domain'])
@@ -377,7 +395,7 @@ class DomainBan(View):
 class SoftwareBan(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			bans = tuple(conn.execute('SELECT * FROM software_bans').all())
+			bans = tuple(conn.get_software_bans())
 
 		return Response.new(bans, ctype = 'json')
 
@@ -389,10 +407,14 @@ class SoftwareBan(View):
 			return data
 
 		with self.database.session() as conn:
-			if conn.get_software_ban(data['name']):
+			if conn.get_software_ban(data['name']) is not None:
 				return Response.new_error(400, 'Domain already banned', 'json')
 
-			ban = conn.put_software_ban(**data)
+			ban = conn.put_software_ban(
+				name = data['name'],
+				reason = data.get('reason'),
+				note = data.get('note')
+			)
 
 		return Response.new(ban, ctype = 'json')
 
@@ -403,14 +425,18 @@ class SoftwareBan(View):
 		if isinstance(data, Response):
 			return data
 
+		if not any([data.get('note'), data.get('reason')]):
+			return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
+
 		with self.database.session() as conn:
-			if not conn.get_software_ban(data['name']):
+			if conn.get_software_ban(data['name']) is None:
 				return Response.new_error(404, 'Software not banned', 'json')
 
-			if not any([data.get('note'), data.get('reason')]):
-				return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
-
-			ban = conn.update_software_ban(**data)
+			ban = conn.update_software_ban(
+				name = data['name'],
+				reason = data.get('reason'),
+				note = data.get('note')
+			)
 
 		return Response.new(ban, ctype = 'json')
 
@@ -422,7 +448,7 @@ class SoftwareBan(View):
 			return data
 
 		with self.database.session() as conn:
-			if not conn.get_software_ban(data['name']):
+			if conn.get_software_ban(data['name']) is None:
 				return Response.new_error(404, 'Software not banned', 'json')
 
 			conn.del_software_ban(data['name'])
@@ -436,7 +462,7 @@ class User(View):
 		with self.database.session() as conn:
 			items = []
 
-			for row in conn.execute('SELECT * FROM users'):
+			for row in conn.get_users():
 				del row['hash']
 				items.append(row)
 
@@ -450,12 +476,16 @@ class User(View):
 			return data
 
 		with self.database.session() as conn:
-			if conn.get_user(data['username']):
+			if conn.get_user(data['username']) is not None:
 				return Response.new_error(404, 'User already exists', 'json')
 
-			user = conn.put_user(**data)
-			del user['hash']
+			user = conn.put_user(
+				username = data['username'],
+				password = data['password'],
+				handle = data.get('handle')
+			)
 
+		del user['hash']
 		return Response.new(user, ctype = 'json')
 
 
@@ -466,9 +496,13 @@ class User(View):
 			return data
 
 		with self.database.session(True) as conn:
-			user = conn.put_user(**data)
-			del user['hash']
+			user = conn.put_user(
+				username = data['username'],
+				password = data['password'],
+				handle = data.get('handle')
+			)
 
+		del user['hash']
 		return Response.new(user, ctype = 'json')
 
 
@@ -479,7 +513,7 @@ class User(View):
 			return data
 
 		with self.database.session(True) as conn:
-			if not conn.get_user(data['username']):
+			if conn.get_user(data['username']) is None:
 				return Response.new_error(404, 'User does not exist', 'json')
 
 			conn.del_user(data['username'])
@@ -491,7 +525,7 @@ class User(View):
 class Whitelist(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
-			items = tuple(conn.execute('SELECT * FROM whitelist').all())
+			items = tuple(conn.get_domains_whitelist())
 
 		return Response.new(items, ctype = 'json')
 
@@ -502,13 +536,13 @@ class Whitelist(View):
 		if isinstance(data, Response):
 			return data
 
-		data['domain'] = data['domain'].encode('idna').decode()
+		domain = data['domain'].encode('idna').decode()
 
 		with self.database.session() as conn:
-			if conn.get_domain_whitelist(data['domain']):
+			if conn.get_domain_whitelist(domain) is not None:
 				return Response.new_error(400, 'Domain already added to whitelist', 'json')
 
-			item = conn.put_domain_whitelist(**data)
+			item = conn.put_domain_whitelist(domain)
 
 		return Response.new(item, ctype = 'json')
 
@@ -519,12 +553,12 @@ class Whitelist(View):
 		if isinstance(data, Response):
 			return data
 
-		data['domain'] = data['domain'].encode('idna').decode()
+		domain = data['domain'].encode('idna').decode()
 
 		with self.database.session() as conn:
-			if not conn.get_domain_whitelist(data['domain']):
+			if conn.get_domain_whitelist(domain) is None:
 				return Response.new_error(404, 'Domain not in whitelist', 'json')
 
-			conn.del_domain_whitelist(data['domain'])
+			conn.del_domain_whitelist(domain)
 
 		return Response.new({'message': 'Removed domain from whitelist'}, ctype = 'json')

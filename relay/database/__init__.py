@@ -16,6 +16,8 @@ def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
 		'tables': TABLES
 	}
 
+	db: Database[Connection]
+
 	if config.db_type == 'sqlite':
 		db = Database.sqlite(config.sqlite_path, **options)
 

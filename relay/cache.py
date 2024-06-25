@@ -4,7 +4,7 @@ import json
 import os
 
 from abc import ABC, abstractmethod
-from bsql import Database
+from bsql import Database, Row
 from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
@@ -172,7 +172,7 @@ class SqlCache(Cache):
 
 		with self._db.session(False) as conn:
 			with conn.run('get-cache-item', params) as cur:
-				if not (row := cur.one()):
+				if not (row := cur.one(Row)):
 					raise KeyError(f'{namespace}:{key}')
 
 				row.pop('id', None)
@@ -211,9 +211,11 @@ class SqlCache(Cache):
 
 		with self._db.session(True) as conn:
 			with conn.run('set-cache-item', params) as cur:
-				row = cur.one()
-				row.pop('id', None) # type: ignore[union-attr]
-				return Item.from_data(*tuple(row.values())) # type: ignore[union-attr]
+				if (row := cur.one(Row)) is None:
+					raise RuntimeError("Cache item not set")
+
+				row.pop('id', None)
+				return Item.from_data(*tuple(row.values()))
 
 
 	def delete(self, namespace: str, key: str) -> None:

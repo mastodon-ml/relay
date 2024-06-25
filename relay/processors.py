@@ -34,7 +34,7 @@ async def handle_relay(view: ActorView, conn: Connection) -> None:
 	logging.debug('>> relay: %s', message)
 
 	for instance in conn.distill_inboxes(view.message):
-		view.app.push_message(instance["inbox"], message, instance)
+		view.app.push_message(instance.inbox, message, instance)
 
 	view.cache.set('handle-relay', view.message.object_id, message.id, 'str')
 
@@ -52,7 +52,7 @@ async def handle_forward(view: ActorView, conn: Connection) -> None:
 	logging.debug('>> forward: %s', message)
 
 	for instance in conn.distill_inboxes(view.message):
-		view.app.push_message(instance["inbox"], view.message, instance)
+		view.app.push_message(instance.inbox, view.message, instance)
 
 	view.cache.set('handle-relay', view.message.id, message.id, 'str')
 
@@ -177,7 +177,7 @@ async def handle_undo(view: ActorView, conn: Connection) -> None:
 		return
 
 	# prevent past unfollows from removing an instance
-	if view.instance['followid'] and view.instance['followid'] != view.message.object_id:
+	if view.instance.followid and view.instance.followid != view.message.object_id:
 		return
 
 	with conn.transaction():
@@ -221,18 +221,18 @@ async def run_processor(view: ActorView) -> None:
 
 	with view.database.session() as conn:
 		if view.instance:
-			if not view.instance['software']:
-				if (nodeinfo := await view.client.fetch_nodeinfo(view.instance['domain'])):
+			if not view.instance.software:
+				if (nodeinfo := await view.client.fetch_nodeinfo(view.instance.domain)):
 					with conn.transaction():
 						view.instance = conn.put_inbox(
-							domain = view.instance['domain'],
+							domain = view.instance.domain,
 							software = nodeinfo.sw_name
 						)
 
-			if not view.instance['actor']:
+			if not view.instance.actor:
 				with conn.transaction():
 					view.instance = conn.put_inbox(
-						domain = view.instance['domain'],
+						domain = view.instance.domain,
 						actor = view.actor.id
 					)
 

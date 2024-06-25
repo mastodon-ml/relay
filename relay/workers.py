@@ -4,7 +4,6 @@ import typing
 
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
-from bsql import Row
 from dataclasses import dataclass
 from multiprocessing import Event, Process, Queue, Value
 from multiprocessing.synchronize import Event as EventType
@@ -13,6 +12,7 @@ from queue import Empty, Queue as QueueType
 from urllib.parse import urlparse
 
 from . import application, logger as logging
+from .database.schema import Instance
 from .http_client import HttpClient
 from .misc import IS_WINDOWS, Message, get_app
 
@@ -29,7 +29,7 @@ class QueueItem:
 class PostItem(QueueItem):
 	inbox: str
 	message: Message
-	instance: Row | None
+	instance: Instance | None
 
 	@property
 	def domain(self) -> str:
@@ -122,7 +122,7 @@ class PushWorkers(list[PushWorker]):
 		self.queue.put(item)
 
 
-	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
+	def push_message(self, inbox: str, message: Message, instance: Instance) -> None:
 		self.queue.put(PostItem(inbox, message, instance))
 
 

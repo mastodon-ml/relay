@@ -5,11 +5,11 @@ import json
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from aputils import AlgorithmType, Nodeinfo, ObjectType, Signer, WellKnownNodeinfo
 from blib import JsonBase
-from bsql import Row
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from . import __version__, logger as logging
 from .cache import Cache
+from .database.schema import Instance
 from .misc import MIMETYPES, Message, get_app
 
 if TYPE_CHECKING:
@@ -184,12 +184,12 @@ class HttpClient:
 		return None
 
 
-	async def post(self, url: str, data: Message | bytes, instance: Row | None = None) -> None:
+	async def post(self, url: str, data: Message | bytes, instance: Instance | None = None) -> None:
 		if not self._session:
 			raise RuntimeError('Client not open')
 
 		# akkoma and pleroma do not support HS2019 and other software still needs to be tested
-		if instance and instance['software'] in SUPPORTS_HS2019:
+		if instance is not None and instance.software in SUPPORTS_HS2019:
 			algorithm = AlgorithmType.HS2019
 
 		else:
