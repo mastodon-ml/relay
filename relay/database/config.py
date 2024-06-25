@@ -5,16 +5,17 @@ from __future__ import annotations
 from bsql import Row
 from collections.abc import Callable, Sequence
 from dataclasses import Field, asdict, dataclass, fields
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .. import logger as logging
 from ..misc import boolean
 
-try:
-	from typing import Self
+if TYPE_CHECKING:
+	try:
+		from typing import Self
 
-except ImportError:
-	from typing_extensions import Self
+	except ImportError:
+		from typing_extensions import Self
 
 
 THEMES = {

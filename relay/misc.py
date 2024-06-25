@@ -19,14 +19,14 @@ try:
 except ImportError:
 	from importlib_resources import files as pkgfiles # type: ignore
 
-try:
-	from typing import Self
-
-except ImportError:
-	from typing_extensions import Self
-
 if TYPE_CHECKING:
 	from .application import Application
+
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 T = TypeVar('T')

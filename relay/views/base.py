@@ -21,11 +21,11 @@ if TYPE_CHECKING:
 	from ..application import Application
 	from ..template import Template
 
-try:
-	from typing import Self
+	try:
+		from typing import Self
 
-except ImportError:
-	from typing_extensions import Self
+	except ImportError:
+		from typing_extensions import Self
 
 HandlerCallback = Callable[[Request], Awaitable[Response]]
 
