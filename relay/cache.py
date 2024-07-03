@@ -4,12 +4,13 @@ import json
 import os
 
 from abc import ABC, abstractmethod
+from blib import Date
 from bsql import Database, Row
 from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from redis import Redis
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from .database import Connection, get_database
 from .misc import Message, boolean
@@ -29,6 +30,14 @@ CONVERTERS: dict[str, tuple[SerializerCallback, DeserializerCallback]] = {
 	'json': (json.dumps, json.loads),
 	'message': (lambda x: x.to_json(), Message.parse)
 }
+
+
+class RedisConnectType(TypedDict):
+	client_name: str
+	decode_responses: bool
+	username: str | None
+	password: str | None
+	db: int
 
 
 def get_cache(app: Application) -> Cache:
@@ -57,12 +66,11 @@ class Item:
 	key: str
 	value: Any
 	value_type: str
-	updated: datetime
+	updated: Date
 
 
 	def __post_init__(self) -> None:
-		if isinstance(self.updated, str): # type: ignore[unreachable]
-			self.updated = datetime.fromisoformat(self.updated) # type: ignore[unreachable]
+		self.updated = Date.parse(self.updated)
 
 
 	@classmethod
@@ -70,14 +78,11 @@ class Item:
 		data = cls(*args)
 		data.value = deserialize_value(data.value, data.value_type)
 
-		if not isinstance(data.updated, datetime):
-			data.updated = datetime.fromtimestamp(data.updated, tz = timezone.utc) # type: ignore
-
 		return data
 
 
 	def older_than(self, hours: int) -> bool:
-		delta = datetime.now(tz = timezone.utc) - self.updated
+		delta = Date.new_utc() - self.updated
 		return (delta.total_seconds()) > hours * 3600
 
 
@@ -206,7 +211,7 @@ class SqlCache(Cache):
 			'key': key,
 			'value': serialize_value(value, value_type),
 			'type': value_type,
-			'date': datetime.now(tz = timezone.utc)
+			'date': Date.new_utc()
 		}
 
 		with self._db.session(True) as conn:
@@ -236,7 +241,7 @@ class SqlCache(Cache):
 		if self._db is None:
 			raise RuntimeError("Database has not been setup")
 
-		limit = datetime.now(tz = timezone.utc) - timedelta(days = days)
+		limit = Date.new_utc() - timedelta(days = days)
 		params = {"limit": limit.timestamp()}
 
 		with self._db.session(True) as conn:
@@ -280,7 +285,7 @@ class RedisCache(Cache):
 
 	def __init__(self, app: Application):
 		Cache.__init__(self, app)
-		self._rd: Redis = None # type: ignore
+		self._rd: Redis | None = None
 
 
 	@property
@@ -293,28 +298,38 @@ class RedisCache(Cache):
 
 
 	def get(self, namespace: str, key: str) -> Item:
+		if self._rd is None:
+			raise ConnectionError("Not connected")
+
 		key_name = self.get_key_name(namespace, key)
 
 		if not (raw_value := self._rd.get(key_name)):
 			raise KeyError(f'{namespace}:{key}')
 
-		value_type, updated, value = raw_value.split(':', 2) # type: ignore
+		value_type, updated, value = raw_value.split(':', 2) # type: ignore[union-attr]
+
 		return Item.from_data(
 			namespace,
 			key,
 			value,
 			value_type,
-			datetime.fromtimestamp(float(updated), tz = timezone.utc)
+			Date.parse(float(updated))
 		)
 
 
 	def get_keys(self, namespace: str) -> Iterator[str]:
+		if self._rd is None:
+			raise ConnectionError("Not connected")
+
 		for key in self._rd.scan_iter(self.get_key_name(namespace, '*')):
 			*_, key_name = key.split(':', 2)
 			yield key_name
 
 
 	def get_namespaces(self) -> Iterator[str]:
+		if self._rd is None:
+			raise ConnectionError("Not connected")
+
 		namespaces = []
 
 		for key in self._rd.scan_iter(f'{self.prefix}:*'):
@@ -326,7 +341,10 @@ class RedisCache(Cache):
 
 
 	def set(self, namespace: str, key: str, value: Any, value_type: str = 'key') -> Item:
-		date = datetime.now(tz = timezone.utc).timestamp()
+		if self._rd is None:
+			raise ConnectionError("Not connected")
+
+		date = Date.new_utc().timestamp()
 		value = serialize_value(value, value_type)
 
 		self._rd.set(
@@ -338,11 +356,17 @@ class RedisCache(Cache):
 
 
 	def delete(self, namespace: str, key: str) -> None:
+		if self._rd is None:
+			raise ConnectionError("Not connected")
+
 		self._rd.delete(self.get_key_name(namespace, key))
 
 
 	def delete_old(self, days: int = 14) -> None:
-		limit = datetime.now(tz = timezone.utc) - timedelta(days = days)
+		if self._rd is None:
+			raise ConnectionError("Not connected")
+
+		limit = Date.new_utc() - timedelta(days = days)
 
 		for full_key in self._rd.scan_iter(f'{self.prefix}:*'):
 			_, namespace, key = full_key.split(':', 2)
@@ -353,14 +377,17 @@ class RedisCache(Cache):
 
 
 	def clear(self) -> None:
+		if self._rd is None:
+			raise ConnectionError("Not connected")
+
 		self._rd.delete(f"{self.prefix}:*")
 
 
 	def setup(self) -> None:
-		if self._rd:
+		if self._rd is not None:
 			return
 
-		options = {
+		options: RedisConnectType = {
 			'client_name': f'ActivityRelay_{self.app.config.domain}',
 			'decode_responses': True,
 			'username': self.app.config.rd_user,
@@ -369,18 +396,22 @@ class RedisCache(Cache):
 		}
 
 		if os.path.exists(self.app.config.rd_host):
-			options['unix_socket_path'] = self.app.config.rd_host
+			self._rd = Redis(
+				unix_socket_path = self.app.config.rd_host,
+				**options
+			)
+			return
 
-		else:
-			options['host'] = self.app.config.rd_host
-			options['port'] = self.app.config.rd_port
-
-		self._rd = Redis(**options) # type: ignore
+		self._rd = Redis(
+			host = self.app.config.rd_host,
+			port = self.app.config.rd_port,
+			**options
+		)
 
 
 	def close(self) -> None:
 		if not self._rd:
 			return
 
-		self._rd.close() # type: ignore
-		self._rd = None # type: ignore
+		self._rd.close() # type: ignore[no-untyped-call]
+		self._rd = None

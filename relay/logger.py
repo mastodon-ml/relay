@@ -8,11 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-	try:
-		from typing import Self
-
-	except ImportError:
-		from typing_extensions import Self
+	from typing import Self
 
 
 class LoggingMethod(Protocol):

@@ -1,25 +1,38 @@
 #!/usr/bin/env python3
-import click
 import platform
 import shutil
 import subprocess
 import sys
 import time
-import tomllib
 
 from datetime import datetime, timedelta
+from importlib.util import find_spec
 from pathlib import Path
-from relay import __version__, logger as logging
 from tempfile import TemporaryDirectory
 from typing import Any, Sequence
 
 try:
-	from watchdog.observers import Observer
-	from watchdog.events import FileSystemEvent, PatternMatchingEventHandler
+	import tomllib
 
 except ImportError:
-	class PatternMatchingEventHandler: # type: ignore
-		pass
+	if find_spec("toml") is None:
+		subprocess.run([sys.executable, "-m", "pip", "install", "toml"])
+
+	import toml as tomllib # type: ignore[no-redef]
+
+if None in [find_spec("click"), find_spec("watchdog")]:
+	CMD = [sys.executable, "-m", "pip", "install", "click >= 8.1.0", "watchdog >= 4.0.0"]
+	PROC = subprocess.run(CMD, check = False)
+
+	if PROC.returncode != 0:
+		sys.exit()
+
+	print("Successfully installed dependencies")
+
+import click
+
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEvent, PatternMatchingEventHandler
 
 
 REPO = Path(__file__).parent
@@ -37,13 +50,11 @@ def cli() -> None:
 @cli.command('install')
 @click.option('--no-dev', '-d', is_flag = True, help = 'Do not install development dependencies')
 def cli_install(no_dev: bool) -> None:
-	with open('pyproject.toml', 'rb') as fd:
-		data = tomllib.load(fd)
+	with open('pyproject.toml', 'r', encoding = 'utf-8') as fd:
+		data = tomllib.loads(fd.read())
 
 	deps = data['project']['dependencies']
-
-	if not no_dev:
-		deps.extend(data['project']['optional-dependencies']['dev'])
+	deps.extend(data['project']['optional-dependencies']['dev'])
 
 	subprocess.run([sys.executable, '-m', 'pip', 'install', '-U', *deps], check = False)
 
@@ -60,7 +71,7 @@ def cli_lint(path: Path, watch: bool) -> None:
 		return
 
 	flake8 = [sys.executable, '-m', 'flake8', "dev.py", str(path)]
-	mypy = [sys.executable, '-m', 'mypy', "dev.py", str(path)]
+	mypy = [sys.executable, '-m', 'mypy', '--python-version', '3.12', 'dev.py', str(path)]
 
 	click.echo('----- flake8 -----')
 	subprocess.run(flake8)
@@ -89,6 +100,8 @@ def cli_clean() -> None:
 
 @cli.command('build')
 def cli_build() -> None:
+	from relay import __version__
+
 	with TemporaryDirectory() as tmp:
 		arch = 'amd64' if sys.maxsize >= 2**32 else 'i386'
 		cmd = [
@@ -171,7 +184,7 @@ class WatchHandler(PatternMatchingEventHandler):
 			if proc.poll() is not None:
 				continue
 
-			logging.info(f'Terminating process {proc.pid}')
+			print(f'Terminating process {proc.pid}')
 			proc.terminate()
 			sec = 0.0
 
@@ -180,11 +193,11 @@ class WatchHandler(PatternMatchingEventHandler):
 				sec += 0.1
 
 				if sec >= 5:
-					logging.error('Failed to terminate. Killing process...')
+					print('Failed to terminate. Killing process...')
 					proc.kill()
 					break
 
-			logging.info('Process terminated')
+			print('Process terminated')
 
 
 	def run_procs(self, restart: bool = False) -> None:
@@ -200,13 +213,13 @@ class WatchHandler(PatternMatchingEventHandler):
 			self.procs = []
 
 			for cmd in self.commands:
-				logging.info('Running command: %s', ' '.join(cmd))
+				print('Running command:', ' '.join(cmd))
 				subprocess.run(cmd)
 
 		else:
 			self.procs = list(subprocess.Popen(cmd) for cmd in self.commands)
 			pids = (str(proc.pid) for proc in self.procs)
-			logging.info('Started processes with PIDs: %s', ', '.join(pids))
+			print('Started processes with PIDs:', ', '.join(pids))
 
 
 	def on_any_event(self, event: FileSystemEvent) -> None:

@@ -9,24 +9,14 @@ import socket
 from aiohttp.web import Response as AiohttpResponse
 from collections.abc import Sequence
 from datetime import datetime
+from importlib.resources import files as pkgfiles
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, TypeVar
 from uuid import uuid4
 
-try:
-	from importlib.resources import files as pkgfiles
-
-except ImportError:
-	from importlib_resources import files as pkgfiles # type: ignore
-
 if TYPE_CHECKING:
+	from typing import Self
 	from .application import Application
-
-	try:
-		from typing import Self
-
-	except ImportError:
-		from typing_extensions import Self
 
 
 T = TypeVar('T')

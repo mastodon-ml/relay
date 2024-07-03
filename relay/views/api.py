@@ -13,7 +13,8 @@ from ..database import ConfigData
 from ..misc import Message, Response, boolean, get_app
 
 
-ALLOWED_HEADERS = {
+DEFAULT_REDIRECT: str = 'urn:ietf:wg:oauth:2.0:oob'
+ALLOWED_HEADERS: set[str] = {
 	'accept',
 	'authorization',
 	'content-type'

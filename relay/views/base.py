@@ -18,18 +18,12 @@ from ..http_client import HttpClient
 from ..misc import Response, get_app
 
 if TYPE_CHECKING:
+	from typing import Self
 	from ..application import Application
 	from ..template import Template
 
-	try:
-		from typing import Self
-
-	except ImportError:
-		from typing_extensions import Self
 
 HandlerCallback = Callable[[Request], Awaitable[Response]]
-
-
 VIEWS: list[tuple[str, type[View]]] = []
 
 

@@ -20,6 +20,9 @@ if TYPE_CHECKING:
 
 
 class Template(Environment):
+	_render_markdown: Callable[[str], str]
+
+
 	def __init__(self, app: Application):
 		Environment.__init__(self,
 			autoescape = True,
@@ -56,7 +59,7 @@ class Template(Environment):
 
 
 	def render_markdown(self, text: str) -> str:
-		return self._render_markdown(text) # type: ignore
+		return self._render_markdown(text)
 
 
 class MarkdownExtension(Extension):

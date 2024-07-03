@@ -1,23 +1,23 @@
+from __future__ import annotations
+
 import asyncio
 import traceback
-import typing
 
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
 from dataclasses import dataclass
 from multiprocessing import Event, Process, Queue, Value
+from multiprocessing.queues import Queue as QueueType
+from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
-from queue import Empty, Queue as QueueType
+from queue import Empty
 from urllib.parse import urlparse
 
 from . import application, logger as logging
 from .database.schema import Instance
 from .http_client import HttpClient
 from .misc import IS_WINDOWS, Message, get_app
-
-if typing.TYPE_CHECKING:
-	from .multiprocessing.synchronize import Syncronized
 
 
 @dataclass
@@ -40,13 +40,13 @@ class PushWorker(Process):
 	client: HttpClient
 
 
-	def __init__(self, queue: QueueType[QueueItem], log_level: "Syncronized[str]") -> None:
+	def __init__(self, queue: QueueType[QueueItem], log_level: Synchronized[int]) -> None:
 		Process.__init__(self)
 
 		self.queue: QueueType[QueueItem] = queue
 		self.shutdown: EventType = Event()
 		self.path: Path = get_app().config.path
-		self.log_level: "Syncronized[str]" = log_level
+		self.log_level: Synchronized[int] = log_level
 		self._log_level_changed: EventType = Event()
 
 
@@ -113,8 +113,8 @@ class PushWorker(Process):
 
 class PushWorkers(list[PushWorker]):
 	def __init__(self, count: int) -> None:
-		self.queue: QueueType[QueueItem] = Queue() # type: ignore[assignment]
-		self._log_level: "Syncronized[str]" = Value("i", logging.get_level())
+		self.queue: QueueType[QueueItem] = Queue()
+		self._log_level: Synchronized[int] = Value("i", logging.get_level())
 		self._count: int = count
 
 
