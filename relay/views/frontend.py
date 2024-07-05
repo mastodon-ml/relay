@@ -18,7 +18,7 @@ async def handle_frontend_path(
 	if request['user'] is not None and request.path == '/login':
 		return Response.new_redir('/')
 
-	if request.path.startswith(TOKEN_PATHS) and request['user'] is None:
+	if request.path.startswith(TOKEN_PATHS[:2]) and request['user'] is None:
 		if request.path == '/logout':
 			return Response.new_redir('/')
 
@@ -62,7 +62,7 @@ class Login(View):
 class Logout(View):
 	async def get(self, request: web.Request) -> Response:
 		with self.database.session(True) as conn:
-			conn.del_token(request['token'].code)
+			conn.del_app(request['token'].client_id, request['token'].client_secret)
 
 		resp = Response.new_redir('/')
 		resp.del_cookie('user-token', domain = self.config.domain, path = '/')

@@ -76,12 +76,11 @@ JSON_PATHS: tuple[str, ...] = (
 )
 
 TOKEN_PATHS: tuple[str, ...] = (
-	'/api',
-	'/login',
 	'/logout',
+	'/admin',
+	'/api',
 	'/oauth/authorize',
-	'/oauth/revoke',
-	'/admin'
+	'/oauth/revoke'
 )
 
 

@@ -51,16 +51,8 @@ WHERE username = :value or handle = :value;
 -- name: get-user-by-token
 SELECT * FROM users
 WHERE username = (
-	SELECT user FROM tokens
-	WHERE code = :code
-);
-
-
--- name: get-user-by-app-token
-SELECT * FROM users
-WHERE username = (
 	SELECT user FROM app
-	WHERE code = :code
+	WHERE token = :token
 );
 
 
@@ -80,44 +72,23 @@ SELECT * FROM app
 WHERE client_id = :id and client_secret = :secret;
 
 
--- name: get-app-token
+-- name: get-app-with-token
 SELECT * FROM app
 WHERE client_id = :id and client_secret = :secret and token = :token;
 
 
 -- name: get-app-by-token
-SELECT * FROM app
+SELECT * FROM apps
 WHERE token = :token;
 
 -- name: del-app
-DELETE FROM users
+DELETE FROM apps
 WHERE client_id = :id and client_secret = :secret;
 
 
--- name: del-app-token
-DELETE FROM users
+-- name: del-app-with-token
+DELETE FROM apps
 WHERE client_id = :id and client_secret = :secret and token = :token;
-
-
--- name: get-token
-SELECT * FROM tokens
-WHERE code = :code;
-
-
--- name: put-token
-INSERT INTO tokens (code, user, created)
-VALUES (:code, :user, :created)
-RETURNING *;
-
-
--- name: del-token
-DELETE FROM tokens
-WHERE code = :code;
-
-
--- name: del-token-user
-DELETE FROM tokens
-WHERE user = :username;
 
 
 -- name: get-software-ban

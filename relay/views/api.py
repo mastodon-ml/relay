@@ -1,4 +1,3 @@
-import secrets
 import traceback
 
 from aiohttp.web import Request, middleware
@@ -209,12 +208,12 @@ class Login(View):
 			except VerifyMismatchError:
 				raise HttpError(401, 'Invalid password')
 
-			token = conn.put_token(data['username'])
+			app = conn.put_app_login(user)
 
-		resp = Response.new({'token': token.code}, ctype = 'json')
+		resp = Response.new({'token': app.token}, ctype = 'json')
 		resp.set_cookie(
 				'user-token',
-				token.code,
+				app.token, # type: ignore[arg-type]
 				max_age = 60 * 60 * 24 * 365,
 				domain = self.config.domain,
 				path = '/',
@@ -224,38 +223,6 @@ class Login(View):
 			)
 
 		return resp
-
-
-
-	async def post2(self, request: Request) -> Response:
-		data = await self.get_api_data(['username', 'password'], [])
-
-		with self.database.session(True) as conn:
-			if not (user := conn.get_user(data['username'])):
-				raise HttpError(401, 'User not found')
-
-			try:
-				conn.hasher.verify(user['hash'], data['password'])
-
-			except VerifyMismatchError:
-				raise HttpError(401, 'Invalid password')
-
-			app = conn.put_app(
-				data['app_name'],
-				DEFAULT_REDIRECT,
-				data.get('website')
-			)
-
-			params = {
-				'code': secrets.token_hex(20),
-				'user': user.username
-			}
-
-			with conn.update('app', params, client_id = app.client_id) as cur:
-				if (row := cur.one(schema.App)) is None:
-					raise HttpError(500, 'Failed to create app')
-
-		return Response.new(row.get_api_data(True), ctype = 'json')
 
 
 @register_route('/api/v1/relay')

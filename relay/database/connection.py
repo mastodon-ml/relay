@@ -9,7 +9,6 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
-from uuid import uuid4
 
 from . import schema
 from .config import (
@@ -72,10 +71,6 @@ class Connection(SqlConnection):
 		for sban in self.select('software_bans').all(schema.SoftwareBan):
 			data = {'created': sban.created.timestamp()}
 			self.update('software_bans', data, name = sban.name)
-
-		for token in self.select('tokens').all(schema.Token):
-			data = {'created': token.created.timestamp(), 'accessed': token.accessed.timestamp()}
-			self.update('tokens', data, code = token.code)
 
 		for user in self.select('users').all(schema.User):
 			data = {'created': user.created.timestamp()}
@@ -230,13 +225,8 @@ class Connection(SqlConnection):
 			return cur.one(schema.User)
 
 
-	def get_user_by_token(self, code: str) -> schema.User | None:
-		with self.run('get-user-by-token', {'code': code}) as cur:
-			return cur.one(schema.User)
-
-
-	def get_user_by_app_token(self, code: str) -> schema.User | None:
-		with self.run('get-user-by-app-token', {'code': code}) as cur:
+	def get_user_by_token(self, token: str) -> schema.User | None:
+		with self.run('get-user-by-token', {'token': token}) as cur:
 			return cur.one(schema.User)
 
 
@@ -328,9 +318,30 @@ class Connection(SqlConnection):
 			'accessed': Date.new_utc().timestamp()
 		}
 
-		with self.insert('app', params) as cur:
+		with self.insert('apps', params) as cur:
 			if (row := cur.one(schema.App)) is None:
 				raise RuntimeError(f'Failed to insert app: {name}')
+
+		return row
+
+
+	def put_app_login(self, user: schema.User) -> schema.App:
+		params = {
+			'name': 'Web',
+			'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
+			'website': None,
+			'user': user.username,
+			'client_id': secrets.token_hex(20),
+			'client_secret': secrets.token_hex(20),
+			'auth_code': None,
+			'token': secrets.token_hex(20),
+			'created': Date.new_utc().timestamp(),
+			'accessed': Date.new_utc().timestamp()
+		}
+
+		with self.insert('apps', params) as cur:
+			if (row := cur.one(schema.App)) is None:
+				raise RuntimeError(f'Failed to create app for "{user.username}"')
 
 		return row
 
@@ -367,7 +378,7 @@ class Connection(SqlConnection):
 		}
 
 		if token is not None:
-			command = 'del-app-token'
+			command = 'del-app-with-token'
 			params['token'] = token
 
 		else:
@@ -378,37 +389,6 @@ class Connection(SqlConnection):
 				raise RuntimeError('More than 1 row was deleted')
 
 			return cur.row_count == 0
-
-
-	def get_token(self, code: str) -> schema.Token | None:
-		with self.run('get-token', {'code': code}) as cur:
-			return cur.one(schema.Token)
-
-
-	def get_tokens(self, username: str | None = None) -> Iterator[schema.Token]:
-		if username is None:
-			return self.select('tokens').all(schema.Token)
-
-		return self.select('tokens', username = username).all(schema.Token)
-
-
-	def put_token(self, username: str) -> schema.Token:
-		data = {
-			'code': uuid4().hex,
-			'user': username,
-			'created': datetime.now(tz = timezone.utc)
-		}
-
-		with self.run('put-token', data) as cur:
-			if (row := cur.one(schema.Token)) is None:
-				raise RuntimeError(f"Failed to insert token for user: {username}")
-
-			return row
-
-
-	def del_token(self, code: str) -> None:
-		with self.run('del-token', {'code': code}):
-			pass
 
 
 	def get_domain_ban(self, domain: str) -> schema.DomainBan | None:

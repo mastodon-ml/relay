@@ -106,23 +106,6 @@ class User(Row):
 
 
 @TABLES.add_row
-class Token(Row):
-	table_name: str = 'tokens'
-
-
-	code: Column[str] = Column('code', 'text', primary_key = True, unique = True, nullable = False)
-	user: Column[str] = Column('user', 'text', nullable = False)
-	created: Column[Date] = Column(
-		'created', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
-	accessed: Column[Date] = Column(
-		'accessed', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
-
-
-@TABLES.add_row
 class App(Row):
 	table_name: str = 'apps'
 
@@ -148,9 +131,8 @@ class App(Row):
 
 	def get_api_data(self, include_token: bool = False) -> dict[str, Any]:
 		data = deepcopy(self)
+		data.pop('user')
 		data.pop('auth_code')
-		data.pop('created')
-		data.pop('accessed')
 
 		if not include_token:
 			data.pop('token')
@@ -176,15 +158,11 @@ def migrate_20240206(conn: Connection) -> None:
 
 @migration
 def migrate_20240310(conn: Connection) -> None:
-	conn.execute('ALTER TABLE "inboxes" ADD COLUMN "accepted" BOOLEAN')
-	conn.execute('UPDATE "inboxes" SET accepted = 1')
+	conn.execute('ALTER TABLE "inboxes" ADD COLUMN "accepted" BOOLEAN').close()
+	conn.execute('UPDATE "inboxes" SET accepted = 1').close()
 
 
 @migration
 def migrate_20240625(conn: Connection) -> None:
-	conn.execute('ALTER TABLE "tokens" ADD "accessed" timestamp')
-
-	for token in conn.get_tokens():
-		conn.update('tokens', {'accessed': token.created}, code = token.code).one()
-
 	conn.create_tables()
+	conn.execute('DROP TABLE tokens').close()

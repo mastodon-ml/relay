@@ -310,15 +310,21 @@ async def handle_response_headers(
 
 	if request.path == "/" or request.path.startswith(TOKEN_PATHS):
 		with app.database.session() as conn:
-			if (token := request.headers.get('Authorization')) is not None:
-				token = token.replace('Bearer', '').strip()
+			tokens = (
+				request.headers.get('Authorization', '').replace('Bearer', '').strip(),
+				request.cookies.get('user-token')
+			)
+
+			for token in tokens:
+				if not token:
+					continue
 
 				request['token'] = conn.get_app_by_token(token)
-				request['user'] = conn.get_user_by_app_token(token)
 
-			elif (token := request.cookies.get('user-token')) is not None:
-				request['token'] = conn.get_token(token)
-				request['user'] = conn.get_user_by_token(token)
+				if request['token'] is not None:
+					request['user'] = conn.get_user(request['token'].user)
+
+				break
 
 	try:
 		resp = await handler(request)
