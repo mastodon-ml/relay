@@ -483,13 +483,15 @@ function page_instance() {
 function page_login() {
 	const fields = {
 		username: document.querySelector("#username"),
-		password: document.querySelector("#password")
-	}
+		password: document.querySelector("#password"),
+		redir: document.querySelector("#redir")
+	};
 
 	async function login(event) {
 		const values = {
 			username: fields.username.value.trim(),
-			password: fields.password.value.trim()
+			password: fields.password.value.trim(),
+			redir: fields.redir.value.trim()
 		}
 
 		if (values.username === "" | values.password === "") {
@@ -498,14 +500,14 @@ function page_login() {
 		}
 
 		try {
-			await request("POST", "v1/token", values);
+			await request("POST", "v1/login", values);
 
 		} catch (error) {
 			toast(error);
 			return;
 		}
 
-		document.location = "/";
+		document.location = values.redir;
 	}
 
 
@@ -848,9 +850,6 @@ if (location.pathname.startsWith("/admin/config")) {
 } else if (location.pathname.startsWith("/admin/instances")) {
 	page_instance();
 
-} else if (location.pathname.startsWith("/admin/login")) {
-	page_login();
-
 } else if (location.pathname.startsWith("/admin/software_bans")) {
 	page_software_ban();
 
@@ -859,4 +858,7 @@ if (location.pathname.startsWith("/admin/config")) {
 
 } else if (location.pathname.startsWith("/admin/whitelist")) {
 	page_whitelist();
+
+} else if (location.pathname.startsWith("/login")) {
+	page_login();
 }

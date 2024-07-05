@@ -56,6 +56,14 @@ WHERE username = (
 );
 
 
+-- name: get-user-by-app-token
+SELECT * FROM users
+WHERE username = (
+	SELECT user FROM app
+	WHERE code = :code
+);
+
+
 -- name: put-user
 INSERT INTO users (username, hash, handle, created)
 VALUES (:username, :hash, :handle, :created)
@@ -65,6 +73,30 @@ RETURNING *;
 -- name: del-user
 DELETE FROM users
 WHERE username = :value or handle = :value;
+
+
+-- name: get-app
+SELECT * FROM app
+WHERE client_id = :id and client_secret = :secret;
+
+
+-- name: get-app-token
+SELECT * FROM app
+WHERE client_id = :id and client_secret = :secret and token = :token;
+
+
+-- name: get-app-by-token
+SELECT * FROM app
+WHERE token = :token;
+
+-- name: del-app
+DELETE FROM users
+WHERE client_id = :id and client_secret = :secret;
+
+
+-- name: del-app-token
+DELETE FROM users
+WHERE client_id = :id and client_secret = :secret and token = :token;
 
 
 -- name: get-token

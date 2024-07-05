@@ -62,6 +62,28 @@ SOFTWARE = (
 	'gotosocial'
 )
 
+JSON_PATHS: tuple[str, ...] = (
+	'/api/v1',
+	'/actor',
+	'/inbox',
+	'/outbox',
+	'/following',
+	'/followers',
+	'/.well-known',
+	'/nodeinfo',
+	'/oauth/token',
+	'/oauth/revoke'
+)
+
+TOKEN_PATHS: tuple[str, ...] = (
+	'/api',
+	'/login',
+	'/logout',
+	'/oauth/authorize',
+	'/oauth/revoke',
+	'/admin'
+)
+
 
 def boolean(value: Any) -> bool:
 	if isinstance(value, str):
@@ -111,6 +133,17 @@ def get_app() -> Application:
 
 def get_resource(path: str) -> Path:
 	return Path(str(pkgfiles('relay'))).joinpath(path)
+
+
+class HttpError(Exception):
+	def __init__(self,
+				status: int,
+				body: str) -> None:
+
+		self.body: str = body
+		self.status: int = status
+
+		Exception.__init__(self, f"HTTP Error {status}: {body}")
 
 
 class JsonEncoder(json.JSONEncoder):
@@ -242,9 +275,9 @@ class Response(AiohttpResponse):
 
 
 	@classmethod
-	def new_redir(cls: type[Self], path: str) -> Self:
+	def new_redir(cls: type[Self], path: str, status: int = 307) -> Self:
 		body = f'Redirect to <a href="{path}">{path}</a>'
-		return cls.new(body, 302, {'Location': path})
+		return cls.new(body, status, {'Location': path}, ctype = 'html')
 
 
 	@property

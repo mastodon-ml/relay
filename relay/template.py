@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import textwrap
 
+from aiohttp.web import Request
 from collections.abc import Callable
 from hamlish_jinja import HamlishExtension
 from jinja2 import Environment, FileSystemLoader
@@ -13,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 
 from . import __version__
 from .misc import get_resource
-from .views.base import View
 
 if TYPE_CHECKING:
 	from .application import Application
@@ -43,12 +43,12 @@ class Template(Environment):
 		self.hamlish_mode = 'indented'
 
 
-	def render(self, path: str, view: View | None = None, **context: Any) -> str:
+	def render(self, path: str, request: Request, **context: Any) -> str:
 		with self.app.database.session(False) as conn:
 			config = conn.get_config_all()
 
 		new_context = {
-			'view': view,
+			'request': request,
 			'domain': self.app.config.domain,
 			'version': __version__,
 			'config': config,

@@ -212,6 +212,21 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 	os._exit(0)
 
 
+@cli.command('db-maintenance')
+@click.option('--fix-timestamps', '-t', is_flag = True,
+	help = 'Make sure timestamps in the database are float values')
+@click.pass_context
+def cli_db_maintenance(ctx: click.Context, fix_timestamps: bool) -> None:
+	'Perform maintenance tasks on the database'
+
+	if fix_timestamps:
+		with ctx.obj.database.session(True) as conn:
+			conn.fix_timestamps()
+
+	with ctx.obj.database.session(False) as conn:
+		with conn.execute("VACUUM"):
+			pass
+
 
 @cli.command('convert')
 @click.option('--old-config', '-o', help = 'Path to the config file to convert from')
@@ -239,18 +254,18 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 	ctx.obj.config.set('domain', config['host'])
 	ctx.obj.config.save()
 
+	# fix: mypy complains about the types returned by click.progressbar when updating click to 8.1.7
 	with get_database(ctx.obj.config) as db:
 		with db.session(True) as conn:
 			conn.put_config('private-key', database['private-key'])
 			conn.put_config('note', config['note'])
 			conn.put_config('whitelist-enabled', config['whitelist_enabled'])
 
-			with click.progressbar( # type: ignore
+			with click.progressbar(
 				database['relay-list'].values(),
 				label = 'Inboxes'.ljust(15),
 				width = 0
 			) as inboxes:
-
 				for inbox in inboxes:
 					if inbox['software'] in {'akkoma', 'pleroma'}:
 						actor = f'https://{inbox["domain"]}/relay'
@@ -269,7 +284,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 						software = inbox['software']
 					)
 
-			with click.progressbar( # type: ignore
+			with click.progressbar(
 				config['blocked_software'],
 				label = 'Banned software'.ljust(15),
 				width = 0
@@ -281,7 +296,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 						reason = 'relay' if software in RELAY_SOFTWARE else None
 					)
 
-			with click.progressbar( # type: ignore
+			with click.progressbar(
 				config['blocked_instances'],
 				label = 'Banned domains'.ljust(15),
 				width = 0
@@ -290,7 +305,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 				for domain in banned_software:
 					conn.put_domain_ban(domain)
 
-			with click.progressbar( # type: ignore
+			with click.progressbar(
 				config['whitelist'],
 				label = 'Whitelist'.ljust(15),
 				width = 0

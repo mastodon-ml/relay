@@ -1,18 +1,13 @@
 from aiohttp import web
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import unquote
 
 from .base import View, register_route
 
 from ..database import THEMES
 from ..logger import LogLevel
-from ..misc import Response, get_app
-
-
-UNAUTH_ROUTES = {
-	'/',
-	'/login'
-}
+from ..misc import TOKEN_PATHS, Response
 
 
 @web.middleware
@@ -20,28 +15,25 @@ async def handle_frontend_path(
 							request: web.Request,
 							handler: Callable[[web.Request], Awaitable[Response]]) -> Response:
 
-	app = get_app()
+	if request['user'] is not None and request.path == '/login':
+		return Response.new_redir('/')
 
-	if request.path in UNAUTH_ROUTES or request.path.startswith('/admin'):
-		request['token'] = request.cookies.get('user-token')
-		request['user'] = None
+	if request.path.startswith(TOKEN_PATHS) and request['user'] is None:
+		if request.path == '/logout':
+			return Response.new_redir('/')
 
-		if request['token']:
-			with app.database.session(False) as conn:
-				request['user'] = conn.get_user_by_token(request['token'])
+		response = Response.new_redir(f'/login?redir={request.path}')
 
-		if request['user'] and request.path == '/login':
-			return Response.new('', 302, {'Location': '/'})
-
-		if not request['user'] and request.path.startswith('/admin'):
-			response = Response.new('', 302, {'Location': f'/login?redir={request.path}'})
+		if request['token'] is not None:
 			response.del_cookie('user-token')
-			return response
+
+		return response
 
 	response = await handler(request)
 
-	if not request.path.startswith('/api') and not request['user'] and request['token']:
-		response.del_cookie('user-token')
+	if not request.path.startswith('/api'):
+		if request['user'] is None and request['token'] is not None:
+			response.del_cookie('user-token')
 
 	return response
 
@@ -54,14 +46,15 @@ class HomeView(View):
 				'instances': tuple(conn.get_inboxes())
 			}
 
-		data = self.template.render('page/home.haml', self, **context)
+		data = self.template.render('page/home.haml', self.request, **context)
 		return Response.new(data, ctype='html')
 
 
 @register_route('/login')
 class Login(View):
 	async def get(self, request: web.Request) -> Response:
-		data = self.template.render('page/login.haml', self)
+		redir = unquote(request.query.get('redir', '/'))
+		data = self.template.render('page/login.haml', self.request, redir = redir)
 		return Response.new(data, ctype = 'html')
 
 
@@ -69,7 +62,7 @@ class Login(View):
 class Logout(View):
 	async def get(self, request: web.Request) -> Response:
 		with self.database.session(True) as conn:
-			conn.del_token(request['token'])
+			conn.del_token(request['token'].code)
 
 		resp = Response.new_redir('/')
 		resp.del_cookie('user-token', domain = self.config.domain, path = '/')
@@ -79,7 +72,7 @@ class Logout(View):
 @register_route('/admin')
 class Admin(View):
 	async def get(self, request: web.Request) -> Response:
-		return Response.new('', 302, {'Location': '/admin/instances'})
+		return Response.new_redir(f'/login?redir={request.path}', 301)
 
 
 @register_route('/admin/instances')
@@ -101,7 +94,7 @@ class AdminInstances(View):
 			if message:
 				context['message'] = message
 
-		data = self.template.render('page/admin-instances.haml', self, **context)
+		data = self.template.render('page/admin-instances.haml', self.request, **context)
 		return Response.new(data, ctype = 'html')
 
 
@@ -123,7 +116,7 @@ class AdminWhitelist(View):
 			if message:
 				context['message'] = message
 
-		data = self.template.render('page/admin-whitelist.haml', self, **context)
+		data = self.template.render('page/admin-whitelist.haml', self.request, **context)
 		return Response.new(data, ctype = 'html')
 
 
@@ -145,7 +138,7 @@ class AdminDomainBans(View):
 			if message:
 				context['message'] = message
 
-		data = self.template.render('page/admin-domain_bans.haml', self, **context)
+		data = self.template.render('page/admin-domain_bans.haml', self.request, **context)
 		return Response.new(data, ctype = 'html')
 
 
@@ -167,7 +160,7 @@ class AdminSoftwareBans(View):
 			if message:
 				context['message'] = message
 
-		data = self.template.render('page/admin-software_bans.haml', self, **context)
+		data = self.template.render('page/admin-software_bans.haml', self.request, **context)
 		return Response.new(data, ctype = 'html')
 
 
@@ -189,7 +182,7 @@ class AdminUsers(View):
 			if message:
 				context['message'] = message
 
-		data = self.template.render('page/admin-users.haml', self, **context)
+		data = self.template.render('page/admin-users.haml', self.request, **context)
 		return Response.new(data, ctype = 'html')
 
 
@@ -213,7 +206,7 @@ class AdminConfig(View):
 			}
 		}
 
-		data = self.template.render('page/admin-config.haml', self, **context)
+		data = self.template.render('page/admin-config.haml', self.request, **context)
 		return Response.new(data, ctype = 'html')
 
 
@@ -251,5 +244,5 @@ class ThemeCss(View):
 		except KeyError:
 			return Response.new('Invalid theme', 404)
 
-		data = self.template.render('variables.css', self, **context)
+		data = self.template.render('variables.css', self.request, **context)
 		return Response.new(data, ctype = 'css')

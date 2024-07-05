@@ -11,11 +11,7 @@ from .. import logger as logging
 from ..misc import boolean
 
 if TYPE_CHECKING:
-	try:
-		from typing import Self
-
-	except ImportError:
-		from typing_extensions import Self
+	from typing import Self
 
 
 THEMES = {
@@ -77,7 +73,7 @@ CONFIG_CONVERT: dict[str, tuple[Callable[[Any], str], Callable[[str], Any]]] = {
 
 @dataclass()
 class ConfigData:
-	schema_version: int = 20240310
+	schema_version: int = 20240625
 	private_key: str = ''
 	approval_required: bool = False
 	log_level: logging.LogLevel = logging.LogLevel.INFO
@@ -115,11 +111,11 @@ class ConfigData:
 
 	@classmethod
 	def DEFAULT(cls: type[Self], key: str) -> str | int | bool:
-		return cls.FIELD(key.replace('-', '_')).default # type: ignore
+		return cls.FIELD(key.replace('-', '_')).default # type: ignore[return-value]
 
 
 	@classmethod
-	def FIELD(cls: type[Self], key: str) -> Field[Any]:
+	def FIELD(cls: type[Self], key: str) -> Field[str | int | bool]:
 		for field in fields(cls):
 			if field.name == key.replace('-', '_'):
 				return field

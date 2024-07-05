@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import secrets
+
 from argon2 import PasswordHasher
+from blib import Date
 from bsql import Connection as SqlConnection, Row, Update
 from collections.abc import Iterator
 from datetime import datetime, timezone
@@ -47,6 +50,40 @@ class Connection(SqlConnection):
 		for instance in self.get_inboxes():
 			if instance.domain not in src_domains:
 				yield instance
+
+
+	def fix_timestamps(self) -> None:
+		for app in self.select('apps').all(schema.App):
+			data = {'created': app.created.timestamp(), 'accessed': app.accessed.timestamp()}
+			self.update('apps', data, client_id = app.client_id)
+
+		for item in self.select('cache'):
+			data = {'updated': Date.parse(item['updated']).timestamp()}
+			self.update('cache', data, id = item['id'])
+
+		for dban in self.select('domain_bans').all(schema.DomainBan):
+			data = {'created': dban.created.timestamp()}
+			self.update('domain_bans', data, domain = dban.domain)
+
+		for instance in self.select('inboxes').all(schema.Instance):
+			data = {'created': instance.created.timestamp()}
+			self.update('inboxes', data, domain = instance.domain)
+
+		for sban in self.select('software_bans').all(schema.SoftwareBan):
+			data = {'created': sban.created.timestamp()}
+			self.update('software_bans', data, name = sban.name)
+
+		for token in self.select('tokens').all(schema.Token):
+			data = {'created': token.created.timestamp(), 'accessed': token.accessed.timestamp()}
+			self.update('tokens', data, code = token.code)
+
+		for user in self.select('users').all(schema.User):
+			data = {'created': user.created.timestamp()}
+			self.update('users', data, username = user.username)
+
+		for wlist in self.select('whitelist').all(schema.Whitelist):
+			data = {'created': wlist.created.timestamp()}
+			self.update('whitelist', data, domain = wlist.domain)
 
 
 	def get_config(self, key: str) -> Any:
@@ -198,6 +235,11 @@ class Connection(SqlConnection):
 			return cur.one(schema.User)
 
 
+	def get_user_by_app_token(self, code: str) -> schema.User | None:
+		with self.run('get-user-by-app-token', {'code': code}) as cur:
+			return cur.one(schema.User)
+
+
 	def get_users(self) -> Iterator[schema.User]:
 		return self.execute("SELECT * FROM users").all(schema.User)
 
@@ -249,13 +291,102 @@ class Connection(SqlConnection):
 			pass
 
 
+	def get_app(self,
+				client_id: str,
+				client_secret: str,
+				token: str | None = None) -> schema.App | None:
+
+		params = {
+			'id': client_id,
+			'secret': client_secret
+		}
+
+		if token is not None:
+			command = 'get-app-with-token'
+			params['token'] = token
+
+		else:
+			command = 'get-app'
+
+		with self.run(command, params) as cur:
+			return cur.one(schema.App)
+
+
+	def get_app_by_token(self, token: str) -> schema.App | None:
+		with self.run('get-app-by-token', {'token': token}) as cur:
+			return cur.one(schema.App)
+
+
+	def put_app(self, name: str, redirect_uri: str, website: str | None = None) -> schema.App:
+		params = {
+			'name': name,
+			'redirect_uri': redirect_uri,
+			'website': website,
+			'client_id': secrets.token_hex(20),
+			'client_secret': secrets.token_hex(20),
+			'created': Date.new_utc().timestamp(),
+			'accessed': Date.new_utc().timestamp()
+		}
+
+		with self.insert('app', params) as cur:
+			if (row := cur.one(schema.App)) is None:
+				raise RuntimeError(f'Failed to insert app: {name}')
+
+		return row
+
+
+	def update_app(self, app: schema.App, user: schema.User | None, set_auth: bool) -> schema.App:
+		data: dict[str, str | None] = {}
+
+		if user is not None:
+			data['user'] = user.username
+
+		if set_auth:
+			data['auth_code'] = secrets.token_hex(20)
+
+		else:
+			data['token'] = secrets.token_hex(20)
+			data['auth_code'] = None
+
+		params = {
+			'client_id': app.client_id,
+			'client_secret': app.client_secret
+		}
+
+		with self.update('app', data, **params) as cur: # type: ignore[arg-type]
+			if (row := cur.one(schema.App)) is None:
+				raise RuntimeError('Failed to update row')
+
+		return row
+
+
+	def del_app(self, client_id: str, client_secret: str, token: str | None = None) -> bool:
+		params = {
+			'id': client_id,
+			'secret': client_secret
+		}
+
+		if token is not None:
+			command = 'del-app-token'
+			params['token'] = token
+
+		else:
+			command = 'del-app'
+
+		with self.run(command, params) as cur:
+			if cur.row_count > 1:
+				raise RuntimeError('More than 1 row was deleted')
+
+			return cur.row_count == 0
+
+
 	def get_token(self, code: str) -> schema.Token | None:
 		with self.run('get-token', {'code': code}) as cur:
 			return cur.one(schema.Token)
 
 
 	def get_tokens(self, username: str | None = None) -> Iterator[schema.Token]:
-		if username is not None:
+		if username is None:
 			return self.select('tokens').all(schema.Token)
 
 		return self.select('tokens', username = username).all(schema.Token)

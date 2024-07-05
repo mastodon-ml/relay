@@ -1,16 +1,17 @@
+import secrets
 import traceback
 
 from aiohttp.web import Request, middleware
 from argon2.exceptions import VerifyMismatchError
+from blib import convert_to_boolean
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any
 from urllib.parse import urlparse
 
 from .base import View, register_route
 
 from .. import __version__
-from ..database import ConfigData
-from ..misc import Message, Response, boolean, get_app
+from ..database import ConfigData, schema
+from ..misc import HttpError, Message, Response, boolean
 
 
 DEFAULT_REDIRECT: str = 'urn:ietf:wg:oauth:2.0:oob'
@@ -22,6 +23,8 @@ ALLOWED_HEADERS: set[str] = {
 
 PUBLIC_API_PATHS: Sequence[tuple[str, str]] = (
 	('GET', '/api/v1/relay'),
+	('POST', '/api/v1/app'),
+	('POST', '/api/v1/login'),
 	('POST', '/api/v1/token')
 )
 
@@ -37,57 +40,174 @@ def check_api_path(method: str, path: str) -> bool:
 async def handle_api_path(
 						request: Request,
 						handler: Callable[[Request], Awaitable[Response]]) -> Response:
-	try:
-		if (token := request.cookies.get('user-token')):
-			request['token'] = token
 
-		else:
-			request['token'] = request.headers['Authorization'].replace('Bearer', '').strip()
-
-		with get_app().database.session() as conn:
-			request['user'] = conn.get_user_by_token(request['token'])
-
-	except (KeyError, ValueError):
-		request['token'] = None
-		request['user'] = None
+	if not request.path.startswith('/api'):
+		return await handler(request)
 
 	if request.method != "OPTIONS" and check_api_path(request.method, request.path):
-		if not request['token']:
-			return Response.new_error(401, 'Missing token', 'json')
+		if request['token'] is None:
+			raise HttpError(401, 'Missing token')
 
-		if not request['user']:
-			return Response.new_error(401, 'Invalid token', 'json')
+		if request['user'] is None:
+			raise HttpError(401, 'Invalid token')
 
 	response = await handler(request)
-
-	if request.path.startswith('/api'):
-		response.headers['Access-Control-Allow-Origin'] = '*'
-		response.headers['Access-Control-Allow-Headers'] = ', '.join(ALLOWED_HEADERS)
+	response.headers['Access-Control-Allow-Origin'] = '*'
+	response.headers['Access-Control-Allow-Headers'] = ', '.join(ALLOWED_HEADERS)
 
 	return response
 
 
-@register_route('/api/v1/token')
-class Login(View):
+@register_route('/oauth/authorize')
+class OauthAuthorize(View):
 	async def get(self, request: Request) -> Response:
-		return Response.new({'message': 'Token valid'}, ctype = 'json')
+		data = await self.get_api_data(['response_type', 'client_id', 'redirect_uri'], [])
+
+		if data['response_type'] != 'code':
+			raise HttpError(400, 'Response type is not "code"')
+
+		with self.database.session(True) as conn:
+			with conn.select('app', client_id = data['client_id']) as cur:
+				if (app := cur.one(schema.App)) is None:
+					raise HttpError(404, 'Could not find app')
+
+		if app.token is not None or app.auth_code is not None:
+			context = {'application': app}
+			html = self.template.render(
+				'page/authorize_show.haml', self.request, **context
+			)
+
+			return Response.new(html, ctype = 'html')
+
+		if data['redirect_uri'] != app.redirect_uri:
+			raise HttpError(400, 'redirect_uri does not match application')
+
+		context = {'application': app}
+		html = self.template.render('page/authorize_new.haml', self.request, **context)
+		return Response.new(html, ctype = 'html')
 
 
 	async def post(self, request: Request) -> Response:
-		data = await self.get_api_data(['username', 'password'], [])
+		data = await self.get_api_data(
+			['client_id', 'client_secret', 'redirect_uri', 'response'], []
+		)
 
-		if isinstance(data, Response):
-			return data
+		with self.database.session(True) as conn:
+			if (app := conn.get_app(data['client_id'], data['client_secret'])) is None:
+				return Response.new_error(404, 'Could not find app', 'json')
+
+			if convert_to_boolean(data['response']):
+				if app.auth_code is None:
+					app = conn.update_app(app, request['user'], True)
+
+				if app.redirect_uri == DEFAULT_REDIRECT:
+					context = {'application': app}
+					html = self.template.render(
+						'page/authorize_show.haml', self.request, **context
+					)
+
+					return Response.new(html, ctype = 'html')
+
+				return Response.new_redir(f'{app.redirect_uri}?code={app.auth_code}')
+
+			if not conn.del_app(app.client_id, app.client_secret):
+				raise HttpError(404, 'App not found')
+
+			return Response.new_redir('/')
+
+
+@register_route('/oauth/token')
+class OauthToken(View):
+	async def post(self, request: Request) -> Response:
+		data = await self.get_api_data(
+			['grant_type', 'code', 'client_id', 'client_secret', 'redirect_uri'], []
+		)
+
+		if data['grant_type'] != 'authorization_code':
+			raise HttpError(400, 'Invalid grant type')
+
+		with self.database.session(True) as conn:
+			if (app := conn.get_app(data['client_id'], data['client_secret'])) is None:
+				raise HttpError(404, 'Application not found')
+
+			if app.auth_code != data['code']:
+				raise HttpError(400, 'Invalid authentication code')
+
+			if app.redirect_uri != data['redirect_uri']:
+				raise HttpError(400, 'Invalid redirect uri')
+
+			app = conn.update_app(app, request['user'], False)
+
+		return Response.new(app.get_api_data(True), ctype = 'json')
+
+
+@register_route('/oauth/revoke')
+class OauthRevoke(View):
+	async def post(self, request: Request) -> Response:
+		data = await self.get_api_data(['client_id', 'client_secret', 'token'], [])
+
+		with self.database.session(True) as conn:
+			if (app := conn.get_app(**data)) is None:
+				raise HttpError(404, 'Could not find token')
+
+			if app.user != request['token'].username:
+				raise HttpError(403, 'Invalid token')
+
+			if not conn.del_app(**data):
+				raise HttpError(400, 'Token not removed')
+
+			return Response.new({'msg': 'Token deleted'}, ctype = 'json')
+
+
+@register_route('/api/v1/app')
+class App(View):
+	async def get(self, request: Request) -> Response:
+		data = await self.get_api_data(['client_id', 'client_secret'], [])
+
+		with self.database.session(False) as conn:
+			if (app := conn.get_app(data['client_id'], data['client_secret'])) is None:
+				raise HttpError(404, 'Application cannot be found')
+
+		return Response.new(app.get_api_data(), ctype = 'json')
+
+
+	async def post(self, request: Request) -> Response:
+		data = await self.get_api_data(['name', 'redirect_uri'], ['website'])
+
+		with self.database.session(True) as conn:
+			app = conn.put_app(
+				name = data['name'],
+				redirect_uri = data['redirect_uri'],
+				website = data.get('website')
+			)
+
+		return Response.new(app.get_api_data(), ctype = 'json')
+
+
+	async def delete(self, request: Request) -> Response:
+		data = await self.get_api_data(['client_id', 'client_secret'], [])
+
+		with self.database.session(True) as conn:
+			if not conn.del_app(data['client_id'], data['client_secret'], request['token'].code):
+				raise HttpError(400, 'Token not removed')
+
+			return Response.new({'msg': 'Token deleted'}, ctype = 'json')
+
+
+@register_route('/api/v1/login')
+class Login(View):
+	async def post(self, request: Request) -> Response:
+		data = await self.get_api_data(['username', 'password'], [])
 
 		with self.database.session(True) as conn:
 			if not (user := conn.get_user(data['username'])):
-				return Response.new_error(401, 'User not found', 'json')
+				raise HttpError(401, 'User not found')
 
 			try:
 				conn.hasher.verify(user['hash'], data['password'])
 
 			except VerifyMismatchError:
-				return Response.new_error(401, 'Invalid password', 'json')
+				raise HttpError(401, 'Invalid password')
 
 			token = conn.put_token(data['username'])
 
@@ -106,11 +226,36 @@ class Login(View):
 		return resp
 
 
-	async def delete(self, request: Request) -> Response:
-		with self.database.session() as conn:
-			conn.del_token(request['token'])
 
-		return Response.new({'message': 'Token revoked'}, ctype = 'json')
+	async def post2(self, request: Request) -> Response:
+		data = await self.get_api_data(['username', 'password'], [])
+
+		with self.database.session(True) as conn:
+			if not (user := conn.get_user(data['username'])):
+				raise HttpError(401, 'User not found')
+
+			try:
+				conn.hasher.verify(user['hash'], data['password'])
+
+			except VerifyMismatchError:
+				raise HttpError(401, 'Invalid password')
+
+			app = conn.put_app(
+				data['app_name'],
+				DEFAULT_REDIRECT,
+				data.get('website')
+			)
+
+			params = {
+				'code': secrets.token_hex(20),
+				'user': user.username
+			}
+
+			with conn.update('app', params, client_id = app.client_id) as cur:
+				if (row := cur.one(schema.App)) is None:
+					raise HttpError(500, 'Failed to create app')
+
+		return Response.new(row.get_api_data(True), ctype = 'json')
 
 
 @register_route('/api/v1/relay')
@@ -155,14 +300,10 @@ class Config(View):
 
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['key', 'value'], [])
-
-		if isinstance(data, Response):
-			return data
-
 		data['key'] = data['key'].replace('-', '_')
 
 		if data['key'] not in ConfigData.USER_KEYS():
-			return Response.new_error(400, 'Invalid key', 'json')
+			raise HttpError(400, 'Invalid key')
 
 		with self.database.session() as conn:
 			conn.put_config(data['key'], data['value'])
@@ -173,11 +314,8 @@ class Config(View):
 	async def delete(self, request: Request) -> Response:
 		data = await self.get_api_data(['key'], [])
 
-		if isinstance(data, Response):
-			return data
-
 		if data['key'] not in ConfigData.USER_KEYS():
-			return Response.new_error(400, 'Invalid key', 'json')
+			raise HttpError(400, 'Invalid key')
 
 		with self.database.session() as conn:
 			conn.put_config(data['key'], ConfigData.DEFAULT(data['key']))
@@ -196,15 +334,11 @@ class Inbox(View):
 
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['actor'], ['inbox', 'software', 'followid'])
-
-		if isinstance(data, Response):
-			return data
-
 		data['domain'] = urlparse(data["actor"]).netloc
 
 		with self.database.session() as conn:
 			if conn.get_inbox(data['domain']) is not None:
-				return Response.new_error(404, 'Instance already in database', 'json')
+				raise HttpError(404, 'Instance already in database')
 
 			data['domain'] = data['domain'].encode('idna').decode()
 
@@ -214,7 +348,7 @@ class Inbox(View):
 
 				except Exception:
 					traceback.print_exc()
-					return Response.new_error(500, 'Failed to fetch actor', 'json')
+					raise HttpError(500, 'Failed to fetch actor')
 
 				data['inbox'] = actor_data.shared_inbox
 
@@ -240,14 +374,10 @@ class Inbox(View):
 	async def patch(self, request: Request) -> Response:
 		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], ['actor', 'software', 'followid'])
-
-			if isinstance(data, Response):
-				return data
-
 			data['domain'] = data['domain'].encode('idna').decode()
 
 			if (instance := conn.get_inbox(data['domain'])) is None:
-				return Response.new_error(404, 'Instance with domain not found', 'json')
+				raise HttpError(404, 'Instance with domain not found')
 
 			instance = conn.put_inbox(
 				instance.domain,
@@ -262,14 +392,10 @@ class Inbox(View):
 	async def delete(self, request: Request) -> Response:
 		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], [])
-
-			if isinstance(data, Response):
-				return data
-
 			data['domain'] = data['domain'].encode('idna').decode()
 
 			if not conn.get_inbox(data['domain']):
-				return Response.new_error(404, 'Instance with domain not found', 'json')
+				raise HttpError(404, 'Instance with domain not found')
 
 			conn.del_inbox(data['domain'])
 
@@ -286,26 +412,21 @@ class RequestView(View):
 
 
 	async def post(self, request: Request) -> Response:
-		data: dict[str, Any] | Response = await self.get_api_data(['domain', 'accept'], [])
-
-		if isinstance(data, Response):
-			return data
-
-		data['accept'] = boolean(data['accept'])
+		data = await self.get_api_data(['domain', 'accept'], [])
 		data['domain'] = data['domain'].encode('idna').decode()
 
 		try:
 			with self.database.session(True) as conn:
-				instance = conn.put_request_response(data['domain'], data['accept'])
+				instance = conn.put_request_response(data['domain'], boolean(data['accept']))
 
 		except KeyError:
-			return Response.new_error(404, 'Request not found', 'json')
+			raise HttpError(404, 'Request not found')
 
 		message = Message.new_response(
 			host = self.config.domain,
 			actor = instance.actor,
 			followid = instance.followid,
-			accept = data['accept']
+			accept = boolean(data['accept'])
 		)
 
 		self.app.push_message(instance.inbox, message, instance)
@@ -333,15 +454,11 @@ class DomainBan(View):
 
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['domain'], ['note', 'reason'])
-
-		if isinstance(data, Response):
-			return data
-
 		data['domain'] = data['domain'].encode('idna').decode()
 
 		with self.database.session() as conn:
 			if conn.get_domain_ban(data['domain']) is not None:
-				return Response.new_error(400, 'Domain already banned', 'json')
+				raise HttpError(400, 'Domain already banned')
 
 			ban = conn.put_domain_ban(
 				domain = data['domain'],
@@ -356,16 +473,13 @@ class DomainBan(View):
 		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], ['note', 'reason'])
 
-			if isinstance(data, Response):
-				return data
-
 			if not any([data.get('note'), data.get('reason')]):
-				return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
+				raise HttpError(400, 'Must include note and/or reason parameters')
 
 			data['domain'] = data['domain'].encode('idna').decode()
 
 			if conn.get_domain_ban(data['domain']) is None:
-				return Response.new_error(404, 'Domain not banned', 'json')
+				raise HttpError(404, 'Domain not banned')
 
 			ban = conn.update_domain_ban(
 				domain = data['domain'],
@@ -379,14 +493,10 @@ class DomainBan(View):
 	async def delete(self, request: Request) -> Response:
 		with self.database.session() as conn:
 			data = await self.get_api_data(['domain'], [])
-
-			if isinstance(data, Response):
-				return data
-
 			data['domain'] = data['domain'].encode('idna').decode()
 
 			if conn.get_domain_ban(data['domain']) is None:
-				return Response.new_error(404, 'Domain not banned', 'json')
+				raise HttpError(404, 'Domain not banned')
 
 			conn.del_domain_ban(data['domain'])
 
@@ -405,12 +515,9 @@ class SoftwareBan(View):
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['name'], ['note', 'reason'])
 
-		if isinstance(data, Response):
-			return data
-
 		with self.database.session() as conn:
 			if conn.get_software_ban(data['name']) is not None:
-				return Response.new_error(400, 'Domain already banned', 'json')
+				raise HttpError(400, 'Domain already banned')
 
 			ban = conn.put_software_ban(
 				name = data['name'],
@@ -424,15 +531,12 @@ class SoftwareBan(View):
 	async def patch(self, request: Request) -> Response:
 		data = await self.get_api_data(['name'], ['note', 'reason'])
 
-		if isinstance(data, Response):
-			return data
-
 		if not any([data.get('note'), data.get('reason')]):
-			return Response.new_error(400, 'Must include note and/or reason parameters', 'json')
+			raise HttpError(400, 'Must include note and/or reason parameters')
 
 		with self.database.session() as conn:
 			if conn.get_software_ban(data['name']) is None:
-				return Response.new_error(404, 'Software not banned', 'json')
+				raise HttpError(404, 'Software not banned')
 
 			ban = conn.update_software_ban(
 				name = data['name'],
@@ -446,12 +550,9 @@ class SoftwareBan(View):
 	async def delete(self, request: Request) -> Response:
 		data = await self.get_api_data(['name'], [])
 
-		if isinstance(data, Response):
-			return data
-
 		with self.database.session() as conn:
 			if conn.get_software_ban(data['name']) is None:
-				return Response.new_error(404, 'Software not banned', 'json')
+				raise HttpError(404, 'Software not banned')
 
 			conn.del_software_ban(data['name'])
 
@@ -474,12 +575,9 @@ class User(View):
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['username', 'password'], ['handle'])
 
-		if isinstance(data, Response):
-			return data
-
 		with self.database.session() as conn:
 			if conn.get_user(data['username']) is not None:
-				return Response.new_error(404, 'User already exists', 'json')
+				raise HttpError(404, 'User already exists')
 
 			user = conn.put_user(
 				username = data['username'],
@@ -493,9 +591,6 @@ class User(View):
 
 	async def patch(self, request: Request) -> Response:
 		data = await self.get_api_data(['username'], ['password', 'handle'])
-
-		if isinstance(data, Response):
-			return data
 
 		with self.database.session(True) as conn:
 			user = conn.put_user(
@@ -511,12 +606,9 @@ class User(View):
 	async def delete(self, request: Request) -> Response:
 		data = await self.get_api_data(['username'], [])
 
-		if isinstance(data, Response):
-			return data
-
 		with self.database.session(True) as conn:
 			if conn.get_user(data['username']) is None:
-				return Response.new_error(404, 'User does not exist', 'json')
+				raise HttpError(404, 'User does not exist')
 
 			conn.del_user(data['username'])
 
@@ -535,14 +627,11 @@ class Whitelist(View):
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['domain'], [])
 
-		if isinstance(data, Response):
-			return data
-
 		domain = data['domain'].encode('idna').decode()
 
 		with self.database.session() as conn:
 			if conn.get_domain_whitelist(domain) is not None:
-				return Response.new_error(400, 'Domain already added to whitelist', 'json')
+				raise HttpError(400, 'Domain already added to whitelist')
 
 			item = conn.put_domain_whitelist(domain)
 
@@ -552,14 +641,11 @@ class Whitelist(View):
 	async def delete(self, request: Request) -> Response:
 		data = await self.get_api_data(['domain'], [])
 
-		if isinstance(data, Response):
-			return data
-
 		domain = data['domain'].encode('idna').decode()
 
 		with self.database.session() as conn:
 			if conn.get_domain_whitelist(domain) is None:
-				return Response.new_error(404, 'Domain not in whitelist', 'json')
+				raise HttpError(404, 'Domain not in whitelist')
 
 			conn.del_domain_whitelist(domain)
 

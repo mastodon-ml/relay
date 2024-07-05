@@ -4,11 +4,14 @@ import asyncio
 import multiprocessing
 import signal
 import time
+import traceback
 
+from Crypto.Random import get_random_bytes
 from aiohttp import web
-from aiohttp.web import StaticResource
+from aiohttp.web import HTTPException, StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
+from base64 import b64encode
 from bsql import Database
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
@@ -23,7 +26,8 @@ from .config import Config
 from .database import Connection, get_database
 from .database.schema import Instance
 from .http_client import HttpClient
-from .misc import Message, Response, check_open_port, get_resource
+from .misc import HttpError, Message, Response, check_open_port, get_resource
+from .misc import JSON_PATHS, TOKEN_PATHS
 from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
@@ -53,9 +57,9 @@ class Application(web.Application):
 	def __init__(self, cfgpath: Path | None, dev: bool = False):
 		web.Application.__init__(self,
 			middlewares = [
-				handle_api_path, # type: ignore[list-item]
+				handle_response_headers, # type: ignore[list-item]
 				handle_frontend_path, # type: ignore[list-item]
-				handle_response_headers # type: ignore[list-item]
+				handle_api_path # type: ignore[list-item]
 			]
 		)
 
@@ -282,19 +286,70 @@ class CacheCleanupThread(Thread):
 		self.running.clear()
 
 
+def format_error(request: web.Request, error: HttpError) -> Response:
+	app: Application = request.app # type: ignore[assignment]
+
+	if request.path.startswith(JSON_PATHS) or 'json' in request.headers.get('accept', ''):
+		return Response.new({'error': error.body}, error.status, ctype = 'json')
+
+	else:
+		body = app.template.render('page/error.haml', request, e = error)
+		return Response.new(body, error.status, ctype = 'html')
+
+
 @web.middleware
 async def handle_response_headers(
 								request: web.Request,
 								handler: Callable[[web.Request], Awaitable[Response]]) -> Response:
 
-	resp = await handler(request)
+	request['hash'] = b64encode(get_random_bytes(16)).decode('ascii')
+	request['token'] = None
+	request['user'] = None
+
+	app: Application = request.app # type: ignore[assignment]
+
+	if request.path == "/" or request.path.startswith(TOKEN_PATHS):
+		with app.database.session() as conn:
+			if (token := request.headers.get('Authorization')) is not None:
+				token = token.replace('Bearer', '').strip()
+
+				request['token'] = conn.get_app_by_token(token)
+				request['user'] = conn.get_user_by_app_token(token)
+
+			elif (token := request.cookies.get('user-token')) is not None:
+				request['token'] = conn.get_token(token)
+				request['user'] = conn.get_user_by_token(token)
+
+	try:
+		resp = await handler(request)
+
+	except HttpError as e:
+		resp = format_error(request, e)
+
+	except HTTPException as ae:
+		if ae.status == 404:
+			try:
+				text = (ae.text or "").split(":")[1].strip()
+
+			except IndexError:
+				text = ae.text or ""
+
+			resp = format_error(request, HttpError(ae.status, text))
+
+		else:
+			raise
+
+	except Exception as e:
+		resp = format_error(request, HttpError(500, f'{type(e).__name__}: {str(e)}'))
+		traceback.print_exc()
+
 	resp.headers['Server'] = 'ActivityRelay'
 
 	# Still have to figure out how csp headers work
-	if resp.content_type == 'text/html' and not request.path.startswith("/api"):
+	if resp.content_type == 'text/html':
 		resp.headers['Content-Security-Policy'] = get_csp(request)
 
-	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
+	if not request.app['dev'] and request.path.endswith(('.css', '.js', '.woff2')):
 		# cache for 2 weeks
 		resp.headers['Cache-Control'] = 'public,max-age=1209600,immutable'
 

@@ -1,19 +1,29 @@
 from __future__ import annotations
 
-import typing
-
+from blib import Date
 from bsql import Column, Row, Tables
 from collections.abc import Callable
-from datetime import datetime
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any
 
 from .config import ConfigData
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
 	from .connection import Connection
 
 
 VERSIONS: dict[int, Callable[[Connection], None]] = {}
 TABLES = Tables()
+
+
+def deserialize_timestamp(value: Any) -> Date:
+	try:
+		return Date.parse(value)
+
+	except ValueError:
+		pass
+
+	return Date.fromisoformat(value)
 
 
 @TABLES.add_row
@@ -27,62 +37,125 @@ class Config(Row):
 class Instance(Row):
 	table_name: str = 'inboxes'
 
+
 	domain: Column[str] = Column(
 		'domain', 'text', primary_key = True, unique = True, nullable = False)
 	actor: Column[str] = Column('actor', 'text', unique = True)
 	inbox: Column[str] = Column('inbox', 'text', unique = True, nullable = False)
 	followid: Column[str] = Column('followid', 'text')
 	software: Column[str] = Column('software', 'text')
-	accepted: Column[datetime] = Column('accepted', 'boolean')
-	created: Column[datetime] = Column('created', 'timestamp', nullable = False)
+	accepted: Column[Date] = Column('accepted', 'boolean')
+	created: Column[Date] = Column(
+		'created', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
 
 
 @TABLES.add_row
 class Whitelist(Row):
 	domain: Column[str] = Column(
 		'domain', 'text', primary_key = True, unique = True, nullable = True)
-	created: Column[datetime] = Column('created', 'timestamp')
+	created: Column[Date] = Column(
+		'created', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
 
 
 @TABLES.add_row
 class DomainBan(Row):
 	table_name: str = 'domain_bans'
 
+
 	domain: Column[str] = Column(
 		'domain', 'text', primary_key = True, unique = True, nullable = True)
 	reason: Column[str] = Column('reason', 'text')
 	note: Column[str] = Column('note', 'text')
-	created: Column[datetime] = Column('created', 'timestamp')
+	created: Column[Date] = Column(
+		'created', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
 
 
 @TABLES.add_row
 class SoftwareBan(Row):
 	table_name: str = 'software_bans'
 
+
 	name: Column[str] = Column('name', 'text', primary_key = True, unique = True, nullable = True)
 	reason: Column[str] = Column('reason', 'text')
 	note: Column[str] = Column('note', 'text')
-	created: Column[datetime] = Column('created', 'timestamp')
+	created: Column[Date] = Column(
+		'created', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
 
 
 @TABLES.add_row
 class User(Row):
 	table_name: str = 'users'
 
+
 	username: Column[str] = Column(
 		'username', 'text', primary_key = True, unique = True, nullable = False)
 	hash: Column[str] = Column('hash', 'text', nullable = False)
 	handle: Column[str] = Column('handle', 'text')
-	created: Column[datetime] = Column('created', 'timestamp')
+	created: Column[Date] = Column(
+		'created', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
 
 
 @TABLES.add_row
 class Token(Row):
 	table_name: str = 'tokens'
 
+
 	code: Column[str] = Column('code', 'text', primary_key = True, unique = True, nullable = False)
 	user: Column[str] = Column('user', 'text', nullable = False)
-	created: Column[datetime] = Column('created', 'timestamp')
+	created: Column[Date] = Column(
+		'created', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
+	accessed: Column[Date] = Column(
+		'accessed', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
+
+
+@TABLES.add_row
+class App(Row):
+	table_name: str = 'apps'
+
+
+	client_id: Column[str] = Column(
+		'client_id', 'text', primary_key = True, unique = True, nullable = False)
+	client_secret: Column[str] = Column('client_secret', 'text', nullable = False)
+	name: Column[str] = Column('name', 'text')
+	website: Column[str] = Column('website', 'text')
+	redirect_uri: Column[str] = Column('redirect_uri', 'text', nullable = False)
+	token: Column[str | None] = Column('token', 'text')
+	auth_code: Column[str | None] = Column('auth_code', 'text')
+	user: Column[str | None] = Column('user', 'text')
+	created: Column[Date] = Column(
+		'created', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
+	accessed: Column[Date] = Column(
+		'accessed', 'timestamp', nullable = False,
+		deserializer = deserialize_timestamp, serializer = Date.timestamp
+	)
+
+
+	def get_api_data(self, include_token: bool = False) -> dict[str, Any]:
+		data = deepcopy(self)
+		data.pop('auth_code')
+		data.pop('created')
+		data.pop('accessed')
+
+		if not include_token:
+			data.pop('token')
+
+		return data
 
 
 def migration(func: Callable[[Connection], None]) -> Callable[[Connection], None]:
@@ -103,5 +176,15 @@ def migrate_20240206(conn: Connection) -> None:
 
 @migration
 def migrate_20240310(conn: Connection) -> None:
-	conn.execute("ALTER TABLE inboxes ADD COLUMN accepted BOOLEAN")
-	conn.execute("UPDATE inboxes SET accepted = 1")
+	conn.execute('ALTER TABLE "inboxes" ADD COLUMN "accepted" BOOLEAN')
+	conn.execute('UPDATE "inboxes" SET accepted = 1')
+
+
+@migration
+def migrate_20240625(conn: Connection) -> None:
+	conn.execute('ALTER TABLE "tokens" ADD "accessed" timestamp')
+
+	for token in conn.get_tokens():
+		conn.update('tokens', {'accessed': token.created}, code = token.code).one()
+
+	conn.create_tables()

@@ -338,6 +338,44 @@ textarea {
 }
 
 
+/* error */
+#content.page-error {
+	text-align: center;
+}
+
+#content.page-error .title {
+	font-size: 24px;
+	font-weight: bold;
+}
+
+
+/* auth */
+#content.page-app_authorization {
+	text-align: center;
+}
+
+#content.page-app_authorization #code {
+	background: var(--background);
+	border: 1px solid var(--border);
+	font-size: 18px;
+	margin: 0 auto;
+	width: max-content;
+	padding: 5px;
+}
+
+#content.page-app_authorization #title {
+	font-size: 24px;
+}
+
+#content.page-app_authorization #buttons {
+	display: grid;
+	grid-template-columns: auto max-content max-content auto;
+	grid-gap: var(--spacing);
+	justify-items: center;
+	margin: var(--spacing) 0;
+}
+
+
 @keyframes show_toast {
 	0% {
 		transform: translateX(100%);
