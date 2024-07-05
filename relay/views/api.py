@@ -40,7 +40,7 @@ async def handle_api_path(
 						request: Request,
 						handler: Callable[[Request], Awaitable[Response]]) -> Response:
 
-	if not request.path.startswith('/api'):
+	if not request.path.startswith('/api') or request.path == '/api/doc':
 		return await handler(request)
 
 	if request.method != "OPTIONS" and check_api_path(request.method, request.path):
@@ -58,6 +58,7 @@ async def handle_api_path(
 
 
 @register_route('/oauth/authorize')
+@register_route('/api/oauth/authorize')
 class OauthAuthorize(View):
 	async def get(self, request: Request) -> Response:
 		data = await self.get_api_data(['response_type', 'client_id', 'redirect_uri'], [])
@@ -66,11 +67,14 @@ class OauthAuthorize(View):
 			raise HttpError(400, 'Response type is not "code"')
 
 		with self.database.session(True) as conn:
-			with conn.select('app', client_id = data['client_id']) as cur:
+			with conn.select('apps', client_id = data['client_id']) as cur:
 				if (app := cur.one(schema.App)) is None:
 					raise HttpError(404, 'Could not find app')
 
-		if app.token is not None or app.auth_code is not None:
+		if app.token is not None:
+			raise HttpError(400, 'Application has already been authorized')
+
+		if app.auth_code is not None:
 			context = {'application': app}
 			html = self.template.render(
 				'page/authorize_show.haml', self.request, **context
@@ -96,6 +100,9 @@ class OauthAuthorize(View):
 				return Response.new_error(404, 'Could not find app', 'json')
 
 			if convert_to_boolean(data['response']):
+				if app.token is not None:
+					raise HttpError(400, 'Application has already been authorized')
+
 				if app.auth_code is None:
 					app = conn.update_app(app, request['user'], True)
 
@@ -116,6 +123,7 @@ class OauthAuthorize(View):
 
 
 @register_route('/oauth/token')
+@register_route('/api/oauth/token')
 class OauthToken(View):
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(
@@ -141,6 +149,7 @@ class OauthToken(View):
 
 
 @register_route('/oauth/revoke')
+@register_route('/api/oauth/revoke')
 class OauthRevoke(View):
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['client_id', 'client_secret', 'token'], [])
@@ -161,13 +170,7 @@ class OauthRevoke(View):
 @register_route('/api/v1/app')
 class App(View):
 	async def get(self, request: Request) -> Response:
-		data = await self.get_api_data(['client_id', 'client_secret'], [])
-
-		with self.database.session(False) as conn:
-			if (app := conn.get_app(data['client_id'], data['client_secret'])) is None:
-				raise HttpError(404, 'Application cannot be found')
-
-		return Response.new(app.get_api_data(), ctype = 'json')
+		return Response.new(request['token'].get_api_data(), ctype = 'json')
 
 
 	async def post(self, request: Request) -> Response:
@@ -210,7 +213,7 @@ class Login(View):
 
 			app = conn.put_app_login(user)
 
-		resp = Response.new({'token': app.token}, ctype = 'json')
+		resp = Response.new(app.get_api_data(), ctype = 'json')
 		resp.set_cookie(
 				'user-token',
 				app.token, # type: ignore[arg-type]

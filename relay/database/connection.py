@@ -364,7 +364,7 @@ class Connection(SqlConnection):
 			'client_secret': app.client_secret
 		}
 
-		with self.update('app', data, **params) as cur: # type: ignore[arg-type]
+		with self.update('apps', data, **params) as cur: # type: ignore[arg-type]
 			if (row := cur.one(schema.App)) is None:
 				raise RuntimeError('Failed to update row')
 

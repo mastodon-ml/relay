@@ -51,7 +51,7 @@ WHERE username = :value or handle = :value;
 -- name: get-user-by-token
 SELECT * FROM users
 WHERE username = (
-	SELECT user FROM app
+	SELECT user FROM apps
 	WHERE token = :token
 );
 
@@ -68,12 +68,12 @@ WHERE username = :value or handle = :value;
 
 
 -- name: get-app
-SELECT * FROM app
+SELECT * FROM apps
 WHERE client_id = :id and client_secret = :secret;
 
 
 -- name: get-app-with-token
-SELECT * FROM app
+SELECT * FROM apps
 WHERE client_id = :id and client_secret = :secret and token = :token;
 
 

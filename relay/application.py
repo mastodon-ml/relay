@@ -352,7 +352,7 @@ async def handle_response_headers(
 	resp.headers['Server'] = 'ActivityRelay'
 
 	# Still have to figure out how csp headers work
-	if resp.content_type == 'text/html':
+	if resp.content_type == 'text/html' and not request.path.startswith("/api"):
 		resp.headers['Content-Security-Policy'] = get_csp(request)
 
 	if not request.app['dev'] and request.path.endswith(('.css', '.js', '.woff2')):
