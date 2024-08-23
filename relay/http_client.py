@@ -146,7 +146,7 @@ class HttpClient:
 
 
 	@overload
-	async def get(self, # type: ignore[overload-overlap]
+	async def get(self,
 				url: str,
 				sign_headers: bool,
 				cls: None = None,

@@ -18,7 +18,7 @@ dependencies = [
 	"aiohttp >= 3.9.5",
 	"aiohttp-swagger[performance] == 1.0.16",
 	"argon2-cffi == 23.1.0",
-	"barkshark-lib >= 0.1.5rc1, < 0.2.0",
+	"barkshark-lib >= 0.1.6, < 0.2.0",
 	"barkshark-sql >= 0.2.0rc2, < 0.3.0",
 	"click == 8.1.2",
 	"hiredis == 2.3.2",
@@ -47,9 +47,9 @@ activityrelay = "relay.manage:main"
 [project.optional-dependencies]
 dev = [
 	"flake8 == 7.1.0",
-	"mypy == 1.10.1",
-	"pyinstaller == 6.8.0",
-	"watchdog == 4.0.1"
+	"mypy == 1.11.1",
+	"pyinstaller == 6.10.0",
+	"watchdog == 4.0.2"
 ]
 
 [tool.setuptools]
