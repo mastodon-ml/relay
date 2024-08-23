@@ -1,3 +1,6 @@
+import sqlite3
+
+from blib import Date
 from bsql import Database
 
 from .config import THEMES, ConfigData
@@ -7,6 +10,9 @@ from .schema import TABLES, VERSIONS, migrate_0
 from .. import logger as logging
 from ..config import Config
 from ..misc import get_resource
+
+
+sqlite3.register_adapter(Date, Date.timestamp)
 
 
 def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
