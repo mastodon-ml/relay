@@ -230,12 +230,10 @@ class HttpClient:
 			return
 
 
-	async def fetch_nodeinfo(self, domain: str) -> Nodeinfo:
+	async def fetch_nodeinfo(self, domain: str, force: bool = False) -> Nodeinfo:
 		nodeinfo_url = None
 		wk_nodeinfo = await self.get(
-			f'https://{domain}/.well-known/nodeinfo',
-			False,
-			WellKnownNodeinfo
+			f'https://{domain}/.well-known/nodeinfo', False, WellKnownNodeinfo, force
 		)
 
 		for version in ('20', '21'):
@@ -248,7 +246,7 @@ class HttpClient:
 		if nodeinfo_url is None:
 			raise ValueError(f'Failed to fetch nodeinfo url for {domain}')
 
-		return await self.get(nodeinfo_url, False, Nodeinfo)
+		return await self.get(nodeinfo_url, False, Nodeinfo, force)
 
 
 async def get(*args: Any, **kwargs: Any) -> Any:

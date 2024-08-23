@@ -58,7 +58,7 @@ async def handle_forward(view: ActorView, conn: Connection) -> None:
 
 
 async def handle_follow(view: ActorView, conn: Connection) -> None:
-	nodeinfo = await view.client.fetch_nodeinfo(view.actor.domain)
+	nodeinfo = await view.client.fetch_nodeinfo(view.actor.domain, force = True)
 	software = nodeinfo.sw_name if nodeinfo else None
 	config = conn.get_config_all()
 
