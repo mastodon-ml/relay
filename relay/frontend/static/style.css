@@ -12,7 +12,7 @@ body {
 	color: var(--text);
 	background-color: #222;
 	margin: var(--spacing);
-	font-family: sans serif;
+	font-family: sans-serif;
 }
 
 details *:nth-child(2) {
@@ -88,6 +88,7 @@ tbody tr:last-child td:last-child {
 
 table td {
 	padding: 5px;
+	white-space: nowrap;
 }
 
 table thead td {
@@ -282,8 +283,11 @@ textarea {
 	width: 100%;
 }
 
-.data-table .date {
+.data-table td:not(:first-child) {
 	width: max-content;
+}
+
+.data-table .date {
 	text-align: right;
 }
 
