@@ -362,10 +362,15 @@ def cli_config_list(ctx: click.Context) -> None:
 def cli_config_set(ctx: click.Context, key: str, value: Any) -> None:
 	'Set a config value'
 
-	with ctx.obj.database.session() as conn:
-		new_value = conn.put_config(key, value)
+	try:
+		with ctx.obj.database.session() as conn:
+			new_value = conn.put_config(key, value)
 
-	print(f'{key}: {repr(new_value)}')
+	except:
+		click.echo('Invalid config name:', key)
+		return
+
+	click.echo(f'{key}: {repr(new_value)}')
 
 
 @cli.group('user')
