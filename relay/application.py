@@ -18,9 +18,9 @@ from datetime import datetime, timedelta
 from mimetypes import guess_type
 from pathlib import Path
 from threading import Event, Thread
-from typing import Any
+from typing import Any, cast
 
-from . import logger as logging, workers
+from . import logger as logging
 from .cache import Cache, get_cache
 from .config import Config
 from .database import Connection, get_database
@@ -32,6 +32,7 @@ from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
 from .views.frontend import handle_frontend_path
+from .workers import PushWorkers
 
 
 def get_csp(request: web.Request) -> str:
@@ -78,7 +79,7 @@ class Application(web.Application):
 		self['cache'].setup()
 		self['template'] = Template(self)
 		self['push_queue'] = multiprocessing.Queue()
-		self['workers'] = workers.PushWorkers(self.config.workers)
+		self['workers'] = PushWorkers(self.config.workers)
 
 		self.cache.setup()
 		self.on_cleanup.append(handle_cleanup) # type: ignore
@@ -95,27 +96,27 @@ class Application(web.Application):
 
 	@property
 	def cache(self) -> Cache:
-		return self['cache'] # type: ignore[no-any-return]
+		return cast(Cache, self['cache'])
 
 
 	@property
 	def client(self) -> HttpClient:
-		return self['client'] # type: ignore[no-any-return]
+		return cast(HttpClient, self['client'])
 
 
 	@property
 	def config(self) -> Config:
-		return self['config'] # type: ignore[no-any-return]
+		return cast(Config, self['config'])
 
 
 	@property
 	def database(self) -> Database[Connection]:
-		return self['database'] # type: ignore[no-any-return]
+		return cast(Database[Connection], self['database'])
 
 
 	@property
 	def signer(self) -> Signer:
-		return self['signer'] # type: ignore[no-any-return]
+		return cast(Signer, self['signer'])
 
 
 	@signer.setter
@@ -129,7 +130,7 @@ class Application(web.Application):
 
 	@property
 	def template(self) -> Template:
-		return self['template'] # type: ignore[no-any-return]
+		return cast(Template, self['template'])
 
 
 	@property
@@ -140,6 +141,11 @@ class Application(web.Application):
 		uptime = datetime.now() - self['start_time']
 
 		return timedelta(seconds=uptime.seconds)
+
+
+	@property
+	def workers(self) -> PushWorkers:
+		return cast(PushWorkers, self['workers'])
 
 
 	def push_message(self, inbox: str, message: Message, instance: Instance) -> None:
