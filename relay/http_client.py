@@ -31,7 +31,7 @@ SUPPORTS_HS2019 = {
 	'sharkey'
 }
 
-T = TypeVar('T', bound = JsonBase)
+T = TypeVar('T', bound = JsonBase[Any])
 HEADERS = {
 	'Accept': f'{MIMETYPES["activity"]}, {MIMETYPES["json"]};q=0.9',
 	'User-Agent': f'ActivityRelay/{__version__}'
