@@ -21,12 +21,7 @@ from .misc import IS_WINDOWS, Message, get_app
 
 
 @dataclass
-class QueueItem:
-	pass
-
-
-@dataclass
-class PostItem(QueueItem):
+class PostItem:
 	inbox: str
 	message: Message
 	instance: Instance | None
@@ -40,10 +35,10 @@ class PushWorker(Process):
 	client: HttpClient
 
 
-	def __init__(self, queue: QueueType[QueueItem], log_level: Synchronized[int]) -> None:
+	def __init__(self, queue: QueueType[PostItem], log_level: Synchronized[int]) -> None:
 		Process.__init__(self)
 
-		self.queue: QueueType[QueueItem] = queue
+		self.queue: QueueType[PostItem] = queue
 		self.shutdown: EventType = Event()
 		self.path: Path = get_app().config.path
 		self.log_level: Synchronized[int] = log_level
@@ -80,9 +75,7 @@ class PushWorker(Process):
 					self._log_level_changed.clear()
 
 				item = self.queue.get(block=True, timeout=0.1)
-
-				if isinstance(item, PostItem):
-					asyncio.create_task(self.handle_post(item))
+				asyncio.create_task(self.handle_post(item))
 
 			except Empty:
 				await asyncio.sleep(0)
@@ -113,7 +106,7 @@ class PushWorker(Process):
 
 class PushWorkers(list[PushWorker]):
 	def __init__(self, count: int) -> None:
-		self.queue: QueueType[QueueItem] = Queue()
+		self.queue: QueueType[PostItem] = Queue()
 		self._log_level: Synchronized[int] = Value("i", logging.get_level())
 		self._count: int = count
 
