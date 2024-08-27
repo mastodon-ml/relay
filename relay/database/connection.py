@@ -141,6 +141,7 @@ class Connection(SqlConnection):
 		return self.execute("SELECT * FROM inboxes WHERE accepted = 1").all(schema.Instance)
 
 
+	# todo: check if software is different than stored row
 	def put_inbox(self,
 				domain: str,
 				inbox: str | None = None,

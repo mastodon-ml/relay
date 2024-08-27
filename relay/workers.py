@@ -118,10 +118,6 @@ class PushWorkers(list[PushWorker]):
 		self._count: int = count
 
 
-	def push_item(self, item: QueueItem) -> None:
-		self.queue.put(item)
-
-
 	def push_message(self, inbox: str, message: Message, instance: Instance) -> None:
 		self.queue.put(PostItem(inbox, message, instance))
 

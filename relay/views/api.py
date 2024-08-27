@@ -276,7 +276,10 @@ class Config(View):
 			raise HttpError(400, 'Invalid key')
 
 		with self.database.session() as conn:
-			conn.put_config(data['key'], data['value'])
+			value = conn.put_config(data['key'], data['value'])
+
+		if data['key'] == 'log-level':
+			self.app.workers.set_log_level(value)
 
 		return Response.new({'message': 'Updated config'}, ctype = 'json')
 
@@ -288,7 +291,10 @@ class Config(View):
 			raise HttpError(400, 'Invalid key')
 
 		with self.database.session() as conn:
-			conn.put_config(data['key'], ConfigData.DEFAULT(data['key']))
+			value = conn.put_config(data['key'], ConfigData.DEFAULT(data['key']))
+
+		if data['key'] == 'log-level':
+			self.app.workers.set_log_level(value)
 
 		return Response.new({'message': 'Updated config'}, ctype = 'json')
 
