@@ -366,8 +366,8 @@ def cli_config_set(ctx: click.Context, key: str, value: Any) -> None:
 		with ctx.obj.database.session() as conn:
 			new_value = conn.put_config(key, value)
 
-	except:
-		click.echo('Invalid config name:', key)
+	except Exception:
+		click.echo(f'Invalid config name: {key}')
 		return
 
 	click.echo(f'{key}: {repr(new_value)}')
