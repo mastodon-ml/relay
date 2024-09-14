@@ -138,10 +138,10 @@ def migrate_20240206(conn: Connection) -> None:
 @migration
 def migrate_20240310(conn: Connection) -> None:
 	conn.execute('ALTER TABLE "inboxes" ADD COLUMN "accepted" BOOLEAN').close()
-	conn.execute('UPDATE "inboxes" SET accepted = 1').close()
+	conn.execute('UPDATE "inboxes" SET "accepted" = true').close()
 
 
 @migration
 def migrate_20240625(conn: Connection) -> None:
 	conn.create_tables()
-	conn.execute('DROP TABLE tokens').close()
+	conn.execute('DROP TABLE "tokens"').close()
