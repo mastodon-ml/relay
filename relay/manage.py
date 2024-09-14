@@ -16,6 +16,7 @@ from . import http_client as http
 from . import logger as logging
 from .application import Application
 from .compat import RelayConfig, RelayDatabase
+from .config import Config
 from .database import RELAY_SOFTWARE, get_database, schema
 from .misc import ACTOR_FORMATS, SOFTWARE, IS_DOCKER, Message
 
@@ -327,6 +328,33 @@ def cli_editconfig(ctx: click.Context, editor: str) -> None:
 		editor = editor,
 		filename = str(ctx.obj.config.path)
 	)
+
+
+@cli.command('switch-backend')
+@click.pass_context
+def cli_switchbackend(ctx: click.Context) -> None:
+	"""
+		Copy the database from one backend to the other
+
+		Be sure to set the database type to the backend you want to convert from. For instance, set
+		the database type to `sqlite`, fill out the connection details for postgresql, and the
+		data from the sqlite database will be copied to the postgresql database. This only works if
+		the database in postgresql already exists.
+	"""
+
+	config = Config(ctx.obj.config.path, load = True)
+	config.db_type = "sqlite" if config.db_type == "postgres" else "postgres"
+	database = get_database(config, migrate = False)
+
+	with database.session(True) as new, ctx.obj.database.session(False) as old:
+		new.create_tables()
+
+		for table in schema.TABLES.keys():
+			for row in old.execute(f"SELECT * FROM {table}"):
+				new.insert(table, row).close()
+
+		config.save()
+		click.echo(f"Converted database to {repr(config.db_type)}")
 
 
 @cli.group('config')
