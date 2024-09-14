@@ -145,7 +145,7 @@ class Config:
 		if not config:
 			raise ValueError('Config is empty')
 
-		pgcfg = config.get('postgresql', {})
+		pgcfg = config.get('postgres', {})
 		rdcfg = config.get('redis', {})
 
 		for key in type(self).KEYS():
