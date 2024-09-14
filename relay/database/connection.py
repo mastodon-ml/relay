@@ -138,7 +138,7 @@ class Connection(SqlConnection):
 
 
 	def get_inboxes(self) -> Iterator[schema.Instance]:
-		return self.execute("SELECT * FROM inboxes WHERE accepted = 1").all(schema.Instance)
+		return self.execute("SELECT * FROM inboxes WHERE accepted = true").all(schema.Instance)
 
 
 	# todo: check if software is different than stored row
@@ -196,7 +196,7 @@ class Connection(SqlConnection):
 
 
 	def get_requests(self) -> Iterator[schema.Instance]:
-		return self.execute('SELECT * FROM inboxes WHERE accepted = 0').all(schema.Instance)
+		return self.execute('SELECT * FROM inboxes WHERE accepted = false').all(schema.Instance)
 
 
 	def put_request_response(self, domain: str, accepted: bool) -> schema.Instance:
@@ -275,10 +275,10 @@ class Connection(SqlConnection):
 		if (user := self.get_user(username)) is None:
 			raise KeyError(username)
 
-		with self.run('del-user', {'value': user.username}):
+		with self.run('del-token-user', {'username': user.username}):
 			pass
 
-		with self.run('del-token-user', {'username': user.username}):
+		with self.run('del-user', {'username': user.username}):
 			pass
 
 
@@ -315,8 +315,8 @@ class Connection(SqlConnection):
 			'website': website,
 			'client_id': secrets.token_hex(20),
 			'client_secret': secrets.token_hex(20),
-			'created': Date.new_utc().timestamp(),
-			'accessed': Date.new_utc().timestamp()
+			'created': Date.new_utc(),
+			'accessed': Date.new_utc()
 		}
 
 		with self.insert('apps', params) as cur:
@@ -336,8 +336,8 @@ class Connection(SqlConnection):
 			'client_secret': secrets.token_hex(20),
 			'auth_code': None,
 			'token': secrets.token_hex(20),
-			'created': Date.new_utc().timestamp(),
-			'accessed': Date.new_utc().timestamp()
+			'created': Date.new_utc(),
+			'accessed': Date.new_utc()
 		}
 
 		with self.insert('apps', params) as cur:

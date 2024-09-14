@@ -45,20 +45,14 @@ class Instance(Row):
 	followid: Column[str] = Column('followid', 'text')
 	software: Column[str] = Column('software', 'text')
 	accepted: Column[Date] = Column('accepted', 'boolean')
-	created: Column[Date] = Column(
-		'created', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
+	created: Column[Date] = Column('created', 'timestamp', nullable = False)
 
 
 @TABLES.add_row
 class Whitelist(Row):
 	domain: Column[str] = Column(
 		'domain', 'text', primary_key = True, unique = True, nullable = True)
-	created: Column[Date] = Column(
-		'created', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
+	created: Column[Date] = Column('created', 'timestamp', nullable = False)
 
 
 @TABLES.add_row
@@ -70,10 +64,7 @@ class DomainBan(Row):
 		'domain', 'text', primary_key = True, unique = True, nullable = True)
 	reason: Column[str] = Column('reason', 'text')
 	note: Column[str] = Column('note', 'text')
-	created: Column[Date] = Column(
-		'created', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
+	created: Column[Date] = Column('created', 'timestamp', nullable = False)
 
 
 @TABLES.add_row
@@ -84,10 +75,7 @@ class SoftwareBan(Row):
 	name: Column[str] = Column('name', 'text', primary_key = True, unique = True, nullable = True)
 	reason: Column[str] = Column('reason', 'text')
 	note: Column[str] = Column('note', 'text')
-	created: Column[Date] = Column(
-		'created', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
+	created: Column[Date] = Column('created', 'timestamp', nullable = False)
 
 
 @TABLES.add_row
@@ -99,10 +87,7 @@ class User(Row):
 		'username', 'text', primary_key = True, unique = True, nullable = False)
 	hash: Column[str] = Column('hash', 'text', nullable = False)
 	handle: Column[str] = Column('handle', 'text')
-	created: Column[Date] = Column(
-		'created', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
+	created: Column[Date] = Column('created', 'timestamp', nullable = False)
 
 
 @TABLES.add_row
@@ -119,14 +104,8 @@ class App(Row):
 	token: Column[str | None] = Column('token', 'text')
 	auth_code: Column[str | None] = Column('auth_code', 'text')
 	user: Column[str | None] = Column('user', 'text')
-	created: Column[Date] = Column(
-		'created', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
-	accessed: Column[Date] = Column(
-		'accessed', 'timestamp', nullable = False,
-		deserializer = deserialize_timestamp, serializer = Date.timestamp
-	)
+	created: Column[Date] = Column('created', 'timestamp', nullable = False)
+	accessed: Column[Date] = Column('accessed', 'timestamp', nullable = False)
 
 
 	def get_api_data(self, include_token: bool = False) -> dict[str, Any]:

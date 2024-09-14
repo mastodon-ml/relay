@@ -40,7 +40,7 @@ WHERE domain = :value or inbox = :value or actor = :value;
 
 
 -- name: get-request
-SELECT * FROM inboxes WHERE accepted = 0 and domain = :domain;
+SELECT * FROM inboxes WHERE accepted = false and domain = :domain;
 
 
 -- name: get-user
@@ -64,7 +64,7 @@ RETURNING *;
 
 -- name: del-user
 DELETE FROM users
-WHERE username = :value or handle = :value;
+WHERE username = :username or handle = :username;
 
 
 -- name: get-app
@@ -89,6 +89,10 @@ WHERE client_id = :id and client_secret = :secret;
 -- name: del-app-with-token
 DELETE FROM apps
 WHERE client_id = :id and client_secret = :secret and token = :token;
+
+
+-- name: del-token-user
+DELETE FROM apps WHERE "user" = :username;
 
 
 -- name: get-software-ban
