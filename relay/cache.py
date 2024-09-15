@@ -243,11 +243,10 @@ class SqlCache(Cache):
 		if self._db is None:
 			raise RuntimeError("Database has not been setup")
 
-		limit = Date.new_utc() - timedelta(days = days)
-		params = {"limit": limit.timestamp()}
+		date = Date.new_utc() - timedelta(days = days)
 
 		with self._db.session(True) as conn:
-			with conn.execute("DELETE FROM cache WHERE updated < :limit", params):
+			with conn.execute("DELETE FROM cache WHERE updated < :limit", {"limit": date}):
 				pass
 
 
