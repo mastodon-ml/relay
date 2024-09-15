@@ -4,12 +4,13 @@ import json
 
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from aputils import AlgorithmType, Nodeinfo, ObjectType, Signer, WellKnownNodeinfo
-from blib import JsonBase
+from blib import HttpError, JsonBase
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from . import __version__, logger as logging
 from .cache import Cache
 from .database.schema import Instance
+from .errors import EmptyBodyError
 from .misc import MIMETYPES, Message, get_app
 
 if TYPE_CHECKING:
@@ -107,11 +108,7 @@ class HttpClient:
 		if not self._session:
 			raise RuntimeError('Client not open')
 
-		try:
-			url, _ = url.split('#', 1)
-
-		except ValueError:
-			pass
+		url = url.split("#", 1)[0]
 
 		if not force:
 			try:
@@ -136,10 +133,17 @@ class HttpClient:
 
 			data = await resp.text()
 
-		if resp.status != 200:
+		if resp.status not in (200, 202):
 			logging.verbose('Received error when requesting %s: %i', url, resp.status)
 			logging.debug(data)
-			return None
+
+			try:
+				error = json.loads(data)["error"]
+
+			except Exception:
+				error = data
+
+			raise HttpError(resp.status, error)
 
 		self.cache.set('request', url, data, 'str')
 		return data
@@ -151,7 +155,7 @@ class HttpClient:
 				sign_headers: bool,
 				cls: None = None,
 				force: bool = False,
-				old_algo: bool = True) -> None: ...
+				old_algo: bool = True) -> str | None: ...
 
 
 	@overload
@@ -168,7 +172,7 @@ class HttpClient:
 				sign_headers: bool,
 				cls: type[T] | None = None,
 				force: bool = False,
-				old_algo: bool = True) -> T | None:
+				old_algo: bool = True) -> T | str | None:
 
 		if cls is not None and not issubclass(cls, JsonBase):
 			raise TypeError('cls must be a sub-class of "blib.JsonBase"')
@@ -177,11 +181,12 @@ class HttpClient:
 
 		if cls is not None:
 			if data is None:
-				raise ValueError("Empty response")
+				# this shouldn't actually get raised, but keeping just in case
+				raise EmptyBodyError(f"GET {url}")
 
 			return cls.parse(data)
 
-		return None
+		return data
 
 
 	async def post(self, url: str, data: Message | bytes, instance: Instance | None = None) -> None:
