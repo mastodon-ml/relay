@@ -220,16 +220,12 @@ class HttpClient:
 		logging.verbose('Sending "%s" to %s', mtype, url)
 
 		async with self._session.post(url, headers = headers, data = body) as resp:
-			# Not expecting a response, so just return
-			if resp.status in {200, 202}:
-				logging.verbose('Successfully sent "%s" to %s', mtype, url)
-				return
-
-			logging.error('Received error when pushing to %s: %i', url, resp.status)
-			logging.debug(await resp.read())
-			logging.debug("message: %s", body.decode("utf-8"))
-			logging.debug("headers: %s", json.dumps(headers, indent = 4))
-			return
+			if resp.status not in (200, 202):
+				raise HttpError(
+					resp.status,
+					await resp.text(),
+					headers = {k: v for k, v in resp.headers.items()}
+				)
 
 
 	async def fetch_nodeinfo(self, domain: str, force: bool = False) -> Nodeinfo:

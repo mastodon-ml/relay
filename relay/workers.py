@@ -5,6 +5,7 @@ import traceback
 
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
+from blib import HttpError
 from dataclasses import dataclass
 from multiprocessing import Event, Process, Queue, Value
 from multiprocessing.queues import Queue as QueueType
@@ -93,6 +94,9 @@ class PushWorker(Process):
 	async def handle_post(self, item: PostItem) -> None:
 		try:
 			await self.client.post(item.inbox, item.message, item.instance)
+
+		except HttpError as e:
+			logging.error('HTTP Error when pushing to %s: %i %s', item.inbox, e.status, e.message)
 
 		except AsyncTimeoutError:
 			logging.error('Timeout when pushing to %s', item.domain)
