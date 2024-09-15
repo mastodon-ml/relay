@@ -134,9 +134,6 @@ class HttpClient:
 			data = await resp.text()
 
 		if resp.status not in (200, 202):
-			logging.verbose('Received error when requesting %s: %i', url, resp.status)
-			logging.debug(data)
-
 			try:
 				error = json.loads(data)["error"]
 
