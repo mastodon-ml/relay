@@ -213,7 +213,7 @@ class Login(View):
 
 			app = conn.put_app_login(user)
 
-		resp = Response.new(app.get_api_data(), ctype = 'json')
+		resp = Response.new(app.get_api_data(True), ctype = 'json')
 		resp.set_cookie(
 				'user-token',
 				app.token, # type: ignore[arg-type]

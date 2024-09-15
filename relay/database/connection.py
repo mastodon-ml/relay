@@ -142,7 +142,7 @@ class Connection(SqlConnection):
 
 
 	# todo: check if software is different than stored row
-	def put_inbox(self,
+	def put_inbox(self, # noqa: E301
 				domain: str,
 				inbox: str | None = None,
 				actor: str | None = None,
