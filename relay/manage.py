@@ -224,6 +224,9 @@ def cli_db_maintenance(ctx: click.Context, fix_timestamps: bool) -> None:
 		with ctx.obj.database.session(True) as conn:
 			conn.fix_timestamps()
 
+	if ctx.obj.config.db_type == "postgres":
+		return
+
 	with ctx.obj.database.session(False) as conn:
 		with conn.execute("VACUUM"):
 			pass
