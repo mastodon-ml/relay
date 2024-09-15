@@ -134,17 +134,6 @@ def get_resource(path: str) -> Path:
 	return Path(str(pkgfiles('relay'))).joinpath(path)
 
 
-class HttpError(Exception):
-	def __init__(self,
-				status: int,
-				body: str) -> None:
-
-		self.body: str = body
-		self.status: int = status
-
-		Exception.__init__(self, f"HTTP Error {status}: {body}")
-
-
 class JsonEncoder(json.JSONEncoder):
 	def default(self, o: Any) -> str:
 		if isinstance(o, datetime):

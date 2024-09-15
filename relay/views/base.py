@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiohttp.abc import AbstractView
 from aiohttp.hdrs import METH_ALL as METHODS
 from aiohttp.web import Request
+from blib import HttpError
 from bsql import Database
 from collections.abc import Awaitable, Callable, Generator, Sequence, Mapping
 from functools import cached_property
@@ -13,7 +14,7 @@ from ..cache import Cache
 from ..config import Config
 from ..database import Connection
 from ..http_client import HttpClient
-from ..misc import HttpError, Response, get_app
+from ..misc import Response, get_app
 
 if TYPE_CHECKING:
 	from typing import Self
@@ -137,7 +138,7 @@ class View(AbstractView):
 				data[key] = post_data[key]
 
 		except KeyError as e:
-			raise HttpError(400, f'Missing {str(e)} pararmeter')
+			raise HttpError(400, f'Missing {str(e)} pararmeter') from None
 
 		for key in optional:
 			data[key] = post_data.get(key) # type: ignore[assignment]

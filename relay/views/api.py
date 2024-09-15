@@ -2,7 +2,7 @@ import traceback
 
 from aiohttp.web import Request, middleware
 from argon2.exceptions import VerifyMismatchError
-from blib import convert_to_boolean
+from blib import HttpError, convert_to_boolean
 from collections.abc import Awaitable, Callable, Sequence
 from urllib.parse import urlparse
 
@@ -10,7 +10,7 @@ from .base import View, register_route
 
 from .. import __version__
 from ..database import ConfigData, schema
-from ..misc import HttpError, Message, Response, boolean
+from ..misc import Message, Response, boolean
 
 
 DEFAULT_REDIRECT: str = 'urn:ietf:wg:oauth:2.0:oob'
@@ -324,7 +324,7 @@ class Inbox(View):
 
 				except Exception:
 					traceback.print_exc()
-					raise HttpError(500, 'Failed to fetch actor')
+					raise HttpError(500, 'Failed to fetch actor') from None
 
 				data['inbox'] = actor_data.shared_inbox
 
@@ -396,7 +396,7 @@ class RequestView(View):
 				instance = conn.put_request_response(data['domain'], boolean(data['accept']))
 
 		except KeyError:
-			raise HttpError(404, 'Request not found')
+			raise HttpError(404, 'Request not found') from None
 
 		message = Message.new_response(
 			host = self.config.domain,

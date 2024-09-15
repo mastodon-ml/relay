@@ -2,12 +2,13 @@ import aputils
 import traceback
 
 from aiohttp.web import Request
+from blib import HttpError
 
 from .base import View, register_route
 
 from .. import logger as logging
 from ..database import schema
-from ..misc import HttpError, Message, Response
+from ..misc import Message, Response
 from ..processors import run_processor
 
 
@@ -93,14 +94,18 @@ class ActorView(View):
 		try:
 			self.actor = await self.client.get(self.signature.keyid, True, Message)
 
-		except Exception:
+		except HttpError:
 			# ld signatures aren't handled atm, so just ignore it
 			if self.message.type == 'Delete':
 				logging.verbose('Instance sent a delete which cannot be handled')
 				raise HttpError(202, '')
 
-			logging.verbose(f'Failed to fetch actor: {self.signature.keyid}')
+			logging.verbose('Failed to fetch actor: %s', self.signature.keyid)
 			raise HttpError(400, 'failed to fetch actor')
+
+		except Exception:
+			traceback.print_exc()
+			raise HttpError(500, 'unexpected error when fetching actor')
 
 		try:
 			self.signer = self.actor.signer

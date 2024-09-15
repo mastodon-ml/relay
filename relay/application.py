@@ -12,6 +12,7 @@ from aiohttp.web import HTTPException, StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
 from base64 import b64encode
+from blib import HttpError
 from bsql import Database
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
@@ -26,8 +27,7 @@ from .config import Config
 from .database import Connection, get_database
 from .database.schema import Instance
 from .http_client import HttpClient
-from .misc import HttpError, Message, Response, check_open_port, get_resource
-from .misc import JSON_PATHS, TOKEN_PATHS
+from .misc import JSON_PATHS, TOKEN_PATHS, Message, Response, check_open_port, get_resource
 from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
@@ -296,7 +296,7 @@ def format_error(request: web.Request, error: HttpError) -> Response:
 	app: Application = request.app # type: ignore[assignment]
 
 	if request.path.startswith(JSON_PATHS) or 'json' in request.headers.get('accept', ''):
-		return Response.new({'error': error.body}, error.status, ctype = 'json')
+		return Response.new({'error': error.message}, error.status, ctype = 'json')
 
 	else:
 		body = app.template.render('page/error.haml', request, e = error)
@@ -338,21 +338,21 @@ async def handle_response_headers(
 	except HttpError as e:
 		resp = format_error(request, e)
 
-	except HTTPException as ae:
-		if ae.status == 404:
+	except HTTPException as e:
+		if e.status == 404:
 			try:
-				text = (ae.text or "").split(":")[1].strip()
+				text = (e.text or "").split(":")[1].strip()
 
 			except IndexError:
-				text = ae.text or ""
+				text = e.text or ""
 
-			resp = format_error(request, HttpError(ae.status, text))
+			resp = format_error(request, HttpError(e.status, text))
 
 		else:
 			raise
 
-	except Exception as e:
-		resp = format_error(request, HttpError(500, f'{type(e).__name__}: {str(e)}'))
+	except Exception:
+		resp = format_error(request, HttpError(500, 'Internal server error'))
 		traceback.print_exc()
 
 	resp.headers['Server'] = 'ActivityRelay'
