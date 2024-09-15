@@ -8,7 +8,7 @@ from blib import Date
 from bsql import Database, Row
 from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
-from datetime import timedelta
+from datetime import timedelta, timezone
 from redis import Redis
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -72,6 +72,9 @@ class Item:
 	def __post_init__(self) -> None:
 		self.updated = Date.parse(self.updated)
 
+		if self.updated.tzinfo is None:
+			self.updated = self.updated.replace(tzinfo = timezone.utc)
+
 
 	@classmethod
 	def from_data(cls: type[Item], *args: Any) -> Item:
@@ -82,8 +85,7 @@ class Item:
 
 
 	def older_than(self, hours: int) -> bool:
-		delta = Date.new_utc() - self.updated
-		return (delta.total_seconds()) > hours * 3600
+		return self.updated + timedelta(hours = hours) < Date.new_utc()
 
 
 	def to_dict(self) -> dict[str, Any]:
