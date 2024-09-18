@@ -4,13 +4,10 @@ import aputils
 import json
 import os
 import platform
-import socket
 
 from aiohttp.web import Response as AiohttpResponse
 from collections.abc import Sequence
 from datetime import datetime
-from importlib.resources import files as pkgfiles
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, TypeVar
 from uuid import uuid4
 
@@ -38,11 +35,6 @@ MIMETYPES = {
 	'json': 'application/json',
 	'text': 'text/plain',
 	'webmanifest': 'application/manifest+json'
-}
-
-NODEINFO_NS = {
-	'20': 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-	'21': 'http://nodeinfo.diaspora.software/ns/schema/2.1'
 }
 
 ACTOR_FORMATS = {
@@ -84,43 +76,6 @@ TOKEN_PATHS: tuple[str, ...] = (
 )
 
 
-def boolean(value: Any) -> bool:
-	if isinstance(value, str):
-		if value.lower() in {'on', 'y', 'yes', 'true', 'enable', 'enabled', '1'}:
-			return True
-
-		if value.lower() in {'off', 'n', 'no', 'false', 'disable', 'disabled', '0'}:
-			return False
-
-		raise TypeError(f'Cannot parse string "{value}" as a boolean')
-
-	if isinstance(value, int):
-		if value == 1:
-			return True
-
-		if value == 0:
-			return False
-
-		raise ValueError('Integer value must be 1 or 0')
-
-	if value is None:
-		return False
-
-	return bool(value)
-
-
-def check_open_port(host: str, port: int) -> bool:
-	if host == '0.0.0.0':
-		host = '127.0.0.1'
-
-	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-		try:
-			return s.connect_ex((host, port)) != 0
-
-		except socket.error:
-			return False
-
-
 def get_app() -> Application:
 	from .application import Application
 
@@ -128,10 +83,6 @@ def get_app() -> Application:
 		raise ValueError('No default application set')
 
 	return Application.DEFAULT
-
-
-def get_resource(path: str) -> Path:
-	return Path(str(pkgfiles('relay'))).joinpath(path)
 
 
 class JsonEncoder(json.JSONEncoder):
@@ -248,18 +199,6 @@ class Response(AiohttpResponse):
 			kwargs['text'] = json.dumps(body, cls = JsonEncoder)
 
 		return cls(**kwargs)
-
-
-	@classmethod
-	def new_error(cls: type[Self],
-				status: int,
-				body: str | bytes | dict[str, Any],
-				ctype: str = 'text') -> Self:
-
-		if ctype == 'json':
-			body = {'error': body}
-
-		return cls.new(body=body, status=status, ctype=ctype)
 
 
 	@classmethod

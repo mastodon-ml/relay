@@ -2,13 +2,13 @@ from __future__ import annotations
 # removing the above line turns annotations into types instead of str objects which messes with
 # `Field.type`
 
+from blib import convert_to_boolean
 from bsql import Row
 from collections.abc import Callable, Sequence
 from dataclasses import Field, asdict, dataclass, fields
 from typing import TYPE_CHECKING, Any
 
 from .. import logger as logging
-from ..misc import boolean
 
 if TYPE_CHECKING:
 	from typing import Self
@@ -66,7 +66,7 @@ THEMES = {
 CONFIG_CONVERT: dict[str, tuple[Callable[[Any], str], Callable[[str], Any]]] = {
 	'str': (str, str),
 	'int': (str, int),
-	'bool': (str, boolean),
+	'bool': (str, convert_to_boolean),
 	'logging.LogLevel': (lambda x: x.name, logging.LogLevel.parse)
 }
 

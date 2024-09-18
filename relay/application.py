@@ -12,7 +12,7 @@ from aiohttp.web import HTTPException, StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
 from base64 import b64encode
-from blib import HttpError
+from blib import File, HttpError, port_check
 from bsql import Database
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
@@ -27,7 +27,7 @@ from .config import Config
 from .database import Connection, get_database
 from .database.schema import Instance
 from .http_client import HttpClient
-from .misc import JSON_PATHS, TOKEN_PATHS, Message, Response, check_open_port, get_resource
+from .misc import JSON_PATHS, TOKEN_PATHS, Message, Response
 from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
@@ -90,7 +90,7 @@ class Application(web.Application):
 		setup_swagger(
 			self,
 			ui_version = 3,
-			swagger_from_file = get_resource('data/swagger.yaml')
+			swagger_from_file = File.from_resource('relay', 'data/swagger.yaml')
 		)
 
 
@@ -154,10 +154,12 @@ class Application(web.Application):
 
 	def register_static_routes(self) -> None:
 		if self['dev']:
-			static = StaticResource('/static', get_resource('frontend/static'))
+			static = StaticResource('/static', File.from_resource('relay', 'frontend/static'))
 
 		else:
-			static = CachedStaticResource('/static', get_resource('frontend/static'))
+			static = CachedStaticResource(
+				'/static', Path(File.from_resource('relay', 'frontend/static'))
+			)
 
 		self.router.register_resource(static)
 
@@ -170,7 +172,7 @@ class Application(web.Application):
 		host = self.config.listen
 		port = self.config.port
 
-		if not check_open_port(host, port):
+		if port_check(port, '127.0.0.1' if host == '0.0.0.0' else host):
 			logging.error(f'A server is already running on {host}:{port}')
 			return
 

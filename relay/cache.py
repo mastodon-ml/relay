@@ -4,7 +4,7 @@ import json
 import os
 
 from abc import ABC, abstractmethod
-from blib import Date
+from blib import Date, convert_to_boolean
 from bsql import Database, Row
 from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
@@ -13,7 +13,7 @@ from redis import Redis
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from .database import Connection, get_database
-from .misc import Message, boolean
+from .misc import Message
 
 if TYPE_CHECKING:
 	from .application import Application
@@ -26,7 +26,7 @@ BACKENDS: dict[str, type[Cache]] = {}
 CONVERTERS: dict[str, tuple[SerializerCallback, DeserializerCallback]] = {
 	'str': (str, str),
 	'int': (str, int),
-	'bool': (str, boolean),
+	'bool': (str, convert_to_boolean),
 	'json': (json.dumps, json.loads),
 	'message': (lambda x: x.to_json(), Message.parse)
 }

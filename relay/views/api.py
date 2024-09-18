@@ -10,7 +10,7 @@ from .base import View, register_route
 
 from .. import __version__
 from ..database import ConfigData, schema
-from ..misc import Message, Response, boolean
+from ..misc import Message, Response
 
 
 DEFAULT_REDIRECT: str = 'urn:ietf:wg:oauth:2.0:oob'
@@ -97,7 +97,7 @@ class OauthAuthorize(View):
 
 		with self.database.session(True) as conn:
 			if (app := conn.get_app(data['client_id'], data['client_secret'])) is None:
-				return Response.new_error(404, 'Could not find app', 'json')
+				raise HttpError(404, 'Could not find app')
 
 			if convert_to_boolean(data['response']):
 				if app.token is not None:
@@ -393,7 +393,10 @@ class RequestView(View):
 
 		try:
 			with self.database.session(True) as conn:
-				instance = conn.put_request_response(data['domain'], boolean(data['accept']))
+				instance = conn.put_request_response(
+					data['domain'],
+					convert_to_boolean(data['accept'])
+				)
 
 		except KeyError:
 			raise HttpError(404, 'Request not found') from None
@@ -402,7 +405,7 @@ class RequestView(View):
 			host = self.config.domain,
 			actor = instance.actor,
 			followid = instance.followid,
-			accept = boolean(data['accept'])
+			accept = convert_to_boolean(data['accept'])
 		)
 
 		self.app.push_message(instance.inbox, message, instance)

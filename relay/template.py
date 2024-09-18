@@ -3,6 +3,7 @@ from __future__ import annotations
 import textwrap
 
 from aiohttp.web import Request
+from blib import File
 from collections.abc import Callable
 from hamlish_jinja import HamlishExtension
 from jinja2 import Environment, FileSystemLoader
@@ -13,7 +14,6 @@ from markdown import Markdown
 from typing import TYPE_CHECKING, Any
 
 from . import __version__
-from .misc import get_resource
 
 if TYPE_CHECKING:
 	from .application import Application
@@ -33,7 +33,7 @@ class Template(Environment):
 				MarkdownExtension
 			],
 			loader = FileSystemLoader([
-				get_resource('frontend'),
+				File.from_resource('relay', 'frontend'),
 				app.config.path.parent.joinpath('template')
 			])
 		)

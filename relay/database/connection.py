@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 
 from argon2 import PasswordHasher
-from blib import Date
+from blib import Date, convert_to_boolean
 from bsql import Connection as SqlConnection, Row, Update
 from collections.abc import Iterator
 from datetime import datetime, timezone
@@ -17,7 +17,7 @@ from .config import (
 )
 
 from .. import logger as logging
-from ..misc import Message, boolean, get_app
+from ..misc import Message, get_app
 
 if TYPE_CHECKING:
 	from ..application import Application
@@ -111,7 +111,7 @@ class Connection(SqlConnection):
 			self.app['workers'].set_log_level(value)
 
 		elif key in {'approval-required', 'whitelist-enabled'}:
-			value = boolean(value)
+			value = convert_to_boolean(value)
 
 		elif key == 'theme':
 			if value not in THEMES:

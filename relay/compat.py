@@ -2,12 +2,11 @@ import json
 import os
 import yaml
 
+from blib import convert_to_boolean
 from functools import cached_property
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-
-from .misc import boolean
 
 
 class RelayConfig(dict[str, Any]):
@@ -31,7 +30,7 @@ class RelayConfig(dict[str, Any]):
 
 		elif key == 'whitelist_enabled':
 			if not isinstance(value, bool):
-				value = boolean(value)
+				value = convert_to_boolean(value)
 
 		super().__setitem__(key, value)
 

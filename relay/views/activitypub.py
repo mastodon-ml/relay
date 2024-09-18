@@ -48,7 +48,7 @@ class ActorView(View):
 			# reject if actor is banned
 			if conn.get_domain_ban(self.actor.domain):
 				logging.verbose('Ignored request from banned actor: %s', self.actor.id)
-				return Response.new_error(403, 'access denied', 'json')
+				raise HttpError(403, 'access denied')
 
 			# reject if activity type isn't 'Follow' and the actor isn't following
 			if self.message.type != 'Follow' and not self.instance:
@@ -57,7 +57,7 @@ class ActorView(View):
 					self.actor.id
 				)
 
-				return Response.new_error(401, 'access denied', 'json')
+				raise HttpError(401, 'access denied')
 
 		logging.debug('>> payload %s', self.message.to_json(4))
 
@@ -78,7 +78,7 @@ class ActorView(View):
 
 		except Exception:
 			traceback.print_exc()
-			logging.verbose('Failed to parse inbox message')
+			logging.verbose('Failed to parse message from actor: %s', self.signature.keyid)
 			raise HttpError(400, 'failed to parse message')
 
 		if message is None:
@@ -94,13 +94,14 @@ class ActorView(View):
 		try:
 			self.actor = await self.client.get(self.signature.keyid, True, Message)
 
-		except HttpError:
+		except HttpError as e:
 			# ld signatures aren't handled atm, so just ignore it
 			if self.message.type == 'Delete':
 				logging.verbose('Instance sent a delete which cannot be handled')
 				raise HttpError(202, '')
 
 			logging.verbose('Failed to fetch actor: %s', self.signature.keyid)
+			logging.debug('HTTP Status %i: %s', e.status, e.message)
 			raise HttpError(400, 'failed to fetch actor')
 
 		except Exception:
@@ -162,10 +163,10 @@ class WebfingerView(View):
 			subject = request.query['resource']
 
 		except KeyError:
-			return Response.new_error(400, 'missing "resource" query key', 'json')
+			raise HttpError(400, 'missing "resource" query key')
 
 		if subject != f'acct:relay@{self.config.domain}':
-			return Response.new_error(404, 'user not found', 'json')
+			raise HttpError(404, 'user not found')
 
 		data = aputils.Webfinger.new(
 			handle = 'relay',
