@@ -171,9 +171,9 @@ async def handle_follow(view: ActorView, conn: Connection) -> None:
 
 
 async def handle_undo(view: ActorView, conn: Connection) -> None:
-	# If the object is not a Follow, forward it
 	if view.message.object['type'] != 'Follow':
-		await handle_forward(view, conn)
+		# forwarding deletes does not work, so don't bother
+		# await handle_forward(view, conn)
 		return
 
 	# prevent past unfollows from removing an instance
