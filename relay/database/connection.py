@@ -4,7 +4,7 @@ import secrets
 
 from argon2 import PasswordHasher
 from blib import Date, convert_to_boolean
-from bsql import Connection as SqlConnection, Row, Update
+from bsql import BackendType, Connection as SqlConnection, Row, Update
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -49,6 +49,17 @@ class Connection(SqlConnection):
 		for instance in self.get_inboxes():
 			if instance.domain not in src_domains:
 				yield instance
+
+
+	def drop_tables(self) -> None:
+		with self.cursor() as cur:
+			for table in self.get_tables():
+				query = f"DROP TABLE IF EXISTS {table}"
+
+				if self.database.backend.backend_type == BackendType.POSTGRESQL:
+					query += " CASCADE"
+
+				cur.execute(query)
 
 
 	def fix_timestamps(self) -> None:
