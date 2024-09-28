@@ -1,6 +1,7 @@
 import aputils
 import traceback
 
+from aiohttp import ClientConnectorError
 from aiohttp.web import Request
 from blib import HttpError
 
@@ -102,6 +103,10 @@ class ActorView(View):
 
 			logging.verbose('Failed to fetch actor: %s', self.signature.keyid)
 			logging.debug('HTTP Status %i: %s', e.status, e.message)
+			raise HttpError(400, 'failed to fetch actor')
+
+		except ClientConnectorError as e:
+			logging.warning('Error when trying to fetch actor: %s, %s', self.signature.keyid, str(e))
 			raise HttpError(400, 'failed to fetch actor')
 
 		except Exception:
