@@ -214,21 +214,18 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 
 
 @cli.command('db-maintenance')
-@click.option('--fix-timestamps', '-t', is_flag = True,
-	help = 'Make sure timestamps in the database are float values')
 @click.pass_context
-def cli_db_maintenance(ctx: click.Context, fix_timestamps: bool) -> None:
+def cli_db_maintenance(ctx: click.Context) -> None:
 	'Perform maintenance tasks on the database'
-
-	if fix_timestamps:
-		with ctx.obj.database.session(True) as conn:
-			conn.fix_timestamps()
 
 	if ctx.obj.config.db_type == "postgres":
 		return
 
-	with ctx.obj.database.session(False) as conn:
-		with conn.execute("VACUUM"):
+	with ctx.obj.database.session(False) as s:
+		with s.transaction():
+			s.fix_timestamps()
+
+		with s.execute("VACUUM"):
 			pass
 
 
