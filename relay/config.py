@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import getpass
 import os
 import platform
@@ -6,15 +8,12 @@ import yaml
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from platformdirs import user_config_dir
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .misc import IS_DOCKER
 
-try:
+if TYPE_CHECKING:
 	from typing import Self
-
-except ImportError:
-	from typing_extensions import Self
 
 
 if platform.system() == 'Windows':
@@ -61,7 +60,7 @@ class Config:
 
 
 	def __init__(self, path: Path | None = None, load: bool = False):
-		self.path = Config.get_config_dir(path)
+		self.path: Path = Config.get_config_dir(path)
 		self.reset()
 
 		if load:
@@ -81,7 +80,7 @@ class Config:
 	def DEFAULT(cls: type[Self], key: str) -> str | int | None:
 		for field in fields(cls):
 			if field.name == key:
-				return field.default # type: ignore
+				return field.default # type: ignore[return-value]
 
 		raise KeyError(key)
 
@@ -146,7 +145,7 @@ class Config:
 		if not config:
 			raise ValueError('Config is empty')
 
-		pgcfg = config.get('postgresql', {})
+		pgcfg = config.get('postgres', {})
 		rdcfg = config.get('redis', {})
 
 		for key in type(self).KEYS():

@@ -40,7 +40,7 @@ WHERE domain = :value or inbox = :value or actor = :value;
 
 
 -- name: get-request
-SELECT * FROM inboxes WHERE accepted = 0 and domain = :domain;
+SELECT * FROM inboxes WHERE accepted = false and domain = :domain;
 
 
 -- name: get-user
@@ -51,8 +51,8 @@ WHERE username = :value or handle = :value;
 -- name: get-user-by-token
 SELECT * FROM users
 WHERE username = (
-	SELECT user FROM tokens
-	WHERE code = :code
+	SELECT user FROM apps
+	WHERE token = :token
 );
 
 
@@ -64,28 +64,35 @@ RETURNING *;
 
 -- name: del-user
 DELETE FROM users
-WHERE username = :value or handle = :value;
+WHERE username = :username or handle = :username;
 
 
--- name: get-token
-SELECT * FROM tokens
-WHERE code = :code;
+-- name: get-app
+SELECT * FROM apps
+WHERE client_id = :id and client_secret = :secret;
 
 
--- name: put-token
-INSERT INTO tokens (code, user, created)
-VALUES (:code, :user, :created)
-RETURNING *;
+-- name: get-app-with-token
+SELECT * FROM apps
+WHERE client_id = :id and client_secret = :secret and token = :token;
 
 
--- name: del-token
-DELETE FROM tokens
-WHERE code = :code;
+-- name: get-app-by-token
+SELECT * FROM apps
+WHERE token = :token;
+
+-- name: del-app
+DELETE FROM apps
+WHERE client_id = :id and client_secret = :secret;
+
+
+-- name: del-app-with-token
+DELETE FROM apps
+WHERE client_id = :id and client_secret = :secret and token = :token;
 
 
 -- name: del-token-user
-DELETE FROM tokens
-WHERE user = :username;
+DELETE FROM apps WHERE "user" = :username;
 
 
 -- name: get-software-ban

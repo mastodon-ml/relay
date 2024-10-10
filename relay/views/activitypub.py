@@ -1,18 +1,16 @@
-from __future__ import annotations
-
 import aputils
 import traceback
-import typing
+
+from aiohttp import ClientConnectorError
+from aiohttp.web import Request
+from blib import HttpError
 
 from .base import View, register_route
 
 from .. import logger as logging
+from ..database import schema
 from ..misc import Message, Response
 from ..processors import run_processor
-
-if typing.TYPE_CHECKING:
-	from aiohttp.web import Request
-	from bsql import Row
 
 
 @register_route('/actor', '/inbox')
@@ -20,7 +18,7 @@ class ActorView(View):
 	signature: aputils.Signature
 	message: Message
 	actor: Message
-	instancce: Row
+	instance: schema.Instance
 	signer: aputils.Signer
 
 
@@ -43,16 +41,15 @@ class ActorView(View):
 
 
 	async def post(self, request: Request) -> Response:
-		if response := await self.get_post_data():
-			return response
+		await self.get_post_data()
 
 		with self.database.session() as conn:
-			self.instance = conn.get_inbox(self.actor.shared_inbox)
+			self.instance = conn.get_inbox(self.actor.shared_inbox) # type: ignore[assignment]
 
 			# reject if actor is banned
 			if conn.get_domain_ban(self.actor.domain):
 				logging.verbose('Ignored request from banned actor: %s', self.actor.id)
-				return Response.new_error(403, 'access denied', 'json')
+				raise HttpError(403, 'access denied')
 
 			# reject if activity type isn't 'Follow' and the actor isn't following
 			if self.message.type != 'Follow' and not self.instance:
@@ -61,7 +58,7 @@ class ActorView(View):
 					self.actor.id
 				)
 
-				return Response.new_error(401, 'access denied', 'json')
+				raise HttpError(401, 'access denied')
 
 		logging.debug('>> payload %s', self.message.to_json(4))
 
@@ -69,60 +66,66 @@ class ActorView(View):
 		return Response.new(status = 202)
 
 
-	async def get_post_data(self) -> Response | None:
+	async def get_post_data(self) -> None:
 		try:
 			self.signature = aputils.Signature.parse(self.request.headers['signature'])
 
 		except KeyError:
 			logging.verbose('Missing signature header')
-			return Response.new_error(400, 'missing signature header', 'json')
+			raise HttpError(400, 'missing signature header')
 
 		try:
 			message: Message | None = await self.request.json(loads = Message.parse)
 
 		except Exception:
 			traceback.print_exc()
-			logging.verbose('Failed to parse inbox message')
-			return Response.new_error(400, 'failed to parse message', 'json')
+			logging.verbose('Failed to parse message from actor: %s', self.signature.keyid)
+			raise HttpError(400, 'failed to parse message')
 
 		if message is None:
 			logging.verbose('empty message')
-			return Response.new_error(400, 'missing message', 'json')
+			raise HttpError(400, 'missing message')
 
 		self.message = message
 
 		if 'actor' not in self.message:
 			logging.verbose('actor not in message')
-			return Response.new_error(400, 'no actor in message', 'json')
+			raise HttpError(400, 'no actor in message')
 
-		actor: Message | None = await self.client.get(self.signature.keyid, True, Message)
+		try:
+			self.actor = await self.client.get(self.signature.keyid, True, Message)
 
-		if actor is None:
+		except HttpError as e:
 			# ld signatures aren't handled atm, so just ignore it
 			if self.message.type == 'Delete':
 				logging.verbose('Instance sent a delete which cannot be handled')
-				return Response.new(status=202)
+				raise HttpError(202, '')
 
-			logging.verbose(f'Failed to fetch actor: {self.signature.keyid}')
-			return Response.new_error(400, 'failed to fetch actor', 'json')
+			logging.verbose('Failed to fetch actor: %s', self.signature.keyid)
+			logging.debug('HTTP Status %i: %s', e.status, e.message)
+			raise HttpError(400, 'failed to fetch actor')
 
-		self.actor = actor
+		except ClientConnectorError as e:
+			logging.warning('Error when trying to fetch actor: %s, %s', self.signature.keyid, str(e))
+			raise HttpError(400, 'failed to fetch actor')
+
+		except Exception:
+			traceback.print_exc()
+			raise HttpError(500, 'unexpected error when fetching actor')
 
 		try:
 			self.signer = self.actor.signer
 
 		except KeyError:
 			logging.verbose('Actor missing public key: %s', self.signature.keyid)
-			return Response.new_error(400, 'actor missing public key', 'json')
+			raise HttpError(400, 'actor missing public key')
 
 		try:
 			await self.signer.validate_request_async(self.request)
 
 		except aputils.SignatureFailureError as e:
 			logging.verbose('signature validation failed for "%s": %s', self.actor.id, e)
-			return Response.new_error(401, str(e), 'json')
-
-		return None
+			raise HttpError(401, str(e))
 
 
 @register_route('/outbox')
@@ -165,10 +168,10 @@ class WebfingerView(View):
 			subject = request.query['resource']
 
 		except KeyError:
-			return Response.new_error(400, 'missing "resource" query key', 'json')
+			raise HttpError(400, 'missing "resource" query key')
 
 		if subject != f'acct:relay@{self.config.domain}':
-			return Response.new_error(404, 'user not found', 'json')
+			raise HttpError(404, 'user not found')
 
 		data = aputils.Webfinger.new(
 			handle = 'relay',

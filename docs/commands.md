@@ -16,7 +16,8 @@ Run the relay.
 
 ## Setup
 
-Run the setup wizard to configure your relay.
+Run the setup wizard to configure your relay. For the PostgreSQL backend, the database has to be
+created first.
 
 	activityrelay setup
 
@@ -27,6 +28,16 @@ Convert the old config and jsonld to the new config and SQL backend. If the old 
 not specified, the config will get backed up as `relay.backup.yaml` before converting.
 
 	activityrelay convert --old-config relaycfg.yaml
+
+
+## Switch Backend
+
+Change the database backend from the current one to the other. The config will be updated after
+running the command.
+
+Note: If switching to PostgreSQL, make sure the database exists first.
+
+	activityrelay switch-backend
 
 
 ## Edit Config

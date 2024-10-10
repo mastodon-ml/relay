@@ -2,19 +2,16 @@ from __future__ import annotations
 # removing the above line turns annotations into types instead of str objects which messes with
 # `Field.type`
 
+from blib import convert_to_boolean
 from bsql import Row
 from collections.abc import Callable, Sequence
 from dataclasses import Field, asdict, dataclass, fields
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .. import logger as logging
-from ..misc import boolean
 
-try:
+if TYPE_CHECKING:
 	from typing import Self
-
-except ImportError:
-	from typing_extensions import Self
 
 
 THEMES = {
@@ -69,14 +66,14 @@ THEMES = {
 CONFIG_CONVERT: dict[str, tuple[Callable[[Any], str], Callable[[str], Any]]] = {
 	'str': (str, str),
 	'int': (str, int),
-	'bool': (str, boolean),
+	'bool': (str, convert_to_boolean),
 	'logging.LogLevel': (lambda x: x.name, logging.LogLevel.parse)
 }
 
 
 @dataclass()
 class ConfigData:
-	schema_version: int = 20240310
+	schema_version: int = 20240625
 	private_key: str = ''
 	approval_required: bool = False
 	log_level: logging.LogLevel = logging.LogLevel.INFO
@@ -114,11 +111,11 @@ class ConfigData:
 
 	@classmethod
 	def DEFAULT(cls: type[Self], key: str) -> str | int | bool:
-		return cls.FIELD(key.replace('-', '_')).default # type: ignore
+		return cls.FIELD(key.replace('-', '_')).default # type: ignore[return-value]
 
 
 	@classmethod
-	def FIELD(cls: type[Self], key: str) -> Field[Any]:
+	def FIELD(cls: type[Self], key: str) -> Field[str | int | bool]:
 		for field in fields(cls):
 			if field.name == key.replace('-', '_'):
 				return field

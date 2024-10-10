@@ -1,5 +1,5 @@
 -macro menu_item(name, path)
-	-if view.request.path == path or (path != "/" and view.request.path.startswith(path))
+	-if request.path == path or (path != "/" and request.path.startswith(path))
 		%a.button(href="{{path}}" active="true") -> =name
 
 	-else
@@ -11,11 +11,11 @@
 		%title << {{config.name}}: {{page}}
 		%meta(charset="UTF-8")
 		%meta(name="viewport" content="width=device-width, initial-scale=1")
-		%link(rel="stylesheet" type="text/css" href="/theme/{{config.theme}}.css" nonce="{{view.request['hash']}}" class="theme")
-		%link(rel="stylesheet" type="text/css" href="/static/style.css" nonce="{{view.request['hash']}}")
-		%link(rel="stylesheet" type="text/css" href="/static/bootstrap-icons.css" nonce="{{view.request['hash']}}")
-		%link(rel="manifest" href="/manifest.json")
-		%script(type="application/javascript" src="/static/api.js" nonce="{{view.request['hash']}}" defer)
+		%link(rel="stylesheet" type="text/css" href="/theme/{{config.theme}}.css?{{version}}" nonce="{{request['hash']}}" class="theme")
+		%link(rel="stylesheet" type="text/css" href="/static/style.css?{{version}}" nonce="{{request['hash']}}")
+		%link(rel="stylesheet" type="text/css" href="/static/bootstrap-icons.css?{{version}}" nonce="{{request['hash']}}")
+		%link(rel="manifest" href="/manifest.json?{{version}}")
+		%script(type="application/javascript" src="/static/functions.js?{{version}}" nonce="{{request['hash']}}" defer)
 		-block head
 
 	%body
@@ -26,7 +26,7 @@
 			
 			{{menu_item("Home", "/")}}
 
-			-if view.request["user"]
+			-if request["user"]
 				{{menu_item("Instances", "/admin/instances")}}
 				{{menu_item("Whitelist", "/admin/whitelist")}}
 				{{menu_item("Domain Bans", "/admin/domain_bans")}}
@@ -61,11 +61,11 @@
 
 			#footer.section
 				.col1
-					-if not view.request["user"]
+					-if not request["user"]
 						%a(href="/login") << Login
 
 					-else
-						=view.request["user"]["username"]
+						=request["user"]["username"]
 						(
 						%a(href="/logout") << Logout
 						)

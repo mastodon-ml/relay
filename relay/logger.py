@@ -1,15 +1,14 @@
+from __future__ import annotations
+
 import logging
 import os
 
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
-try:
+if TYPE_CHECKING:
 	from typing import Self
-
-except ImportError:
-	from typing_extensions import Self
 
 
 class LoggingMethod(Protocol):

@@ -1,0 +1,7 @@
+-extends "base.haml"
+-set page="Error"
+
+-block content
+	.section.error
+		.title << HTTP Error {{e.status}}
+		.body -> =e.message

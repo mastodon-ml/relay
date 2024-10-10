@@ -4,28 +4,15 @@ import aputils
 import json
 import os
 import platform
-import socket
 
 from aiohttp.web import Response as AiohttpResponse
 from collections.abc import Sequence
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, TypeVar
 from uuid import uuid4
 
-try:
-	from importlib.resources import files as pkgfiles
-
-except ImportError:
-	from importlib_resources import files as pkgfiles # type: ignore
-
-try:
-	from typing import Self
-
-except ImportError:
-	from typing_extensions import Self
-
 if TYPE_CHECKING:
+	from typing import Self
 	from .application import Application
 
 
@@ -50,11 +37,6 @@ MIMETYPES = {
 	'webmanifest': 'application/manifest+json'
 }
 
-NODEINFO_NS = {
-	'20': 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-	'21': 'http://nodeinfo.diaspora.software/ns/schema/2.1'
-}
-
 ACTOR_FORMATS = {
 	'mastodon': 'https://{domain}/actor',
 	'akkoma': 'https://{domain}/relay',
@@ -72,42 +54,26 @@ SOFTWARE = (
 	'gotosocial'
 )
 
+JSON_PATHS: tuple[str, ...] = (
+	'/api/v1',
+	'/actor',
+	'/inbox',
+	'/outbox',
+	'/following',
+	'/followers',
+	'/.well-known',
+	'/nodeinfo',
+	'/oauth/token',
+	'/oauth/revoke'
+)
 
-def boolean(value: Any) -> bool:
-	if isinstance(value, str):
-		if value.lower() in {'on', 'y', 'yes', 'true', 'enable', 'enabled', '1'}:
-			return True
-
-		if value.lower() in {'off', 'n', 'no', 'false', 'disable', 'disabled', '0'}:
-			return False
-
-		raise TypeError(f'Cannot parse string "{value}" as a boolean')
-
-	if isinstance(value, int):
-		if value == 1:
-			return True
-
-		if value == 0:
-			return False
-
-		raise ValueError('Integer value must be 1 or 0')
-
-	if value is None:
-		return False
-
-	return bool(value)
-
-
-def check_open_port(host: str, port: int) -> bool:
-	if host == '0.0.0.0':
-		host = '127.0.0.1'
-
-	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-		try:
-			return s.connect_ex((host, port)) != 0
-
-		except socket.error:
-			return False
+TOKEN_PATHS: tuple[str, ...] = (
+	'/logout',
+	'/admin',
+	'/api',
+	'/oauth/authorize',
+	'/oauth/revoke'
+)
 
 
 def get_app() -> Application:
@@ -117,10 +83,6 @@ def get_app() -> Application:
 		raise ValueError('No default application set')
 
 	return Application.DEFAULT
-
-
-def get_resource(path: str) -> Path:
-	return Path(str(pkgfiles('relay'))).joinpath(path)
 
 
 class JsonEncoder(json.JSONEncoder):
@@ -240,21 +202,9 @@ class Response(AiohttpResponse):
 
 
 	@classmethod
-	def new_error(cls: type[Self],
-				status: int,
-				body: str | bytes | dict[str, Any],
-				ctype: str = 'text') -> Self:
-
-		if ctype == 'json':
-			body = {'error': body}
-
-		return cls.new(body=body, status=status, ctype=ctype)
-
-
-	@classmethod
-	def new_redir(cls: type[Self], path: str) -> Self:
+	def new_redir(cls: type[Self], path: str, status: int = 307) -> Self:
 		body = f'Redirect to <a href="{path}">{path}</a>'
-		return cls.new(body, 302, {'Location': path})
+		return cls.new(body, status, {'Location': path}, ctype = 'html')
 
 
 	@property

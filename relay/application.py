@@ -6,29 +6,33 @@ import signal
 import time
 import traceback
 
+from Crypto.Random import get_random_bytes
 from aiohttp import web
-from aiohttp.web import StaticResource
+from aiohttp.web import HTTPException, StaticResource
 from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
-from bsql import Database, Row
+from base64 import b64encode
+from blib import File, HttpError, port_check
+from bsql import Database
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from mimetypes import guess_type
 from pathlib import Path
-from queue import Empty
 from threading import Event, Thread
-from typing import Any
+from typing import Any, cast
 
 from . import logger as logging
 from .cache import Cache, get_cache
 from .config import Config
 from .database import Connection, get_database
+from .database.schema import Instance
 from .http_client import HttpClient
-from .misc import IS_WINDOWS, Message, Response, check_open_port, get_resource
+from .misc import JSON_PATHS, TOKEN_PATHS, Message, Response
 from .template import Template
 from .views import VIEWS
 from .views.api import handle_api_path
 from .views.frontend import handle_frontend_path
+from .workers import PushWorkers
 
 
 def get_csp(request: web.Request) -> str:
@@ -54,9 +58,9 @@ class Application(web.Application):
 	def __init__(self, cfgpath: Path | None, dev: bool = False):
 		web.Application.__init__(self,
 			middlewares = [
-				handle_api_path, # type: ignore[list-item]
+				handle_response_headers, # type: ignore[list-item]
 				handle_frontend_path, # type: ignore[list-item]
-				handle_response_headers # type: ignore[list-item]
+				handle_api_path # type: ignore[list-item]
 			]
 		)
 
@@ -75,7 +79,7 @@ class Application(web.Application):
 		self['cache'].setup()
 		self['template'] = Template(self)
 		self['push_queue'] = multiprocessing.Queue()
-		self['workers'] = []
+		self['workers'] = PushWorkers(self.config.workers)
 
 		self.cache.setup()
 		self.on_cleanup.append(handle_cleanup) # type: ignore
@@ -86,33 +90,33 @@ class Application(web.Application):
 		setup_swagger(
 			self,
 			ui_version = 3,
-			swagger_from_file = get_resource('data/swagger.yaml')
+			swagger_from_file = File.from_resource('relay', 'data/swagger.yaml')
 		)
 
 
 	@property
 	def cache(self) -> Cache:
-		return self['cache'] # type: ignore[no-any-return]
+		return cast(Cache, self['cache'])
 
 
 	@property
 	def client(self) -> HttpClient:
-		return self['client'] # type: ignore[no-any-return]
+		return cast(HttpClient, self['client'])
 
 
 	@property
 	def config(self) -> Config:
-		return self['config'] # type: ignore[no-any-return]
+		return cast(Config, self['config'])
 
 
 	@property
 	def database(self) -> Database[Connection]:
-		return self['database'] # type: ignore[no-any-return]
+		return cast(Database[Connection], self['database'])
 
 
 	@property
 	def signer(self) -> Signer:
-		return self['signer'] # type: ignore[no-any-return]
+		return cast(Signer, self['signer'])
 
 
 	@signer.setter
@@ -126,7 +130,7 @@ class Application(web.Application):
 
 	@property
 	def template(self) -> Template:
-		return self['template'] # type: ignore[no-any-return]
+		return cast(Template, self['template'])
 
 
 	@property
@@ -139,16 +143,23 @@ class Application(web.Application):
 		return timedelta(seconds=uptime.seconds)
 
 
-	def push_message(self, inbox: str, message: Message, instance: Row) -> None:
-		self['push_queue'].put((inbox, message, instance))
+	@property
+	def workers(self) -> PushWorkers:
+		return cast(PushWorkers, self['workers'])
+
+
+	def push_message(self, inbox: str, message: Message, instance: Instance) -> None:
+		self['workers'].push_message(inbox, message, instance)
 
 
 	def register_static_routes(self) -> None:
 		if self['dev']:
-			static = StaticResource('/static', get_resource('frontend/static'))
+			static = StaticResource('/static', File.from_resource('relay', 'frontend/static'))
 
 		else:
-			static = CachedStaticResource('/static', get_resource('frontend/static'))
+			static = CachedStaticResource(
+				'/static', Path(File.from_resource('relay', 'frontend/static'))
+			)
 
 		self.router.register_resource(static)
 
@@ -161,7 +172,7 @@ class Application(web.Application):
 		host = self.config.listen
 		port = self.config.port
 
-		if not check_open_port(host, port):
+		if port_check(port, '127.0.0.1' if host == '0.0.0.0' else host):
 			logging.error(f'A server is already running on {host}:{port}')
 			return
 
@@ -195,12 +206,7 @@ class Application(web.Application):
 		self['cache'].setup()
 		self['cleanup_thread'] = CacheCleanupThread(self)
 		self['cleanup_thread'].start()
-
-		for _ in range(self.config.workers):
-			worker = PushWorker(self['push_queue'])
-			worker.start()
-
-			self['workers'].append(worker)
+		self['workers'].start()
 
 		runner = web.AppRunner(self, access_log_format='%{X-Forwarded-For}i "%r" %s %b "%{User-Agent}i"')
 		await runner.setup()
@@ -220,15 +226,13 @@ class Application(web.Application):
 
 		await site.stop()
 
-		for worker in self['workers']:
-			worker.stop()
+		self['workers'].stop()
 
 		self.set_signal_handler(False)
 
 		self['starttime'] = None
 		self['running'] = False
 		self['cleanup_thread'].stop()
-		self['workers'].clear()
 		self['database'].disconnect()
 		self['cache'].close()
 
@@ -290,56 +294,15 @@ class CacheCleanupThread(Thread):
 		self.running.clear()
 
 
-class PushWorker(multiprocessing.Process):
-	def __init__(self, queue: multiprocessing.Queue[tuple[str, Message, Row]]) -> None:
-		if Application.DEFAULT is None:
-			raise RuntimeError('Application not setup yet')
+def format_error(request: web.Request, error: HttpError) -> Response:
+	app: Application = request.app # type: ignore[assignment]
 
-		multiprocessing.Process.__init__(self)
+	if request.path.startswith(JSON_PATHS) or 'json' in request.headers.get('accept', ''):
+		return Response.new({'error': error.message}, error.status, ctype = 'json')
 
-		self.queue = queue
-		self.shutdown = multiprocessing.Event()
-		self.path = Application.DEFAULT.config.path
-
-
-	def stop(self) -> None:
-		self.shutdown.set()
-
-
-	def run(self) -> None:
-		asyncio.run(self.handle_queue())
-
-
-	async def handle_queue(self) -> None:
-		if IS_WINDOWS:
-			app = Application(self.path)
-			client = app.client
-
-			client.open()
-			app.database.connect()
-			app.cache.setup()
-
-		else:
-			client = HttpClient()
-			client.open()
-
-		while not self.shutdown.is_set():
-			try:
-				inbox, message, instance = self.queue.get(block=True, timeout=0.1)
-				asyncio.create_task(client.post(inbox, message, instance))
-
-			except Empty:
-				await asyncio.sleep(0)
-
-			# make sure an exception doesn't bring down the worker
-			except Exception:
-				traceback.print_exc()
-
-		if IS_WINDOWS:
-			app.database.disconnect()
-			app.cache.close()
-
-		await client.close()
+	else:
+		body = app.template.render('page/error.haml', request, e = error)
+		return Response.new(body, error.status, ctype = 'html')
 
 
 @web.middleware
@@ -347,14 +310,60 @@ async def handle_response_headers(
 								request: web.Request,
 								handler: Callable[[web.Request], Awaitable[Response]]) -> Response:
 
-	resp = await handler(request)
+	request['hash'] = b64encode(get_random_bytes(16)).decode('ascii')
+	request['token'] = None
+	request['user'] = None
+
+	app: Application = request.app # type: ignore[assignment]
+
+	if request.path == "/" or request.path.startswith(TOKEN_PATHS):
+		with app.database.session() as conn:
+			tokens = (
+				request.headers.get('Authorization', '').replace('Bearer', '').strip(),
+				request.cookies.get('user-token')
+			)
+
+			for token in tokens:
+				if not token:
+					continue
+
+				request['token'] = conn.get_app_by_token(token)
+
+				if request['token'] is not None:
+					request['user'] = conn.get_user(request['token'].user)
+
+				break
+
+	try:
+		resp = await handler(request)
+
+	except HttpError as e:
+		resp = format_error(request, e)
+
+	except HTTPException as e:
+		if e.status == 404:
+			try:
+				text = (e.text or "").split(":")[1].strip()
+
+			except IndexError:
+				text = e.text or ""
+
+			resp = format_error(request, HttpError(e.status, text))
+
+		else:
+			raise
+
+	except Exception:
+		resp = format_error(request, HttpError(500, 'Internal server error'))
+		traceback.print_exc()
+
 	resp.headers['Server'] = 'ActivityRelay'
 
 	# Still have to figure out how csp headers work
 	if resp.content_type == 'text/html' and not request.path.startswith("/api"):
 		resp.headers['Content-Security-Policy'] = get_csp(request)
 
-	if not request.app['dev'] and request.path.endswith(('.css', '.js')):
+	if not request.app['dev'] and request.path.endswith(('.css', '.js', '.woff2')):
 		# cache for 2 weeks
 		resp.headers['Cache-Control'] = 'public,max-age=1209600,immutable'
 

@@ -18,10 +18,12 @@ securityDefinitions:
     in: cookie
     name: user-token
   Bearer:
-    type: apiKey
+    type: oauth2
     name: Authorization
     in: header
-    description: "Enter the token with the `Bearer ` prefix"
+    flow: accessCode
+    authorizationUrl: /oauth/authorize
+    tokenUrl: /oauth/token
 
 paths:
   /:
@@ -34,6 +36,161 @@ paths:
           description: Token is missing or invalid
           schema:
             $ref: "#/definitions/Error"
+
+  /oauth/authorize:
+    get:
+      tags:
+      - OAuth
+      description: Get an authorization code
+      parameters:
+      - in: query
+        name: response-type
+        required: true
+        type: string
+      - in: query
+        name: client_id
+        required: true
+        type: string
+      - in: query
+        name: redirect_uri
+        required: true
+        type: string
+
+  /oauth/token:
+    post:
+      tags:
+      - OAuth
+      description: Get a token for an authorized app
+      parameters:
+      - in: formData
+        name: grant_type
+        required: true
+        type: string
+      - in: formData
+        name: code
+        required: true
+        type: string
+      - in: formData
+        name: client_id
+        required: true
+        type: string
+      - in: formData
+        name: client_secret
+        required: true
+        type: string
+      - in: formData
+        name: redirect_uri
+        required: true
+        type: string
+      consumes:
+      - application/x-www-form-urlencoded
+      - application/json
+      - multipart/form-data
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Application
+          schema:
+            $ref: "#/definitions/Application"
+
+  /oauth/revoke:
+    post:
+      tags:
+      - OAuth
+      description: Get a token for an authorized app
+      parameters:
+      - in: formData
+        name: client_id
+        required: true
+        type: string
+      - in: formData
+        name: client_secret
+        required: true
+        type: string
+      - in: formData
+        name: token
+        required: true
+        type: string
+      consumes:
+      - application/json
+      - multipart/form-data
+      - application/x-www-form-urlencoded
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Message confirming application deletion
+          schema:
+            $ref: "#/definitions/Message"
+
+  /v1/app:
+    get:
+      tags:
+      - Applications
+      description: Verify the token is valid
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Application with the associated token
+          schema:
+            $ref: "#/definitions/Application"
+
+    post:
+      tags:
+      - Applications
+      description: Create a new application
+      parameters:
+      - in: query
+        name: name
+        required: true
+        type: string
+      - in: query
+        name: redirect_uri
+        required: true
+        type: string
+      - in: query
+        name: website
+        required: false
+        type: string
+        format: url
+      consumes:
+      - application/json
+      - multipart/form-data
+      - application/x-www-form-urlencoded
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Newly created application
+          schema:
+            $ref: "#/definitions/Application"
+
+    delete:
+      tags:
+      - Applications
+      description: Deletes an application
+      parameters:
+      - in: formData
+        name: client_id
+        required: true
+        type: string
+      - in: formData
+        name: client_secret
+        required: true
+        type: string
+      consumes:
+      - application/json
+      - multipart/form-data
+      - application/x-www-form-urlencoded
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Confirmation of application deletion
+          schema:
+            $ref: "#/definitions/Message"
 
   /v1/relay:
     get:
@@ -48,23 +205,11 @@ paths:
           schema:
             $ref: "#/definitions/Info"
 
-  /v1/token:
-    get:
-      tags:
-      - Token
-      description: Verify API token
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Valid token
-          schema:
-            $ref: "#/definitions/Message"
-
+  /v1/login:
     post:
       tags:
-      - Token
-      description: Get a new token
+      - Login
+      description: Login with a username and password
       parameters:
       - in: formData
         name: username
@@ -74,7 +219,6 @@ paths:
         name: password
         required: true
         type: string
-        format: password
       consumes:
       - application/json
       - multipart/form-data
@@ -83,22 +227,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: Created token
+          description: A new Application
           schema:
-            $ref: "#/definitions/Token"
-
-
-    delete:
-      tags:
-      - Token
-      description: Revoke a token
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Revoked token
-          schema:
-            $ref: "#/definitions/Message"
+            $ref: "#/definitions/Application"
 
   /v1/config:
     get:
@@ -731,9 +862,43 @@ definitions:
         description: Human-readable message text
         type: string
 
+  Application:
+    type: object
+    properties:
+      client_id:
+        description: Identifier for the application
+        type: string
+      client_secret:
+        description: Secret string for the application
+        type: string
+      name:
+        description: Human-readable name of the application
+        type: string
+      website:
+        description: Website for the application
+        type: string
+        format: url
+      redirect_uri:
+        description: URL to redirect to when authorizing an app
+        type: string
+      token:
+        description: String to use in the Authorization header for client requests
+        type: string
+      created:
+        description: Date the application was created
+        type: string
+        format: date-time
+      accessed:
+        description: Date the application was last used
+        type: string
+        format: date-time
+
   Config:
     type: object
     properties:
+      approval-required:
+        description: Require instances to be approved when following
+        type: bool
       log-level:
         description: Maximum level of log messages to print to the console
         type: string
@@ -742,6 +907,9 @@ definitions:
         type: string
       note:
         description: Blurb to display on the home page
+        type: string
+      theme:
+        description: Name of the color scheme to use for the frontend
         type: string
       whitelist-enabled:
         description: Only allow specific instances to join the relay when enabled
@@ -842,13 +1010,6 @@ definitions:
         description: Date the ban was added
         type: string
         format: date-time
-
-  Token:
-    type: object
-    properties:
-      token:
-        description: Character string used for authenticating with the api
-        type: string
 
   User:
     type: object

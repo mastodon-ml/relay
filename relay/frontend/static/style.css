@@ -12,7 +12,7 @@ body {
 	color: var(--text);
 	background-color: #222;
 	margin: var(--spacing);
-	font-family: sans serif;
+	font-family: sans-serif;
 }
 
 details *:nth-child(2) {
@@ -88,6 +88,7 @@ tbody tr:last-child td:last-child {
 
 table td {
 	padding: 5px;
+	white-space: nowrap;
 }
 
 table thead td {
@@ -282,8 +283,11 @@ textarea {
 	width: 100%;
 }
 
-.data-table .date {
+.data-table td:not(:first-child) {
 	width: max-content;
+}
+
+.data-table .date {
 	text-align: right;
 }
 
@@ -297,13 +301,13 @@ textarea {
 	border: 1px solid var(--error-border) !important;
 }
 
+/* create .grid base class and .2col and 3col classes */
 .grid-2col {
 	display: grid;
 	grid-template-columns: max-content auto;
 	grid-gap: var(--spacing);
 	margin-bottom: var(--spacing);
 	align-items: center;
-	
 }
 
 .message {
@@ -331,6 +335,48 @@ textarea {
 /* config */
 #content.page-config input[type="checkbox"] {
 	justify-self: left;
+}
+
+#content.page-config .grid-2col {
+	grid-template-columns: max-content max-content auto;
+}
+
+
+/* error */
+#content.page-error {
+	text-align: center;
+}
+
+#content.page-error .title {
+	font-size: 24px;
+	font-weight: bold;
+}
+
+
+/* auth */
+#content.page-app_authorization {
+	text-align: center;
+}
+
+#content.page-app_authorization #code {
+	background: var(--background);
+	border: 1px solid var(--border);
+	font-size: 18px;
+	margin: 0 auto;
+	width: max-content;
+	padding: 5px;
+}
+
+#content.page-app_authorization #title {
+	font-size: 24px;
+}
+
+#content.page-app_authorization #buttons {
+	display: grid;
+	grid-template-columns: auto max-content max-content auto;
+	grid-gap: var(--spacing);
+	justify-items: center;
+	margin: var(--spacing) 0;
 }
 
 

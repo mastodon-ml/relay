@@ -1,9 +1,6 @@
 -extends "base.haml"
 -set page="Domain Bans"
 
--block head
-	%script(type="application/javascript" src="/static/domain_ban.js" nonce="{{view.request['hash']}}" defer)
-
 -block content
 	%details.section
 		%summary << Ban Domain

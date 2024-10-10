@@ -1,20 +1,16 @@
 from __future__ import annotations
 
 import json
-import traceback
 
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
-from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from aputils import AlgorithmType, Nodeinfo, ObjectType, Signer, WellKnownNodeinfo
-from asyncio.exceptions import TimeoutError as AsyncTimeoutError
-from blib import JsonBase
-from bsql import Row
-from json.decoder import JSONDecodeError
-from typing import TYPE_CHECKING, Any, TypeVar
-from urllib.parse import urlparse
+from blib import HttpError, JsonBase
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from . import __version__, logger as logging
 from .cache import Cache
+from .database.schema import Instance
+from .errors import EmptyBodyError
 from .misc import MIMETYPES, Message, get_app
 
 if TYPE_CHECKING:
@@ -36,7 +32,7 @@ SUPPORTS_HS2019 = {
 	'sharkey'
 }
 
-T = TypeVar('T', bound = JsonBase)
+T = TypeVar('T', bound = JsonBase[Any])
 HEADERS = {
 	'Accept': f'{MIMETYPES["activity"]}, {MIMETYPES["json"]};q=0.9',
 	'User-Agent': f'ActivityRelay/{__version__}'
@@ -107,21 +103,17 @@ class HttpClient:
 					url: str,
 					sign_headers: bool,
 					force: bool,
-					old_algo: bool) -> dict[str, Any] | None:
+					old_algo: bool) -> str | None:
 
 		if not self._session:
 			raise RuntimeError('Client not open')
 
-		try:
-			url, _ = url.split('#', 1)
-
-		except ValueError:
-			pass
+		url = url.split("#", 1)[0]
 
 		if not force:
 			try:
 				if not (item := self.cache.get('request', url)).older_than(48):
-					return json.loads(item.value) # type: ignore[no-any-return]
+					return item.value # type: ignore [no-any-return]
 
 			except KeyError:
 				logging.verbose('No cached data for url: %s', url)
@@ -132,67 +124,74 @@ class HttpClient:
 			algo = AlgorithmType.RSASHA256 if old_algo else AlgorithmType.HS2019
 			headers = self.signer.sign_headers('GET', url, algorithm = algo)
 
-		try:
-			logging.debug('Fetching resource: %s', url)
+		logging.debug('Fetching resource: %s', url)
 
-			async with self._session.get(url, headers = headers) as resp:
-				# Not expecting a response with 202s, so just return
-				if resp.status == 202:
-					return None
-
-				data = await resp.text()
-
-			if resp.status != 200:
-				logging.verbose('Received error when requesting %s: %i', url, resp.status)
-				logging.debug(data)
+		async with self._session.get(url, headers = headers) as resp:
+			# Not expecting a response with 202s, so just return
+			if resp.status == 202:
 				return None
 
-			self.cache.set('request', url, data, 'str')
-			logging.debug('%s >> resp %s', url, json.dumps(json.loads(data), indent = 4))
+			data = await resp.text()
 
-			return json.loads(data) # type: ignore [no-any-return]
+		if resp.status not in (200, 202):
+			try:
+				error = json.loads(data)["error"]
 
-		except JSONDecodeError:
-			logging.verbose('Failed to parse JSON')
-			logging.debug(data)
-			return None
+			except Exception:
+				error = data
 
-		except ClientSSLError as e:
-			logging.verbose('SSL error when connecting to %s', urlparse(url).netloc)
-			logging.warning(str(e))
+			raise HttpError(resp.status, error)
 
-		except (AsyncTimeoutError, ClientConnectionError) as e:
-			logging.verbose('Failed to connect to %s', urlparse(url).netloc)
-			logging.warning(str(e))
+		self.cache.set('request', url, data, 'str')
+		return data
 
-		except Exception:
-			traceback.print_exc()
 
-		return None
+	@overload
+	async def get(self,
+				url: str,
+				sign_headers: bool,
+				cls: None = None,
+				force: bool = False,
+				old_algo: bool = True) -> str | None: ...
+
+
+	@overload
+	async def get(self,
+				url: str,
+				sign_headers: bool,
+				cls: type[T] = JsonBase, # type: ignore[assignment]
+				force: bool = False,
+				old_algo: bool = True) -> T: ...
 
 
 	async def get(self,
 				url: str,
 				sign_headers: bool,
-				cls: type[T],
+				cls: type[T] | None = None,
 				force: bool = False,
-				old_algo: bool = True) -> T | None:
+				old_algo: bool = True) -> T | str | None:
 
-		if not issubclass(cls, JsonBase):
+		if cls is not None and not issubclass(cls, JsonBase):
 			raise TypeError('cls must be a sub-class of "blib.JsonBase"')
 
-		if (data := (await self._get(url, sign_headers, force, old_algo))) is None:
-			return None
+		data = await self._get(url, sign_headers, force, old_algo)
 
-		return cls.parse(data)
+		if cls is not None:
+			if data is None:
+				# this shouldn't actually get raised, but keeping just in case
+				raise EmptyBodyError(f"GET {url}")
+
+			return cls.parse(data)
+
+		return data
 
 
-	async def post(self, url: str, data: Message | bytes, instance: Row | None = None) -> None:
+	async def post(self, url: str, data: Message | bytes, instance: Instance | None = None) -> None:
 		if not self._session:
 			raise RuntimeError('Client not open')
 
 		# akkoma and pleroma do not support HS2019 and other software still needs to be tested
-		if instance and instance['software'] in SUPPORTS_HS2019:
+		if instance is not None and instance.software in SUPPORTS_HS2019:
 			algorithm = AlgorithmType.HS2019
 
 		else:
@@ -218,45 +217,22 @@ class HttpClient:
 			algorithm = algorithm
 		)
 
-		try:
-			logging.verbose('Sending "%s" to %s', mtype, url)
+		logging.verbose('Sending "%s" to %s', mtype, url)
 
-			async with self._session.post(url, headers = headers, data = body) as resp:
-				# Not expecting a response, so just return
-				if resp.status in {200, 202}:
-					logging.verbose('Successfully sent "%s" to %s', mtype, url)
-					return
-
-				logging.verbose('Received error when pushing to %s: %i', url, resp.status)
-				logging.debug(await resp.read())
-				logging.debug("message: %s", body.decode("utf-8"))
-				logging.debug("headers: %s", json.dumps(headers, indent = 4))
-				return
-
-		except ClientSSLError as e:
-			logging.warning('SSL error when pushing to %s', urlparse(url).netloc)
-			logging.warning(str(e))
-
-		except (AsyncTimeoutError, ClientConnectionError) as e:
-			logging.warning('Failed to connect to %s for message push', urlparse(url).netloc)
-			logging.warning(str(e))
-
-		# prevent workers from being brought down
-		except Exception:
-			traceback.print_exc()
+		async with self._session.post(url, headers = headers, data = body) as resp:
+			if resp.status not in (200, 202):
+				raise HttpError(
+					resp.status,
+					await resp.text(),
+					headers = {k: v for k, v in resp.headers.items()}
+				)
 
 
-	async def fetch_nodeinfo(self, domain: str) -> Nodeinfo | None:
+	async def fetch_nodeinfo(self, domain: str, force: bool = False) -> Nodeinfo:
 		nodeinfo_url = None
 		wk_nodeinfo = await self.get(
-			f'https://{domain}/.well-known/nodeinfo',
-			False,
-			WellKnownNodeinfo
+			f'https://{domain}/.well-known/nodeinfo', False, WellKnownNodeinfo, force
 		)
-
-		if wk_nodeinfo is None:
-			logging.verbose('Failed to fetch well-known nodeinfo url for %s', domain)
-			return None
 
 		for version in ('20', '21'):
 			try:
@@ -266,10 +242,9 @@ class HttpClient:
 				pass
 
 		if nodeinfo_url is None:
-			logging.verbose('Failed to fetch nodeinfo url for %s', domain)
-			return None
+			raise ValueError(f'Failed to fetch nodeinfo url for {domain}')
 
-		return await self.get(nodeinfo_url, False, Nodeinfo)
+		return await self.get(nodeinfo_url, False, Nodeinfo, force)
 
 
 async def get(*args: Any, **kwargs: Any) -> Any:

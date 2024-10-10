@@ -1,9 +1,6 @@
 -extends "base.haml"
 -set page="Login"
 
--block head
-	%script(type="application/javascript" src="/static/login.js" nonce="{{view.request['hash']}}" defer)
-
 -block content
 	%fieldset.section
 		%legend << Login
@@ -15,4 +12,6 @@
 			%label(for="password") << Password
 			%input(id="password" name="password" placeholder="Password" type="password")
 
+
+		%input#redir(type="hidden" name="redir" value="{{redir}}")
 		%input.submit(type="button" value="Login")

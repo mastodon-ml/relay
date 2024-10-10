@@ -1,0 +1,18 @@
+-extends "base.haml"
+-set page="App Authorization"
+
+-block content
+	%fieldset.section
+		%legend << App Authorization Code
+
+		-if application.website
+			%p 
+				Copy the following code into
+				%a(href="{{application.website}}" target="_main") -> %code -> =application.name
+
+		-else
+			%p
+				Copy the following code info
+				%code -> =application.name
+
+		%pre#code -> =application.auth_code

@@ -1,3 +1,6 @@
+import sqlite3
+
+from blib import Date, File
 from bsql import Database
 
 from .config import THEMES, ConfigData
@@ -6,7 +9,9 @@ from .schema import TABLES, VERSIONS, migrate_0
 
 from .. import logger as logging
 from ..config import Config
-from ..misc import get_resource
+
+
+sqlite3.register_adapter(Date, Date.timestamp)
 
 
 def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
@@ -15,6 +20,8 @@ def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
 		'pool_size': 5,
 		'tables': TABLES
 	}
+
+	db: Database[Connection]
 
 	if config.db_type == 'sqlite':
 		db = Database.sqlite(config.sqlite_path, **options)
@@ -29,7 +36,7 @@ def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
 			**options
 		)
 
-	db.load_prepared_statements(get_resource('data/statements.sql'))
+	db.load_prepared_statements(File.from_resource('relay', 'data/statements.sql'))
 	db.connect()
 
 	if not migrate:

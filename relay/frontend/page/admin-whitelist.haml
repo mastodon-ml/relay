@@ -1,9 +1,6 @@
 -extends "base.haml"
 -set page="Whitelist"
 
--block head
-	%script(type="application/javascript" src="/static/whitelist.js" nonce="{{view.request['hash']}}" defer)
-
 -block content
 	%details.section
 		%summary << Add Domain

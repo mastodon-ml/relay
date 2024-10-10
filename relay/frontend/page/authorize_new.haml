@@ -1,0 +1,31 @@
+-extends "base.haml"
+-set page="App Authorization"
+
+-block content
+	%fieldset.section
+		%legend << App Authorization
+
+		-if application.website
+			#title << Application "<a href="{{application.website}}" target="_new">{{application.name}}</a>" wants full API access
+
+		-else
+			#title << Application "{{application.name}}" wants full API access
+
+		#buttons
+			.spacer
+
+			%form(action="/oauth/authorize" method="POST")
+				%input(type="hidden" name="client_id" value="{{application.client_id}}")
+				%input(type="hidden" name="client_secret" value="{{application.client_secret}}")
+				%input(type="hidden" name="redirect_uri" value="{{application.redirect_uri}}")
+				%input(type="hidden" name="response" value="true")
+				%input.button(type="submit" value="Allow")
+
+			%form(action="/oauth/authorize" method="POST")
+				%input(type="hidden" name="client_id" value="{{application.client_id}}")
+				%input(type="hidden" name="client_secret" value="{{application.client_secret}}")
+				%input(type="hidden" name="redirect_uri" value="{{application.redirect_uri}}")
+				%input(type="hidden" name="response" value="false")
+				%input.button(type="submit" value="Deny")
+
+			.spacer

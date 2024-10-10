@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from Crypto.Random import get_random_bytes
 from aiohttp.abc import AbstractView
 from aiohttp.hdrs import METH_ALL as METHODS
-from aiohttp.web import HTTPMethodNotAllowed, Request
-from base64 import b64encode
+from aiohttp.web import Request
+from blib import HttpError
 from bsql import Database
 from collections.abc import Awaitable, Callable, Generator, Sequence, Mapping
 from functools import cached_property
@@ -18,18 +17,12 @@ from ..http_client import HttpClient
 from ..misc import Response, get_app
 
 if TYPE_CHECKING:
+	from typing import Self
 	from ..application import Application
 	from ..template import Template
 
-try:
-	from typing import Self
-
-except ImportError:
-	from typing_extensions import Self
 
 HandlerCallback = Callable[[Request], Awaitable[Response]]
-
-
 VIEWS: list[tuple[str, type[View]]] = []
 
 
@@ -49,10 +42,10 @@ def register_route(*paths: str) -> Callable[[type[View]], type[View]]:
 class View(AbstractView):
 	def __await__(self) -> Generator[Any, None, Response]:
 		if self.request.method not in METHODS:
-			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods)
+			raise HttpError(405, f'"{self.request.method}" method not allowed')
 
 		if not (handler := self.handlers.get(self.request.method)):
-			raise HTTPMethodNotAllowed(self.request.method, self.allowed_methods)
+			raise HttpError(405, f'"{self.request.method}" method not allowed')
 
 		return self._run_handler(handler).__await__()
 
@@ -64,7 +57,6 @@ class View(AbstractView):
 
 
 	async def _run_handler(self, handler: HandlerCallback, **kwargs: Any) -> Response:
-		self.request['hash'] = b64encode(get_random_bytes(16)).decode('ascii')
 		return await handler(self.request, **self.request.match_info, **kwargs)
 
 
@@ -123,17 +115,18 @@ class View(AbstractView):
 
 	async def get_api_data(self,
 							required: list[str],
-							optional: list[str]) -> dict[str, str] | Response:
+							optional: list[str]) -> dict[str, str]:
 
-		if self.request.content_type in {'x-www-form-urlencoded', 'multipart/form-data'}:
+		if self.request.content_type in {'application/x-www-form-urlencoded', 'multipart/form-data'}:
 			post_data = convert_data(await self.request.post())
+			# post_data = {key: value for key, value in parse_qsl(await self.request.text())}
 
 		elif self.request.content_type == 'application/json':
 			try:
 				post_data = convert_data(await self.request.json())
 
 			except JSONDecodeError:
-				return Response.new_error(400, 'Invalid JSON data', 'json')
+				raise HttpError(400, 'Invalid JSON data')
 
 		else:
 			post_data = convert_data(self.request.query)
@@ -145,9 +138,9 @@ class View(AbstractView):
 				data[key] = post_data[key]
 
 		except KeyError as e:
-			return Response.new_error(400, f'Missing {str(e)} pararmeter', 'json')
+			raise HttpError(400, f'Missing {str(e)} pararmeter') from None
 
 		for key in optional:
-			data[key] = post_data.get(key, '')
+			data[key] = post_data.get(key) # type: ignore[assignment]
 
 		return data
