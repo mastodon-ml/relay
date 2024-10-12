@@ -51,15 +51,13 @@ async def handle_home(app: Application, request: Request) -> Response:
 			'instances': tuple(conn.get_inboxes())
 		}
 
-	data = app.template.render('page/home.haml', request, **context)
-	return Response.new(data, ctype='html')
+	return Response.new_template(200, "page/home.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/login')
 async def handle_login(app: Application, request: Request) -> Response:
-	redir = unquote(request.query.get('redir', '/'))
-	data = app.template.render('page/login.haml', request, redir = redir)
-	return Response.new(data, ctype = 'html')
+	context = {"redir": unquote(request.query.get("redir", "/"))}
+	return Response.new_template(200, "page/login.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/logout')
@@ -96,8 +94,7 @@ async def handle_admin_instances(
 		if message:
 			context['message'] = message
 
-	data = app.template.render('page/admin-instances.haml', request, **context)
-	return Response.new(data, ctype = 'html')
+	return Response.new_template(200, "page/admin-instances.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/admin/whitelist')
@@ -118,8 +115,7 @@ async def handle_admin_whitelist(
 		if message:
 			context['message'] = message
 
-	data = app.template.render('page/admin-whitelist.haml', request, **context)
-	return Response.new(data, ctype = 'html')
+	return Response.new_template(200, "page/admin-whitelist.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/admin/domain_bans')
@@ -140,8 +136,7 @@ async def handle_admin_instance_bans(
 		if message:
 			context['message'] = message
 
-	data = app.template.render('page/admin-domain_bans.haml', request, **context)
-	return Response.new(data, ctype = 'html')
+	return Response.new_template(200, "page/admin-domain_bans.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/admin/software_bans')
@@ -162,8 +157,7 @@ async def handle_admin_software_bans(
 		if message:
 			context['message'] = message
 
-	data = app.template.render('page/admin-software_bans.haml', request, **context)
-	return Response.new(data, ctype = 'html')
+	return Response.new_template(200, "page/admin-software_bans.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/admin/users')
@@ -184,8 +178,7 @@ async def handle_admin_users(
 		if message:
 			context['message'] = message
 
-	data = app.template.render('page/admin-users.haml', request, **context)
-	return Response.new(data, ctype = 'html')
+	return Response.new_template(200, "page/admin-users.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/admin/config')
@@ -211,8 +204,7 @@ async def handle_admin_config(
 		}
 	}
 
-	data = app.template.render('page/admin-config.haml', request, **context)
-	return Response.new(data, ctype = 'html')
+	return Response.new_template(200, "page/admin-config.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/manifest.json')
@@ -247,5 +239,4 @@ async def handle_theme(app: Application, request: Request, theme: str) -> Respon
 	except KeyError:
 		return Response.new('Invalid theme', 404)
 
-	data = app.template.render('variables.css', request, **context)
-	return Response.new(data, ctype = 'css')
+	return Response.new_template(200, "variables.css", request, context, ctype = "css")

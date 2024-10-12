@@ -5,7 +5,7 @@ import json
 import os
 import platform
 
-from aiohttp.web import Response as AiohttpResponse
+from aiohttp.web import Request, Response as AiohttpResponse
 from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict, TypeVar
@@ -205,6 +205,19 @@ class Response(AiohttpResponse):
 	def new_redir(cls: type[Self], path: str, status: int = 307) -> Self:
 		body = f'Redirect to <a href="{path}">{path}</a>'
 		return cls.new(body, status, {'Location': path}, ctype = 'html')
+
+
+	@classmethod
+	def new_template(cls: type[Self],
+					status: int,
+					path: str,
+					request: Request,
+					context: dict[str, Any] | None = None,
+					headers: dict[str, Any] | None = None,
+					ctype: str = "html") -> Self:
+
+		body = get_app().template.render(path, request, **(context or {}))
+		return cls.new(body, status, headers, ctype)
 
 
 	@property

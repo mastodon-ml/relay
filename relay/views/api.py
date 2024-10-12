@@ -75,19 +75,16 @@ class OauthAuthorize(View):
 			raise HttpError(400, 'Application has already been authorized')
 
 		if app.auth_code is not None:
-			context = {'application': app}
-			html = self.template.render(
-				'page/authorize_show.haml', self.request, **context
-			)
+			page = "page/authorization_show.haml"
 
-			return Response.new(html, ctype = 'html')
+		else:
+			page = "page/authorize_new.haml"
 
-		if data['redirect_uri'] != app.redirect_uri:
-			raise HttpError(400, 'redirect_uri does not match application')
+			if data['redirect_uri'] != app.redirect_uri:
+				raise HttpError(400, 'redirect_uri does not match application')
 
 		context = {'application': app}
-		html = self.template.render('page/authorize_new.haml', self.request, **context)
-		return Response.new(html, ctype = 'html')
+		return Response.new_template(200, page, request, context)
 
 
 	async def post(self, request: Request) -> Response:
@@ -108,11 +105,7 @@ class OauthAuthorize(View):
 
 				if app.redirect_uri == DEFAULT_REDIRECT:
 					context = {'application': app}
-					html = self.template.render(
-						'page/authorize_show.haml', self.request, **context
-					)
-
-					return Response.new(html, ctype = 'html')
+					return Response.new_template(200, "page/authorize_show.haml", request, context)
 
 				return Response.new_redir(f'{app.redirect_uri}?code={app.auth_code}')
 

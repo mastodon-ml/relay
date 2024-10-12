@@ -298,14 +298,12 @@ class CacheCleanupThread(Thread):
 
 
 def format_error(request: web.Request, error: HttpError) -> Response:
-	app: Application = request.app # type: ignore[assignment]
-
 	if request.path.startswith(JSON_PATHS) or 'json' in request.headers.get('accept', ''):
 		return Response.new({'error': error.message}, error.status, ctype = 'json')
 
 	else:
-		body = app.template.render('page/error.haml', request, e = error)
-		return Response.new(body, error.status, ctype = 'html')
+		context = {"e": error}
+		return Response.new_template(error.status, "page/error.haml", request, context)
 
 
 @web.middleware
