@@ -1,19 +1,117 @@
+from __future__ import annotations
+
 import aputils
 import traceback
 
 from aiohttp import ClientConnectorError
 from aiohttp.web import Request
+from aputils import Signature, SignatureFailureError, Signer
 from blib import HttpError
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from .base import View, register_route
+from .base import View, register_view
 
 from .. import logger as logging
 from ..database import schema
 from ..misc import Message, Response
 from ..processors import run_processor
 
+if TYPE_CHECKING:
+	from ..application import Application
 
-@register_route('/actor', '/inbox')
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
+
+
+# def route(
+# 			method: HttpMethod | str,
+# 			*path: str,
+# 			activity: bool = True) -> Callable[[Application, Request], JsonBase[Any]]:
+#
+# 	def wrapper
+
+
+@dataclass(slots = True)
+class InboxData:
+	signature: Signature
+	message: Message
+	actor: Message
+	signer: Signer
+	instance: schema.Instance | None
+
+
+	@classmethod
+	async def parse_request(cls: type[Self], app: Application, request: Request) -> Self:
+		signature: Signature | None = None
+		message: Message | None = None
+		actor: Message | None = None
+		signer: Signer | None = None
+
+		try:
+			signature = Signature.parse(request.headers['signature'])
+
+		except KeyError:
+			logging.verbose('Missing signature header')
+			raise HttpError(400, 'missing signature header')
+
+		try:
+			message = await request.json(loads = Message.parse)
+
+		except Exception:
+			traceback.print_exc()
+			logging.verbose('Failed to parse message from actor: %s', signature.keyid)
+			raise HttpError(400, 'failed to parse message')
+
+		if message is None:
+			logging.verbose('empty message')
+			raise HttpError(400, 'missing message')
+
+		if 'actor' not in message:
+			logging.verbose('actor not in message')
+			raise HttpError(400, 'no actor in message')
+
+		try:
+			actor = await app.client.get(signature.keyid, True, Message)
+
+		except HttpError as e:
+			# ld signatures aren't handled atm, so just ignore it
+			if message.type == 'Delete':
+				logging.verbose('Instance sent a delete which cannot be handled')
+				raise HttpError(202, '')
+
+			logging.verbose('Failed to fetch actor: %s', signature.keyid)
+			logging.debug('HTTP Status %i: %s', e.status, e.message)
+			raise HttpError(400, 'failed to fetch actor')
+
+		except ClientConnectorError as e:
+			logging.warning('Error when trying to fetch actor: %s, %s', signature.keyid, str(e))
+			raise HttpError(400, 'failed to fetch actor')
+
+		except Exception:
+			traceback.print_exc()
+			raise HttpError(500, 'unexpected error when fetching actor')
+
+		try:
+			signer = actor.signer
+
+		except KeyError:
+			logging.verbose('Actor missing public key: %s', signature.keyid)
+			raise HttpError(400, 'actor missing public key')
+
+		try:
+			await signer.validate_request_async(request)
+
+		except SignatureFailureError as e:
+			logging.verbose('signature validation failed for "%s": %s', actor.id, e)
+			raise HttpError(401, str(e))
+
+		return cls(signature, message, actor, signer, None)
+
+
 class ActorView(View):
 	signature: aputils.Signature
 	message: Message
@@ -128,7 +226,7 @@ class ActorView(View):
 			raise HttpError(401, str(e))
 
 
-@register_route('/outbox')
+@register_view('/outbox')
 class OutboxView(View):
 	async def get(self, request: Request) -> Response:
 		msg = aputils.Message.new(
@@ -143,7 +241,7 @@ class OutboxView(View):
 		return Response.new(msg, ctype = 'activity')
 
 
-@register_route('/following', '/followers')
+@register_view('/following', '/followers')
 class RelationshipView(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session(False) as s:
@@ -161,7 +259,7 @@ class RelationshipView(View):
 		return Response.new(msg, ctype = 'activity')
 
 
-@register_route('/.well-known/webfinger')
+@register_view('/.well-known/webfinger')
 class WebfingerView(View):
 	async def get(self, request: Request) -> Response:
 		try:

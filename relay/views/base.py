@@ -3,7 +3,7 @@ from __future__ import annotations
 from aiohttp.abc import AbstractView
 from aiohttp.hdrs import METH_ALL as METHODS
 from aiohttp.web import Request
-from blib import HttpError
+from blib import HttpError, HttpMethod
 from bsql import Database
 from collections.abc import Awaitable, Callable, Generator, Sequence, Mapping
 from functools import cached_property
@@ -21,21 +21,38 @@ if TYPE_CHECKING:
 	from ..application import Application
 	from ..template import Template
 
+	RouteHandler = Callable[[Application, Request], Awaitable[Response]]
+	HandlerCallback = Callable[[Request], Awaitable[Response]]
 
-HandlerCallback = Callable[[Request], Awaitable[Response]]
+
 VIEWS: list[tuple[str, type[View]]] = []
+ROUTES: list[tuple[str, str, HandlerCallback]] = []
 
 
 def convert_data(data: Mapping[str, Any]) -> dict[str, str]:
 	return {key: str(value) for key, value in data.items()}
 
 
-def register_route(*paths: str) -> Callable[[type[View]], type[View]]:
+def register_view(*paths: str) -> Callable[[type[View]], type[View]]:
 	def wrapper(view: type[View]) -> type[View]:
 		for path in paths:
 			VIEWS.append((path, view))
 
 		return view
+	return wrapper
+
+
+def register_route(
+				method: HttpMethod | str, *paths: str) -> Callable[[RouteHandler], HandlerCallback]:
+
+	def wrapper(handler: RouteHandler) -> HandlerCallback:
+		async def inner(request: Request) -> Response:
+			return await handler(get_app(), request, **request.match_info)
+
+		for path in paths:
+			ROUTES.append((HttpMethod.parse(method), path, inner))
+
+		return inner
 	return wrapper
 
 

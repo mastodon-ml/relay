@@ -1,19 +1,25 @@
-from aiohttp import web
+from __future__ import annotations
+
+from aiohttp.web import Request, middleware
+from blib import HttpMethod
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
-from .base import View, register_route
+from .base import register_route
 
 from ..database import THEMES
 from ..logger import LogLevel
 from ..misc import TOKEN_PATHS, Response
 
+if TYPE_CHECKING:
+	from ..application import Application
 
-@web.middleware
+
+@middleware
 async def handle_frontend_path(
-							request: web.Request,
-							handler: Callable[[web.Request], Awaitable[Response]]) -> Response:
+							request: Request,
+							handler: Callable[[Request], Awaitable[Response]]) -> Response:
 
 	if request['user'] is not None and request.path == '/login':
 		return Response.new_redir('/')
@@ -38,211 +44,208 @@ async def handle_frontend_path(
 	return response
 
 
-@register_route('/')
-class HomeView(View):
-	async def get(self, request: web.Request) -> Response:
-		with self.database.session() as conn:
-			context: dict[str, Any] = {
-				'instances': tuple(conn.get_inboxes())
-			}
-
-		data = self.template.render('page/home.haml', self.request, **context)
-		return Response.new(data, ctype='html')
-
-
-@register_route('/login')
-class Login(View):
-	async def get(self, request: web.Request) -> Response:
-		redir = unquote(request.query.get('redir', '/'))
-		data = self.template.render('page/login.haml', self.request, redir = redir)
-		return Response.new(data, ctype = 'html')
-
-
-@register_route('/logout')
-class Logout(View):
-	async def get(self, request: web.Request) -> Response:
-		with self.database.session(True) as conn:
-			conn.del_app(request['token'].client_id, request['token'].client_secret)
-
-		resp = Response.new_redir('/')
-		resp.del_cookie('user-token', domain = self.config.domain, path = '/')
-		return resp
-
-
-@register_route('/admin')
-class Admin(View):
-	async def get(self, request: web.Request) -> Response:
-		return Response.new_redir(f'/login?redir={request.path}', 301)
-
-
-@register_route('/admin/instances')
-class AdminInstances(View):
-	async def get(self,
-				request: web.Request,
-				error: str | None = None,
-				message: str | None = None) -> Response:
-
-		with self.database.session() as conn:
-			context: dict[str, Any] = {
-				'instances': tuple(conn.get_inboxes()),
-				'requests': tuple(conn.get_requests())
-			}
-
-			if error:
-				context['error'] = error
-
-			if message:
-				context['message'] = message
-
-		data = self.template.render('page/admin-instances.haml', self.request, **context)
-		return Response.new(data, ctype = 'html')
-
-
-@register_route('/admin/whitelist')
-class AdminWhitelist(View):
-	async def get(self,
-				request: web.Request,
-				error: str | None = None,
-				message: str | None = None) -> Response:
-
-		with self.database.session() as conn:
-			context: dict[str, Any] = {
-				'whitelist': tuple(conn.execute('SELECT * FROM whitelist ORDER BY domain ASC'))
-			}
-
-			if error:
-				context['error'] = error
-
-			if message:
-				context['message'] = message
-
-		data = self.template.render('page/admin-whitelist.haml', self.request, **context)
-		return Response.new(data, ctype = 'html')
-
-
-@register_route('/admin/domain_bans')
-class AdminDomainBans(View):
-	async def get(self,
-				request: web.Request,
-				error: str | None = None,
-				message: str | None = None) -> Response:
-
-		with self.database.session() as conn:
-			context: dict[str, Any] = {
-				'bans': tuple(conn.execute('SELECT * FROM domain_bans ORDER BY domain ASC'))
-			}
-
-			if error:
-				context['error'] = error
-
-			if message:
-				context['message'] = message
-
-		data = self.template.render('page/admin-domain_bans.haml', self.request, **context)
-		return Response.new(data, ctype = 'html')
-
-
-@register_route('/admin/software_bans')
-class AdminSoftwareBans(View):
-	async def get(self,
-				request: web.Request,
-				error: str | None = None,
-				message: str | None = None) -> Response:
-
-		with self.database.session() as conn:
-			context: dict[str, Any] = {
-				'bans': tuple(conn.execute('SELECT * FROM software_bans ORDER BY name ASC'))
-			}
-
-			if error:
-				context['error'] = error
-
-			if message:
-				context['message'] = message
-
-		data = self.template.render('page/admin-software_bans.haml', self.request, **context)
-		return Response.new(data, ctype = 'html')
-
-
-@register_route('/admin/users')
-class AdminUsers(View):
-	async def get(self,
-				request: web.Request,
-				error: str | None = None,
-				message: str | None = None) -> Response:
-
-		with self.database.session() as conn:
-			context: dict[str, Any] = {
-				'users': tuple(conn.execute('SELECT * FROM users ORDER BY username ASC'))
-			}
-
-			if error:
-				context['error'] = error
-
-			if message:
-				context['message'] = message
-
-		data = self.template.render('page/admin-users.haml', self.request, **context)
-		return Response.new(data, ctype = 'html')
-
-
-@register_route('/admin/config')
-class AdminConfig(View):
-	async def get(self, request: web.Request, message: str | None = None) -> Response:
+@register_route(HttpMethod.GET, "/")
+async def handle_home(app: Application, request: Request) -> Response:
+	with app.database.session() as conn:
 		context: dict[str, Any] = {
-			'themes': tuple(THEMES.keys()),
-			'levels': tuple(level.name for level in LogLevel),
-			'message': message,
-			'desc': {
-				"name": "Name of the relay to be displayed in the header of the pages and in " +
-					"the actor endpoint.", # noqa: E131
-				"note": "Description of the relay to be displayed on the front page and as the " +
-					"bio in the actor endpoint.",
-				"theme": "Color theme to use on the web pages.",
-				"log_level": "Minimum level of logging messages to print to the console.",
-				"whitelist_enabled": "Only allow instances in the whitelist to be able to follow.",
-				"approval_required": "Require instances not on the whitelist to be approved by " +
-					"and admin. The `whitelist-enabled` setting is ignored when this is enabled."
-			}
+			'instances': tuple(conn.get_inboxes())
 		}
 
-		data = self.template.render('page/admin-config.haml', self.request, **context)
-		return Response.new(data, ctype = 'html')
+	data = app.template.render('page/home.haml', request, **context)
+	return Response.new(data, ctype='html')
 
 
-@register_route('/manifest.json')
-class ManifestJson(View):
-	async def get(self, request: web.Request) -> Response:
-		with self.database.session(False) as conn:
-			config = conn.get_config_all()
-			theme = THEMES[config.theme]
+@register_route(HttpMethod.GET, '/login')
+async def handle_login(app: Application, request: Request) -> Response:
+	redir = unquote(request.query.get('redir', '/'))
+	data = app.template.render('page/login.haml', request, redir = redir)
+	return Response.new(data, ctype = 'html')
 
-		data = {
-			'background_color': theme['background'],
-			'categories': ['activitypub'],
-			'description': 'Message relay for the ActivityPub network',
-			'display': 'standalone',
-			'name': config['name'],
-			'orientation': 'portrait',
-			'scope': f"https://{self.config.domain}/",
-			'short_name': 'ActivityRelay',
-			'start_url': f"https://{self.config.domain}/",
-			'theme_color': theme['primary']
+
+@register_route(HttpMethod.GET, '/logout')
+async def handle_logout(app: Application, request: Request) -> Response:
+	with app.database.session(True) as conn:
+		conn.del_app(request['token'].client_id, request['token'].client_secret)
+
+	resp = Response.new_redir('/')
+	resp.del_cookie('user-token', domain = app.config.domain, path = '/')
+	return resp
+
+
+@register_route(HttpMethod.GET, '/admin')
+async def handle_admin(app: Application, request: Request) -> Response:
+	return Response.new_redir(f'/login?redir={request.path}', 301)
+
+
+@register_route(HttpMethod.GET, '/admin/instances')
+async def handle_admin_instances(
+								app: Application,
+								request: Request,
+								error: str | None = None,
+								message: str | None = None) -> Response:
+
+	with app.database.session() as conn:
+		context: dict[str, Any] = {
+			'instances': tuple(conn.get_inboxes()),
+			'requests': tuple(conn.get_requests())
 		}
 
-		return Response.new(data, ctype = 'webmanifest')
+		if error:
+			context['error'] = error
+
+		if message:
+			context['message'] = message
+
+	data = app.template.render('page/admin-instances.haml', request, **context)
+	return Response.new(data, ctype = 'html')
 
 
-@register_route('/theme/{theme}.css')
-class ThemeCss(View):
-	async def get(self, request: web.Request, theme: str) -> Response:
-		try:
-			context: dict[str, Any] = {
-				'theme': THEMES[theme]
-			}
+@register_route(HttpMethod.GET, '/admin/whitelist')
+async def handle_admin_whitelist(
+								app: Application,
+								request: Request,
+								error: str | None = None,
+								message: str | None = None) -> Response:
 
-		except KeyError:
-			return Response.new('Invalid theme', 404)
+	with app.database.session() as conn:
+		context: dict[str, Any] = {
+			'whitelist': tuple(conn.execute('SELECT * FROM whitelist ORDER BY domain ASC'))
+		}
 
-		data = self.template.render('variables.css', self.request, **context)
-		return Response.new(data, ctype = 'css')
+		if error:
+			context['error'] = error
+
+		if message:
+			context['message'] = message
+
+	data = app.template.render('page/admin-whitelist.haml', request, **context)
+	return Response.new(data, ctype = 'html')
+
+
+@register_route(HttpMethod.GET, '/admin/domain_bans')
+async def handle_admin_instance_bans(
+							app: Application,
+							request: Request,
+							error: str | None = None,
+							message: str | None = None) -> Response:
+
+	with app.database.session() as conn:
+		context: dict[str, Any] = {
+			'bans': tuple(conn.execute('SELECT * FROM domain_bans ORDER BY domain ASC'))
+		}
+
+		if error:
+			context['error'] = error
+
+		if message:
+			context['message'] = message
+
+	data = app.template.render('page/admin-domain_bans.haml', request, **context)
+	return Response.new(data, ctype = 'html')
+
+
+@register_route(HttpMethod.GET, '/admin/software_bans')
+async def handle_admin_software_bans(
+									app: Application,
+									request: Request,
+									error: str | None = None,
+									message: str | None = None) -> Response:
+
+	with app.database.session() as conn:
+		context: dict[str, Any] = {
+			'bans': tuple(conn.execute('SELECT * FROM software_bans ORDER BY name ASC'))
+		}
+
+		if error:
+			context['error'] = error
+
+		if message:
+			context['message'] = message
+
+	data = app.template.render('page/admin-software_bans.haml', request, **context)
+	return Response.new(data, ctype = 'html')
+
+
+@register_route(HttpMethod.GET, '/admin/users')
+async def handle_admin_users(
+							app: Application,
+							request: Request,
+							error: str | None = None,
+							message: str | None = None) -> Response:
+
+	with app.database.session() as conn:
+		context: dict[str, Any] = {
+			'users': tuple(conn.execute('SELECT * FROM users ORDER BY username ASC'))
+		}
+
+		if error:
+			context['error'] = error
+
+		if message:
+			context['message'] = message
+
+	data = app.template.render('page/admin-users.haml', request, **context)
+	return Response.new(data, ctype = 'html')
+
+
+@register_route(HttpMethod.GET, '/admin/config')
+async def handle_admin_config(
+							app: Application,
+							request: Request,
+							message: str | None = None) -> Response:
+
+	context: dict[str, Any] = {
+		'themes': tuple(THEMES.keys()),
+		'levels': tuple(level.name for level in LogLevel),
+		'message': message,
+		'desc': {
+			"name": "Name of the relay to be displayed in the header of the pages and in " +
+				"the actor endpoint.", # noqa: E131
+			"note": "Description of the relay to be displayed on the front page and as the " +
+				"bio in the actor endpoint.",
+			"theme": "Color theme to use on the web pages.",
+			"log_level": "Minimum level of logging messages to print to the console.",
+			"whitelist_enabled": "Only allow instances in the whitelist to be able to follow.",
+			"approval_required": "Require instances not on the whitelist to be approved by " +
+				"and admin. The `whitelist-enabled` setting is ignored when this is enabled."
+		}
+	}
+
+	data = app.template.render('page/admin-config.haml', request, **context)
+	return Response.new(data, ctype = 'html')
+
+
+@register_route(HttpMethod.GET, '/manifest.json')
+async def handle_manifest(app: Application, request: Request) -> Response:
+	with app.database.session(False) as conn:
+		config = conn.get_config_all()
+		theme = THEMES[config.theme]
+
+	data = {
+		'background_color': theme['background'],
+		'categories': ['activitypub'],
+		'description': 'Message relay for the ActivityPub network',
+		'display': 'standalone',
+		'name': config['name'],
+		'orientation': 'portrait',
+		'scope': f"https://{app.config.domain}/",
+		'short_name': 'ActivityRelay',
+		'start_url': f"https://{app.config.domain}/",
+		'theme_color': theme['primary']
+	}
+
+	return Response.new(data, ctype = 'webmanifest')
+
+
+@register_route(HttpMethod.GET, '/theme/{theme}.css') # type: ignore[arg-type]
+async def handle_theme(app: Application, request: Request, theme: str) -> Response:
+	try:
+		context: dict[str, Any] = {
+			'theme': THEMES[theme]
+		}
+
+	except KeyError:
+		return Response.new('Invalid theme', 404)
+
+	data = app.template.render('variables.css', request, **context)
+	return Response.new(data, ctype = 'css')

@@ -29,7 +29,7 @@ from .database.schema import Instance
 from .http_client import HttpClient
 from .misc import JSON_PATHS, TOKEN_PATHS, Message, Response
 from .template import Template
-from .views import VIEWS
+from .views import ROUTES, VIEWS
 from .views.api import handle_api_path
 from .views.frontend import handle_frontend_path
 from .workers import PushWorkers
@@ -86,6 +86,9 @@ class Application(web.Application):
 
 		for path, view in VIEWS:
 			self.router.add_view(path, view)
+
+		for method, path, handler in ROUTES:
+			self.router.add_route(method, path, handler)
 
 		setup_swagger(
 			self,

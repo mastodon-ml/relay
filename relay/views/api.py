@@ -6,7 +6,7 @@ from blib import HttpError, convert_to_boolean
 from collections.abc import Awaitable, Callable, Sequence
 from urllib.parse import urlparse
 
-from .base import View, register_route
+from .base import View, register_view
 
 from .. import __version__
 from ..database import ConfigData, schema
@@ -57,8 +57,8 @@ async def handle_api_path(
 	return response
 
 
-@register_route('/oauth/authorize')
-@register_route('/api/oauth/authorize')
+@register_view('/oauth/authorize')
+@register_view('/api/oauth/authorize')
 class OauthAuthorize(View):
 	async def get(self, request: Request) -> Response:
 		data = await self.get_api_data(['response_type', 'client_id', 'redirect_uri'], [])
@@ -122,8 +122,8 @@ class OauthAuthorize(View):
 			return Response.new_redir('/')
 
 
-@register_route('/oauth/token')
-@register_route('/api/oauth/token')
+@register_view('/oauth/token')
+@register_view('/api/oauth/token')
 class OauthToken(View):
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(
@@ -148,8 +148,8 @@ class OauthToken(View):
 		return Response.new(app.get_api_data(True), ctype = 'json')
 
 
-@register_route('/oauth/revoke')
-@register_route('/api/oauth/revoke')
+@register_view('/oauth/revoke')
+@register_view('/api/oauth/revoke')
 class OauthRevoke(View):
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['client_id', 'client_secret', 'token'], [])
@@ -167,7 +167,7 @@ class OauthRevoke(View):
 			return Response.new({'msg': 'Token deleted'}, ctype = 'json')
 
 
-@register_route('/api/v1/app')
+@register_view('/api/v1/app')
 class App(View):
 	async def get(self, request: Request) -> Response:
 		return Response.new(request['token'].get_api_data(), ctype = 'json')
@@ -196,7 +196,7 @@ class App(View):
 			return Response.new({'msg': 'Token deleted'}, ctype = 'json')
 
 
-@register_route('/api/v1/login')
+@register_view('/api/v1/login')
 class Login(View):
 	async def post(self, request: Request) -> Response:
 		data = await self.get_api_data(['username', 'password'], [])
@@ -228,7 +228,7 @@ class Login(View):
 		return resp
 
 
-@register_route('/api/v1/relay')
+@register_view('/api/v1/relay')
 class RelayInfo(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
@@ -250,7 +250,7 @@ class RelayInfo(View):
 		return Response.new(data, ctype = 'json')
 
 
-@register_route('/api/v1/config')
+@register_view('/api/v1/config')
 class Config(View):
 	async def get(self, request: Request) -> Response:
 		data = {}
@@ -299,7 +299,7 @@ class Config(View):
 		return Response.new({'message': 'Updated config'}, ctype = 'json')
 
 
-@register_route('/api/v1/instance')
+@register_view('/api/v1/instance')
 class Inbox(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
@@ -378,7 +378,7 @@ class Inbox(View):
 		return Response.new({'message': 'Deleted instance'}, ctype = 'json')
 
 
-@register_route('/api/v1/request')
+@register_view('/api/v1/request')
 class RequestView(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
@@ -422,7 +422,7 @@ class RequestView(View):
 		return Response.new(resp_message, ctype = 'json')
 
 
-@register_route('/api/v1/domain_ban')
+@register_view('/api/v1/domain_ban')
 class DomainBan(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
@@ -482,7 +482,7 @@ class DomainBan(View):
 		return Response.new({'message': 'Unbanned domain'}, ctype = 'json')
 
 
-@register_route('/api/v1/software_ban')
+@register_view('/api/v1/software_ban')
 class SoftwareBan(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
@@ -538,7 +538,7 @@ class SoftwareBan(View):
 		return Response.new({'message': 'Unbanned software'}, ctype = 'json')
 
 
-@register_route('/api/v1/user')
+@register_view('/api/v1/user')
 class User(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
@@ -594,7 +594,7 @@ class User(View):
 		return Response.new({'message': 'Deleted user'}, ctype = 'json')
 
 
-@register_route('/api/v1/whitelist')
+@register_view('/api/v1/whitelist')
 class Whitelist(View):
 	async def get(self, request: Request) -> Response:
 		with self.database.session() as conn:
