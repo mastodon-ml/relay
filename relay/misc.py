@@ -8,7 +8,7 @@ import platform
 from aiohttp.web import Request, Response as AiohttpResponse
 from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Any, TypedDict, TypeVar, overload
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -83,6 +83,40 @@ def get_app() -> Application:
 		raise ValueError('No default application set')
 
 	return Application.DEFAULT
+
+
+@overload
+def idna_to_utf(string: str) -> str:
+	...
+
+
+@overload
+def idna_to_utf(string: None) -> None:
+	...
+
+
+def idna_to_utf(string: str | None) -> str | None:
+	if string is None:
+		return None
+
+	return string.encode("idna").decode("utf-8")
+
+
+@overload
+def utf_to_idna(string: str) -> str:
+	...
+
+
+@overload
+def utf_to_idna(string: None) -> None:
+	...
+
+
+def utf_to_idna(string: str | None) -> str | None:
+	if string is None:
+		return None
+
+	return string.encode("utf-8").decode("idna")
 
 
 class JsonEncoder(json.JSONEncoder):

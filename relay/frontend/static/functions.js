@@ -1,3 +1,7 @@
+let a = `; ${document.cookie}`.match(";\\s*user-token=([^;]+)");
+const token = a ? a[1] : null;
+
+
 // toast notifications
 
 const notifications = document.querySelector("#notifications")
@@ -60,6 +64,7 @@ for (const elem of document.querySelectorAll("#menu-open div")) {
 
 // misc
 
+
 function get_date_string(date) {
 	var year = date.getUTCFullYear().toString();
 	var month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
@@ -94,9 +99,13 @@ async function request(method, path, body = null) {
 		"Accept": "application/json"
 	}
 
+	if (token !== null) {
+		headers["Authorization"] = `Bearer ${token}`;
+	}
+
 	if (body !== null) {
-		headers["Content-Type"] = "application/json"
-		body = JSON.stringify(body)
+		headers["Content-Type"] = "application/json";
+		body = JSON.stringify(body);
 	}
 
 	const response = await fetch("/api/" + path, {

@@ -111,22 +111,25 @@ class Connection(SqlConnection):
 
 	def put_config(self, key: str, value: Any) -> Any:
 		field = ConfigData.FIELD(key)
-		key = field.name.replace('_', '-')
 
-		if key == 'private-key':
-			self.app.signer = value
+		match field.name:
+			case "private_key":
+				self.app.signer = value
 
-		elif key == 'log-level':
-			value = logging.LogLevel.parse(value)
-			logging.set_level(value)
-			self.app['workers'].set_log_level(value)
+			case "log_level":
+				value = logging.LogLevel.parse(value)
+				logging.set_level(value)
+				self.app['workers'].set_log_level(value)
 
-		elif key in {'approval-required', 'whitelist-enabled'}:
-			value = convert_to_boolean(value)
+			case "approval_required":
+				value = convert_to_boolean(value)
 
-		elif key == 'theme':
-			if value not in THEMES:
-				raise ValueError(f'"{value}" is not a valid theme')
+			case "whitelist_enabled":
+				value = convert_to_boolean(value)
+
+			case "theme":
+				if value not in THEMES:
+					raise ValueError(f'"{value}" is not a valid theme')
 
 		data = ConfigData()
 		data.set(key, value)

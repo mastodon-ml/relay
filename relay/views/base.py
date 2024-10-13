@@ -1,45 +1,40 @@
 from __future__ import annotations
 
-from aiohttp.abc import AbstractView
-from aiohttp.hdrs import METH_ALL as METHODS
-from aiohttp.web import Request
+from aiohttp.web import Request, StreamResponse
 from blib import HttpError, HttpMethod
-from bsql import Database
-from collections.abc import Awaitable, Callable, Generator, Sequence, Mapping
-from functools import cached_property
+from collections.abc import Awaitable, Callable, Mapping
 from json.decoder import JSONDecodeError
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
-from ..cache import Cache
-from ..config import Config
-from ..database import Connection
-from ..http_client import HttpClient
+from ..api_objects import ApiObject
 from ..misc import Response, get_app
 
 if TYPE_CHECKING:
-	from typing import Self
 	from ..application import Application
-	from ..template import Template
 
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
+
+	ApiRouteHandler = Callable[..., Awaitable[ApiObject | list[Any] | StreamResponse]]
 	RouteHandler = Callable[[Application, Request], Awaitable[Response]]
 	HandlerCallback = Callable[[Request], Awaitable[Response]]
 
 
-VIEWS: list[tuple[str, type[View]]] = []
 ROUTES: list[tuple[str, str, HandlerCallback]] = []
+
+DEFAULT_REDIRECT: str = 'urn:ietf:wg:oauth:2.0:oob'
+ALLOWED_HEADERS: set[str] = {
+	'accept',
+	'authorization',
+	'content-type'
+}
 
 
 def convert_data(data: Mapping[str, Any]) -> dict[str, str]:
 	return {key: str(value) for key, value in data.items()}
-
-
-def register_view(*paths: str) -> Callable[[type[View]], type[View]]:
-	def wrapper(view: type[View]) -> type[View]:
-		for path in paths:
-			VIEWS.append((path, view))
-
-		return view
-	return wrapper
 
 
 def register_route(
@@ -56,108 +51,107 @@ def register_route(
 	return wrapper
 
 
-class View(AbstractView):
-	def __await__(self) -> Generator[Any, None, Response]:
-		if self.request.method not in METHODS:
-			raise HttpError(405, f'"{self.request.method}" method not allowed')
+class Route:
+	handler: ApiRouteHandler
 
-		if not (handler := self.handlers.get(self.request.method)):
-			raise HttpError(405, f'"{self.request.method}" method not allowed')
+	def __init__(self,
+				method: HttpMethod,
+				path: str,
+				category: str,
+				require_token: bool) -> None:
 
-		return self._run_handler(handler).__await__()
+		self.method: HttpMethod = HttpMethod.parse(method)
+		self.path: str = path
+		self.category: str = category
+		self.require_token: bool = require_token
 
-
-	@classmethod
-	async def run(cls: type[Self], method: str, request: Request, **kwargs: Any) -> Response:
-		view = cls(request)
-		return await view.handlers[method](request, **kwargs)
-
-
-	async def _run_handler(self, handler: HandlerCallback, **kwargs: Any) -> Response:
-		return await handler(self.request, **self.request.match_info, **kwargs)
+		ROUTES.append((self.method, self.path, self)) # type: ignore[arg-type]
 
 
-	async def options(self, request: Request) -> Response:
-		return Response.new()
+	@overload
+	def __call__(self, obj: Request) -> Awaitable[StreamResponse]:
+		...
 
 
-	@cached_property
-	def allowed_methods(self) -> Sequence[str]:
-		return tuple(self.handlers.keys())
+	@overload
+	def __call__(self, obj: ApiRouteHandler) -> Self:
+		...
 
 
-	@cached_property
-	def handlers(self) -> dict[str, HandlerCallback]:
-		data = {}
+	def __call__(self, obj: Request | ApiRouteHandler) -> Self | Awaitable[StreamResponse]:
+		if isinstance(obj, Request):
+			return self.handle_request(obj)
 
-		for method in METHODS:
+		self.handler = obj
+		return self
+
+
+	async def handle_request(self, request: Request) -> StreamResponse:
+		request["application"] = None
+
+		if request.method != "OPTIONS" and self.require_token:
+			if (auth := request.headers.getone("Authorization", None)) is None:
+				raise HttpError(401, 'Missing token')
+
 			try:
-				data[method] = getattr(self, method.lower())
+				authtype, code = auth.split(" ", 1)
 
-			except AttributeError:
-				continue
+			except IndexError:
+				raise HttpError(401, "Invalid authorization heder format")
 
-		return data
+			if authtype != "Bearer":
+				raise HttpError(401, f"Invalid authorization type: {authtype}")
 
+			if not code:
+				raise HttpError(401, "Missing token")
 
-	@property
-	def app(self) -> Application:
-		return get_app()
+			with get_app().database.session(False) as s:
+				if (application := s.get_app_by_token(code)) is None:
+					raise HttpError(401, "Invalid token")
 
+				if application.auth_code is not None:
+					raise HttpError(401, "Invalid token")
 
-	@property
-	def cache(self) -> Cache:
-		return self.app.cache
+			request["application"] = application
 
+		if request.content_type in {'application/x-www-form-urlencoded', 'multipart/form-data'}:
+			post_data = {key: value for key, value in (await request.post()).items()}
 
-	@property
-	def client(self) -> HttpClient:
-		return self.app.client
-
-
-	@property
-	def config(self) -> Config:
-		return self.app.config
-
-
-	@property
-	def database(self) -> Database[Connection]:
-		return self.app.database
-
-
-	@property
-	def template(self) -> Template:
-		return self.app['template'] # type: ignore[no-any-return]
-
-
-	async def get_api_data(self,
-							required: list[str],
-							optional: list[str]) -> dict[str, str]:
-
-		if self.request.content_type in {'application/x-www-form-urlencoded', 'multipart/form-data'}:
-			post_data = convert_data(await self.request.post())
-			# post_data = {key: value for key, value in parse_qsl(await self.request.text())}
-
-		elif self.request.content_type == 'application/json':
+		elif request.content_type == 'application/json':
 			try:
-				post_data = convert_data(await self.request.json())
+				post_data = await request.json()
 
 			except JSONDecodeError:
 				raise HttpError(400, 'Invalid JSON data')
 
 		else:
-			post_data = convert_data(self.request.query)
-
-		data = {}
+			post_data = {key: str(value) for key, value in request.query.items()}
 
 		try:
-			for key in required:
-				data[key] = post_data[key]
+			response = await self.handler(get_app(), request, **post_data)
 
-		except KeyError as e:
-			raise HttpError(400, f'Missing {str(e)} pararmeter') from None
+		except HttpError as error:
+			return Response.new({'error': error.message}, error.status, ctype = "json")
 
-		for key in optional:
-			data[key] = post_data.get(key) # type: ignore[assignment]
+		headers = {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Headers": ", ".join(ALLOWED_HEADERS)
+		}
 
-		return data
+		if isinstance(response, StreamResponse):
+			response.headers.update(headers)
+			return response
+
+		if isinstance(response, ApiObject):
+			return Response.new(response.to_json(), headers = headers, ctype = "json")
+
+		if isinstance(response, list):
+			data = []
+
+			for item in response:
+				if isinstance(item, ApiObject):
+					data.append(item.to_dict())
+
+			response = data
+
+		return Response.new(response, headers = headers, ctype = "json")

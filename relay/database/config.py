@@ -116,8 +116,10 @@ class ConfigData:
 
 	@classmethod
 	def FIELD(cls: type[Self], key: str) -> Field[str | int | bool]:
+		parsed_key = key.replace('-', '_')
+
 		for field in fields(cls):
-			if field.name == key.replace('-', '_'):
+			if field.name == parsed_key:
 				return field
 
 		raise KeyError(key)
