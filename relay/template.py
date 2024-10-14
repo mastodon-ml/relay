@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class Template(Environment):
-	_render_markdown: Callable[[str], str]
+	render_markdown: Callable[[str], str]
 
 
 	def __init__(self, app: Application):
@@ -58,10 +58,6 @@ class Template(Environment):
 		return self.get_template(path).render(new_context)
 
 
-	def render_markdown(self, text: str) -> str:
-		return self._render_markdown(text)
-
-
 class MarkdownExtension(Extension):
 	tags = {'markdown'}
 	extensions = (
@@ -75,7 +71,7 @@ class MarkdownExtension(Extension):
 		Extension.__init__(self, environment)
 		self._markdown = Markdown(extensions = MarkdownExtension.extensions)
 		environment.extend(
-			_render_markdown = self._render_markdown
+			render_markdown = self._render_markdown
 		)
 
 
