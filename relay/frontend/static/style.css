@@ -405,6 +405,10 @@ textarea {
 	padding: 5px;
 }
 
+#content.page-api_documentation .parameter .doc {
+	margin: 5px 0px;
+}
+
 #content.page-api_documentation .parameter:not(:first-child) {
 	margin-top: 5px;
 	margin-bottom: 0px;
