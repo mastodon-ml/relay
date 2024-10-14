@@ -7,7 +7,7 @@
 			%a.endpoint(id="{{method.name.replace('handle_', '')}}" href="#{{method.name.replace('handle_', '')}}")
 				{{method.method.upper()}} {{method.path}}
 
-			%span.description -> =method.docs
+			.description -> -markdown -> =method.docs
 
 			-if method.parameters
 				.parameters
@@ -19,5 +19,5 @@
 								-if not param.has_default
 									%span.required << *required
 
-							.doc -> =param.docs
+							.doc -> -markdown -> =param.docs
 
