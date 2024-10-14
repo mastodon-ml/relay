@@ -24,7 +24,9 @@ async def handle_authorize_get(
 			client_id: str,
 			redirect_uri: str) -> Response:
 	"""
-		Authorize an application. Redirects to the application's redirect URI if accepted.
+		Authorize an application.
+
+		Redirects to the application's redirect URI if accepted.
 
 		:param response_type: What to respond with. Should always be set to ``code``.
 		:param client_id: Application identifier

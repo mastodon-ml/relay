@@ -53,7 +53,7 @@ def parse_docstring(docstring: str) -> tuple[str, dict[str, str]]:
 		body = cast(str, ds.short_description)
 
 	else:
-		body = "\n".join([ds.short_description, ds.long_description]) # type: ignore[list-item]
+		body = "\n\n".join([ds.short_description, ds.long_description]) # type: ignore[list-item]
 
 	return body, params
 
