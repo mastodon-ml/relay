@@ -1,47 +1,18 @@
 from __future__ import annotations
 
-from aiohttp.web import Request, middleware
+from aiohttp.web import Request
 from blib import HttpMethod
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
-from .base import register_route
+from .base import METHODS, register_route
 
 from ..database import THEMES
 from ..logger import LogLevel
-from ..misc import TOKEN_PATHS, Response
+from ..misc import Response
 
 if TYPE_CHECKING:
 	from ..application import Application
-
-
-@middleware
-async def handle_frontend_path(
-							request: Request,
-							handler: Callable[[Request], Awaitable[Response]]) -> Response:
-
-	if request['user'] is not None and request.path == '/login':
-		return Response.new_redir('/')
-
-	if request.path.startswith(TOKEN_PATHS[:2]) and request['user'] is None:
-		if request.path == '/logout':
-			return Response.new_redir('/')
-
-		response = Response.new_redir(f'/login?redir={request.path}')
-
-		if request['token'] is not None:
-			response.del_cookie('user-token')
-
-		return response
-
-	response = await handler(request)
-
-	if not request.path.startswith('/api'):
-		if request['user'] is None and request['token'] is not None:
-			response.del_cookie('user-token')
-
-	return response
 
 
 @register_route(HttpMethod.GET, "/")
@@ -52,6 +23,15 @@ async def handle_home(app: Application, request: Request) -> Response:
 		}
 
 	return Response.new_template(200, "page/home.haml", request, context)
+
+
+@register_route(HttpMethod.GET, "/docs")
+async def handle_api_doc(app: Application, request: Request) -> Response:
+	context: dict[str, Any] = {
+		"methods": sorted(METHODS.values(), key = lambda x: x.category)
+	}
+
+	return Response.new_template(200, "page/docs.haml", request, context)
 
 
 @register_route(HttpMethod.GET, '/login')

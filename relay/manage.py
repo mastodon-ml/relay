@@ -19,6 +19,7 @@ from .compat import RelayConfig, RelayDatabase
 from .config import Config
 from .database import RELAY_SOFTWARE, get_database, schema
 from .misc import ACTOR_FORMATS, SOFTWARE, IS_DOCKER, Message
+from .views import ROUTES
 
 
 def check_alphanumeric(text: str) -> str:
@@ -178,6 +179,9 @@ def cli_run(ctx: click.Context, dev: bool = False) -> None:
 
 		cli_setup.callback() # type: ignore
 		return
+
+	for method, path, handler in ROUTES:
+		ctx.obj.router.add_route(method, path, handler)
 
 	ctx.obj['dev'] = dev
 	ctx.obj.run()

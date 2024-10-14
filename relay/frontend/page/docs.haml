@@ -1,0 +1,23 @@
+-extends "base.haml"
+-set page = "API Documentation"
+
+-block content
+	-for method in methods
+		.method.section
+			%a.endpoint(id="{{method.name.replace('handle_', '')}}" href="#{{method.name.replace('handle_', '')}}")
+				{{method.method.upper()}} {{method.path}}
+
+			%span.description -> =method.docs
+
+			-if method.parameters
+				.parameters
+					-for param in method.parameters
+						.parameter.section
+							.name
+								%pre << {{param.key}}: {{param.type_str}}
+
+								-if not param.has_default
+									%span.required << *required
+
+							.doc -> =param.docs
+

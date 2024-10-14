@@ -21,6 +21,7 @@ dependencies = [
 	"barkshark-lib >= 0.2.3, < 0.3.0",
 	"barkshark-sql >= 0.2.0, < 0.3.0",
 	"click == 8.1.2",
+	"docstring-parser == 0.16",
 	"hiredis == 2.3.2",
 	"idna == 3.4",
 	"jinja2-haml == 0.3.5",

@@ -9,7 +9,6 @@ import traceback
 from Crypto.Random import get_random_bytes
 from aiohttp import web
 from aiohttp.web import HTTPException, StaticResource
-from aiohttp_swagger import setup_swagger
 from aputils.signer import Signer
 from base64 import b64encode
 from blib import File, HttpError, port_check
@@ -29,8 +28,6 @@ from .database.schema import Instance
 from .http_client import HttpClient
 from .misc import JSON_PATHS, TOKEN_PATHS, Message, Response
 from .template import Template
-from .views import ROUTES
-from .views.frontend import handle_frontend_path
 from .workers import PushWorkers
 
 
@@ -81,15 +78,6 @@ class Application(web.Application):
 
 		self.cache.setup()
 		self.on_cleanup.append(handle_cleanup) # type: ignore
-
-		for method, path, handler in ROUTES:
-			self.router.add_route(method, path, handler)
-
-		setup_swagger(
-			self,
-			ui_version = 3,
-			swagger_from_file = File.from_resource('relay', 'data/swagger.yaml')
-		)
 
 
 	@property
@@ -312,7 +300,7 @@ async def handle_response_headers(
 
 	app: Application = request.app # type: ignore[assignment]
 
-	if request.path == "/" or request.path.startswith(TOKEN_PATHS):
+	if request.path in {"/", "/docs"} or request.path.startswith(TOKEN_PATHS):
 		with app.database.session() as conn:
 			tokens = (
 				request.headers.get('Authorization', '').replace('Bearer', '').strip(),
@@ -367,6 +355,34 @@ async def handle_response_headers(
 		resp.headers['Cache-Control'] = 'no-store'
 
 	return resp
+
+
+@web.middleware
+async def handle_frontend_path(
+							request: web.Request,
+							handler: Callable[[web.Request], Awaitable[Response]]) -> Response:
+
+	if request['user'] is not None and request.path == '/login':
+		return Response.new_redir('/')
+
+	if request.path.startswith(TOKEN_PATHS[:2]) and request['user'] is None:
+		if request.path == '/logout':
+			return Response.new_redir('/')
+
+		response = Response.new_redir(f'/login?redir={request.path}')
+
+		if request['token'] is not None:
+			response.del_cookie('user-token')
+
+		return response
+
+	response = await handler(request)
+
+	if not request.path.startswith('/api'):
+		if request['user'] is None and request['token'] is not None:
+			response.del_cookie('user-token')
+
+	return response
 
 
 async def handle_cleanup(app: Application) -> None:

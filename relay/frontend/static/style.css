@@ -379,6 +379,56 @@ textarea {
 	margin: var(--spacing) 0;
 }
 
+#content.page-api_documentation .method {
+	padding: 0px;
+}
+
+#content.page-api_documentation .method > * {
+	padding: 5px;
+}
+
+#content.page-api_documentation .method .endpoint {
+	background-color: #444444;
+	display: block;
+	font-weight: bold;
+}
+
+#content.page-api_documentation .method .endpoint::after {
+	content: "\F470";
+	font-family: "bootstrap-icons";
+/* 	margin-left: 5px; */
+	vertical-align: middle;
+}
+
+#content.page-api_documentation .parameter {
+	background-color: #222222;
+	padding: 5px;
+}
+
+#content.page-api_documentation .parameter:not(:first-child) {
+	margin-top: 5px;
+	margin-bottom: 0px;
+}
+
+#content.page-api_documentation .parameter:not(:last-child) {
+	margin-top: 0px;
+	margin-bottom: 5px;
+}
+
+#content.page-api_documentation .parameter .required {
+	color: #F66;
+	font-size: 0.75em;
+}
+
+#content.page-api_documentation .parameter .name pre {
+	color: #6F6;
+	display: inline-block;
+}
+
+#content.page-api_documentation .parameter .name pre, #content.page-api_documentation .parameter .name span {
+	margin: 0px;
+}
+
 
 @keyframes show_toast {
 	0% {
