@@ -7,11 +7,19 @@ name = "ActivityRelay"
 description = "Generic LitePub relay (works with all LitePub consumers and Mastodon)"
 license = {file = "LICENSE"}
 classifiers = [
-    "Environment :: Console",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12"
+	"Development Status :: 4 - Beta",
+	"Environment :: Console",
+	"Framework :: aiohttp",
+	"Framework :: AsyncIO",
+	"License :: OSI Approved :: GNU Affero General Public License v3",
+	"Programming Language :: Python",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3.13",
+	"Programming Language :: SQL",
+	"Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+	"Typing :: Typed"
 ]
 dependencies = [
 	"activitypub-utils >= 0.3.2, < 0.4",
@@ -54,19 +62,20 @@ dev = [
 [tool.setuptools]
 zip-safe = false
 packages = [
-    "relay",
-    "relay.database",
-    "relay.views",
+	"relay",
+	"relay.database",
+	"relay.views",
 ]
 include-package-data = true
 license-files = ["LICENSE"]
 
 [tool.setuptools.package-data]
 relay = [
-    "data/*",
-    "frontend/*",
-    "frontend/page/*",
-    "frontend/static/*"
+	"py.typed",
+	"data/*",
+	"frontend/*",
+	"frontend/page/*",
+	"frontend/static/*"
 ]
 
 [tool.setuptools.dynamic]
