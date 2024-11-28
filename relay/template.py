@@ -34,8 +34,8 @@ class Template(Environment):
 				MarkdownExtension
 			],
 			loader = FileSystemLoader([
-				File.from_resource('relay', 'frontend'),
-				app.config.path.parent.joinpath('template')
+				File.from_resource("relay", "frontend"),
+				app.config.path.parent.joinpath("template")
 			])
 		)
 
@@ -47,10 +47,10 @@ class Template(Environment):
 			config = conn.get_config_all()
 
 		new_context = {
-			'request': request,
-			'domain': self.app.config.domain,
-			'version': __version__,
-			'config': config,
+			"request": request,
+			"domain": self.app.config.domain,
+			"version": __version__,
+			"config": config,
 			**(context or {})
 		}
 
@@ -58,11 +58,11 @@ class Template(Environment):
 
 
 class MarkdownExtension(Extension):
-	tags = {'markdown'}
+	tags = {"markdown"}
 	extensions = (
-		'attr_list',
-		'smarty',
-		'tables'
+		"attr_list",
+		"smarty",
+		"tables"
 	)
 
 
@@ -77,14 +77,14 @@ class MarkdownExtension(Extension):
 	def parse(self, parser: Parser) -> Node | list[Node]:
 		lineno = next(parser.stream).lineno
 		body = parser.parse_statements(
-			('name:endmarkdown',),
+			("name:endmarkdown",),
 			drop_needle = True
 		)
 
-		output = CallBlock(self.call_method('_render_markdown'), [], [], body)
+		output = CallBlock(self.call_method("_render_markdown"), [], [], body)
 		return output.set_lineno(lineno)
 
 
 	def _render_markdown(self, caller: Callable[[], str] | str) -> str:
 		text = caller if isinstance(caller, str) else caller()
-		return self._markdown.convert(textwrap.dedent(text.strip('\n')))
+		return self._markdown.convert(textwrap.dedent(text.strip("\n")))

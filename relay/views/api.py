@@ -343,7 +343,7 @@ async def handle_instance_add(
 
 	with app.database.session(False) as s:
 		if s.get_inbox(domain) is not None:
-			raise HttpError(404, 'Instance already in database')
+			raise HttpError(404, "Instance already in database")
 
 		if inbox is None:
 			try:
@@ -396,7 +396,7 @@ async def handle_instance_update(
 
 	with app.database.session(False) as s:
 		if (instance := s.get_inbox(domain)) is None:
-			raise HttpError(404, 'Instance with domain not found')
+			raise HttpError(404, "Instance with domain not found")
 
 		row = s.put_inbox(
 			instance.domain,

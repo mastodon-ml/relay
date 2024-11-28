@@ -12,11 +12,11 @@ if typing.TYPE_CHECKING:
 
 
 def actor_type_check(actor: Message, software: str | None) -> bool:
-	if actor.type == 'Application':
+	if actor.type == "Application":
 		return True
 
 	# akkoma (< 3.6.0) and pleroma use Person for the actor type
-	if software in {'akkoma', 'pleroma'} and actor.id == f'https://{actor.domain}/relay':
+	if software in {"akkoma", "pleroma"} and actor.id == f"https://{actor.domain}/relay":
 		return True
 
 	return False
@@ -24,38 +24,38 @@ def actor_type_check(actor: Message, software: str | None) -> bool:
 
 async def handle_relay(app: Application, data: InboxData, conn: Connection) -> None:
 	try:
-		app.cache.get('handle-relay', data.message.object_id)
-		logging.verbose('already relayed %s', data.message.object_id)
+		app.cache.get("handle-relay", data.message.object_id)
+		logging.verbose("already relayed %s", data.message.object_id)
 		return
 
 	except KeyError:
 		pass
 
 	message = Message.new_announce(app.config.domain, data.message.object_id)
-	logging.debug('>> relay: %s', message)
+	logging.debug(">> relay: %s", message)
 
 	for instance in conn.distill_inboxes(data.message):
 		app.push_message(instance.inbox, message, instance)
 
-	app.cache.set('handle-relay', data.message.object_id, message.id, 'str')
+	app.cache.set("handle-relay", data.message.object_id, message.id, "str")
 
 
 async def handle_forward(app: Application, data: InboxData, conn: Connection) -> None:
 	try:
-		app.cache.get('handle-relay', data.message.id)
-		logging.verbose('already forwarded %s', data.message.id)
+		app.cache.get("handle-relay", data.message.id)
+		logging.verbose("already forwarded %s", data.message.id)
 		return
 
 	except KeyError:
 		pass
 
 	message = Message.new_announce(app.config.domain, data.message)
-	logging.debug('>> forward: %s', message)
+	logging.debug(">> forward: %s", message)
 
 	for instance in conn.distill_inboxes(data.message):
 		app.push_message(instance.inbox, data.message, instance)
 
-	app.cache.set('handle-relay', data.message.id, message.id, 'str')
+	app.cache.set("handle-relay", data.message.id, message.id, "str")
 
 
 async def handle_follow(app: Application, data: InboxData, conn: Connection) -> None:
@@ -65,7 +65,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 
 	# reject if software used by actor is banned
 	if software and conn.get_software_ban(software):
-		logging.verbose('Rejected banned actor: %s', data.actor.id)
+		logging.verbose("Rejected banned actor: %s", data.actor.id)
 
 		app.push_message(
 			data.actor.shared_inbox,
@@ -79,7 +79,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 		)
 
 		logging.verbose(
-			'Rejected follow from actor for using specific software: actor=%s, software=%s',
+			"Rejected follow from actor for using specific software: actor=%s, software=%s",
 			data.actor.id,
 			software
 		)
@@ -88,7 +88,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 
 	# reject if the actor is not an instance actor
 	if actor_type_check(data.actor, software):
-		logging.verbose('Non-application actor tried to follow: %s', data.actor.id)
+		logging.verbose("Non-application actor tried to follow: %s", data.actor.id)
 
 		app.push_message(
 			data.actor.shared_inbox,
@@ -106,7 +106,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 	if not conn.get_domain_whitelist(data.actor.domain):
 		# add request if approval-required is enabled
 		if config.approval_required:
-			logging.verbose('New follow request fromm actor: %s', data.actor.id)
+			logging.verbose("New follow request fromm actor: %s", data.actor.id)
 
 			with conn.transaction():
 				data.instance = conn.put_inbox(
@@ -120,9 +120,9 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 
 			return
 
-		# reject if the actor isn't whitelisted while the whiltelist is enabled
+		# reject if the actor isn"t whitelisted while the whiltelist is enabled
 		if config.whitelist_enabled:
-			logging.verbose('Rejected actor for not being in the whitelist: %s', data.actor.id)
+			logging.verbose("Rejected actor for not being in the whitelist: %s", data.actor.id)
 
 			app.push_message(
 				data.actor.shared_inbox,
@@ -160,7 +160,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 
 	# Are Akkoma and Pleroma the only two that expect a follow back?
 	# Ignoring only Mastodon for now
-	if software != 'mastodon':
+	if software != "mastodon":
 		app.push_message(
 			data.actor.shared_inbox,
 			Message.new_follow(
@@ -172,8 +172,8 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 
 
 async def handle_undo(app: Application, data: InboxData, conn: Connection) -> None:
-	if data.message.object['type'] != 'Follow':
-		# forwarding deletes does not work, so don't bother
+	if data.message.object["type"] != "Follow":
+		# forwarding deletes does not work, so don"t bother
 		# await handle_forward(app, data, conn)
 		return
 
@@ -187,7 +187,7 @@ async def handle_undo(app: Application, data: InboxData, conn: Connection) -> No
 	with conn.transaction():
 		if not conn.del_inbox(data.actor.id):
 			logging.verbose(
-				'Failed to delete "%s" with follow ID "%s"',
+				"Failed to delete \"%s\" with follow ID \"%s\"",
 				data.actor.id,
 				data.message.object_id
 			)
@@ -204,19 +204,19 @@ async def handle_undo(app: Application, data: InboxData, conn: Connection) -> No
 
 
 processors = {
-	'Announce': handle_relay,
-	'Create': handle_relay,
-	'Delete': handle_forward,
-	'Follow': handle_follow,
-	'Undo': handle_undo,
-	'Update': handle_forward,
+	"Announce": handle_relay,
+	"Create": handle_relay,
+	"Delete": handle_forward,
+	"Follow": handle_follow,
+	"Undo": handle_undo,
+	"Update": handle_forward,
 }
 
 
 async def run_processor(data: InboxData) -> None:
 	if data.message.type not in processors:
 		logging.verbose(
-			'Message type "%s" from actor cannot be handled: %s',
+			"Message type \"%s\" from actor cannot be handled: %s",
 			data.message.type,
 			data.actor.id
 		)
@@ -242,5 +242,5 @@ async def run_processor(data: InboxData) -> None:
 						actor = data.actor.id
 					)
 
-		logging.verbose('New "%s" from actor: %s', data.message.type, data.actor.id)
+		logging.verbose("New \"%s\" from actor: %s", data.message.type, data.actor.id)
 		await processors[data.message.type](app, data, conn)

@@ -31,11 +31,11 @@ if TYPE_CHECKING:
 METHODS: dict[str, Method] = {}
 ROUTES: list[tuple[str, str, HandlerCallback]] = []
 
-DEFAULT_REDIRECT: str = 'urn:ietf:wg:oauth:2.0:oob'
+DEFAULT_REDIRECT: str = "urn:ietf:wg:oauth:2.0:oob"
 ALLOWED_HEADERS: set[str] = {
-	'accept',
-	'authorization',
-	'content-type'
+	"accept",
+	"authorization",
+	"content-type"
 }
 
 
@@ -100,14 +100,14 @@ class Method:
 			return_type = get_origin(return_type)
 
 		if not issubclass(return_type, (Response, ApiObject, list)):
-			raise ValueError(f"Invalid return type '{return_type.__name__}' for {func.__name__}")
+			raise ValueError(f"Invalid return type \"{return_type.__name__}\" for {func.__name__}")
 
 		args = {key: value for key, value in inspect.signature(func).parameters.items()}
 		docstring, paramdocs = parse_docstring(func.__doc__ or "")
 		params = []
 
 		if func.__doc__ is None:
-			logging.warning(f"Missing docstring for '{func.__name__}'")
+			logging.warning(f"Missing docstring for \"{func.__name__}\"")
 
 		for key, value in args.items():
 			types: list[type[Any]] = []
@@ -134,7 +134,7 @@ class Method:
 			))
 
 			if not paramdocs.get(key):
-				logging.warning(f"Missing docs for '{key}' parameter in '{func.__name__}'")
+				logging.warning(f"Missing docs for \"{key}\" parameter in \"{func.__name__}\"")
 
 		rtype = annotations.get("return") or type(None)
 		return cls(func.__name__, category, docstring, method, path, rtype, tuple(params))
@@ -222,7 +222,7 @@ class Route:
 
 		if request.method != "OPTIONS" and self.require_token:
 			if (auth := request.headers.getone("Authorization", None)) is None:
-				raise HttpError(401, 'Missing token')
+				raise HttpError(401, "Missing token")
 
 			try:
 				authtype, code = auth.split(" ", 1)
@@ -245,15 +245,15 @@ class Route:
 
 			request["application"] = application
 
-		if request.content_type in {'application/x-www-form-urlencoded', 'multipart/form-data'}:
+		if request.content_type in {"application/x-www-form-urlencoded", "multipart/form-data"}:
 			post_data = {key: value for key, value in (await request.post()).items()}
 
-		elif request.content_type == 'application/json':
+		elif request.content_type == "application/json":
 			try:
 				post_data = await request.json()
 
 			except JSONDecodeError:
-				raise HttpError(400, 'Invalid JSON data')
+				raise HttpError(400, "Invalid JSON data")
 
 		else:
 			post_data = {key: str(value) for key, value in request.query.items()}
@@ -262,7 +262,7 @@ class Route:
 			response = await self.handler(get_app(), request, **post_data)
 
 		except HttpError as error:
-			return Response.new({'error': error.message}, error.status, ctype = "json")
+			return Response.new({"error": error.message}, error.status, ctype = "json")
 
 		headers = {
 			"Access-Control-Allow-Origin": "*",

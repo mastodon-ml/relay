@@ -24,11 +24,11 @@ DeserializerCallback = Callable[[str], Any]
 
 BACKENDS: dict[str, type[Cache]] = {}
 CONVERTERS: dict[str, tuple[SerializerCallback, DeserializerCallback]] = {
-	'str': (str, str),
-	'int': (str, int),
-	'bool': (str, convert_to_boolean),
-	'json': (json.dumps, json.loads),
-	'message': (lambda x: x.to_json(), Message.parse)
+	"str": (str, str),
+	"int": (str, int),
+	"bool": (str, convert_to_boolean),
+	"json": (json.dumps, json.loads),
+	"message": (lambda x: x.to_json(), Message.parse)
 }
 
 
@@ -49,14 +49,14 @@ def register_cache(backend: type[Cache]) -> type[Cache]:
 	return backend
 
 
-def serialize_value(value: Any, value_type: str = 'str') -> str:
+def serialize_value(value: Any, value_type: str = "str") -> str:
 	if isinstance(value, str):
 		return value
 
 	return CONVERTERS[value_type][0](value)
 
 
-def deserialize_value(value: str, value_type: str = 'str') -> Any:
+def deserialize_value(value: str, value_type: str = "str") -> Any:
 	return CONVERTERS[value_type][1](value)
 
 
@@ -93,7 +93,7 @@ class Item:
 
 
 class Cache(ABC):
-	name: str = 'null'
+	name: str
 
 
 	def __init__(self, app: Application):
@@ -116,7 +116,7 @@ class Cache(ABC):
 
 
 	@abstractmethod
-	def set(self, namespace: str, key: str, value: Any, value_type: str = 'key') -> Item:
+	def set(self, namespace: str, key: str, value: Any, value_type: str = "key") -> Item:
 		...
 
 
@@ -160,7 +160,7 @@ class Cache(ABC):
 
 @register_cache
 class SqlCache(Cache):
-	name: str = 'database'
+	name: str = "database"
 
 
 	def __init__(self, app: Application):
@@ -173,16 +173,16 @@ class SqlCache(Cache):
 			raise RuntimeError("Database has not been setup")
 
 		params = {
-			'namespace': namespace,
-			'key': key
+			"namespace": namespace,
+			"key": key
 		}
 
 		with self._db.session(False) as conn:
-			with conn.run('get-cache-item', params) as cur:
+			with conn.run("get-cache-item", params) as cur:
 				if not (row := cur.one(Row)):
-					raise KeyError(f'{namespace}:{key}')
+					raise KeyError(f"{namespace}:{key}")
 
-				row.pop('id', None)
+				row.pop("id", None)
 				return Item.from_data(*tuple(row.values()))
 
 
@@ -191,8 +191,8 @@ class SqlCache(Cache):
 			raise RuntimeError("Database has not been setup")
 
 		with self._db.session(False) as conn:
-			for row in conn.run('get-cache-keys', {'namespace': namespace}):
-				yield row['key']
+			for row in conn.run("get-cache-keys", {"namespace": namespace}):
+				yield row["key"]
 
 
 	def get_namespaces(self) -> Iterator[str]:
@@ -200,28 +200,28 @@ class SqlCache(Cache):
 			raise RuntimeError("Database has not been setup")
 
 		with self._db.session(False) as conn:
-			for row in conn.run('get-cache-namespaces', None):
-				yield row['namespace']
+			for row in conn.run("get-cache-namespaces", None):
+				yield row["namespace"]
 
 
-	def set(self, namespace: str, key: str, value: Any, value_type: str = 'str') -> Item:
+	def set(self, namespace: str, key: str, value: Any, value_type: str = "str") -> Item:
 		if self._db is None:
 			raise RuntimeError("Database has not been setup")
 
 		params = {
-			'namespace': namespace,
-			'key': key,
-			'value': serialize_value(value, value_type),
-			'type': value_type,
-			'date': Date.new_utc()
+			"namespace": namespace,
+			"key": key,
+			"value": serialize_value(value, value_type),
+			"type": value_type,
+			"date": Date.new_utc()
 		}
 
 		with self._db.session(True) as conn:
-			with conn.run('set-cache-item', params) as cur:
+			with conn.run("set-cache-item", params) as cur:
 				if (row := cur.one(Row)) is None:
 					raise RuntimeError("Cache item not set")
 
-				row.pop('id', None)
+				row.pop("id", None)
 				return Item.from_data(*tuple(row.values()))
 
 
@@ -230,12 +230,12 @@ class SqlCache(Cache):
 			raise RuntimeError("Database has not been setup")
 
 		params = {
-			'namespace': namespace,
-			'key': key
+			"namespace": namespace,
+			"key": key
 		}
 
 		with self._db.session(True) as conn:
-			with conn.run('del-cache-item', params):
+			with conn.run("del-cache-item", params):
 				pass
 
 
@@ -267,7 +267,7 @@ class SqlCache(Cache):
 		self._db.connect()
 
 		with self._db.session(True) as conn:
-			with conn.run(f'create-cache-table-{self._db.backend_type.value}', None):
+			with conn.run(f"create-cache-table-{self._db.backend_type.value}", None):
 				pass
 
 
@@ -281,7 +281,7 @@ class SqlCache(Cache):
 
 @register_cache
 class RedisCache(Cache):
-	name: str = 'redis'
+	name: str = "redis"
 
 
 	def __init__(self, app: Application):
@@ -295,7 +295,7 @@ class RedisCache(Cache):
 
 
 	def get_key_name(self, namespace: str, key: str) -> str:
-		return f'{self.prefix}:{namespace}:{key}'
+		return f"{self.prefix}:{namespace}:{key}"
 
 
 	def get(self, namespace: str, key: str) -> Item:
@@ -305,9 +305,9 @@ class RedisCache(Cache):
 		key_name = self.get_key_name(namespace, key)
 
 		if not (raw_value := self._rd.get(key_name)):
-			raise KeyError(f'{namespace}:{key}')
+			raise KeyError(f"{namespace}:{key}")
 
-		value_type, updated, value = raw_value.split(':', 2) # type: ignore[union-attr]
+		value_type, updated, value = raw_value.split(":", 2) # type: ignore[union-attr]
 
 		return Item.from_data(
 			namespace,
@@ -322,8 +322,8 @@ class RedisCache(Cache):
 		if self._rd is None:
 			raise ConnectionError("Not connected")
 
-		for key in self._rd.scan_iter(self.get_key_name(namespace, '*')):
-			*_, key_name = key.split(':', 2)
+		for key in self._rd.scan_iter(self.get_key_name(namespace, "*")):
+			*_, key_name = key.split(":", 2)
 			yield key_name
 
 
@@ -333,15 +333,15 @@ class RedisCache(Cache):
 
 		namespaces = []
 
-		for key in self._rd.scan_iter(f'{self.prefix}:*'):
-			_, namespace, _ = key.split(':', 2)
+		for key in self._rd.scan_iter(f"{self.prefix}:*"):
+			_, namespace, _ = key.split(":", 2)
 
 			if namespace not in namespaces:
 				namespaces.append(namespace)
 				yield namespace
 
 
-	def set(self, namespace: str, key: str, value: Any, value_type: str = 'key') -> Item:
+	def set(self, namespace: str, key: str, value: Any, value_type: str = "key") -> Item:
 		if self._rd is None:
 			raise ConnectionError("Not connected")
 
@@ -350,7 +350,7 @@ class RedisCache(Cache):
 
 		self._rd.set(
 			self.get_key_name(namespace, key),
-			f'{value_type}:{date}:{value}'
+			f"{value_type}:{date}:{value}"
 		)
 
 		return self.get(namespace, key)
@@ -369,8 +369,8 @@ class RedisCache(Cache):
 
 		limit = Date.new_utc() - timedelta(days = days)
 
-		for full_key in self._rd.scan_iter(f'{self.prefix}:*'):
-			_, namespace, key = full_key.split(':', 2)
+		for full_key in self._rd.scan_iter(f"{self.prefix}:*"):
+			_, namespace, key = full_key.split(":", 2)
 			item = self.get(namespace, key)
 
 			if item.updated < limit:
@@ -389,11 +389,11 @@ class RedisCache(Cache):
 			return
 
 		options: RedisConnectType = {
-			'client_name': f'ActivityRelay_{self.app.config.domain}',
-			'decode_responses': True,
-			'username': self.app.config.rd_user,
-			'password': self.app.config.rd_pass,
-			'db': self.app.config.rd_database
+			"client_name": f"ActivityRelay_{self.app.config.domain}",
+			"decode_responses": True,
+			"username": self.app.config.rd_user,
+			"password": self.app.config.rd_pass,
+			"db": self.app.config.rd_database
 		}
 
 		if os.path.exists(self.app.config.rd_host):

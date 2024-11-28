@@ -44,61 +44,61 @@ class InboxData:
 		signer: Signer | None = None
 
 		try:
-			signature = Signature.parse(request.headers['signature'])
+			signature = Signature.parse(request.headers["signature"])
 
 		except KeyError:
-			logging.verbose('Missing signature header')
-			raise HttpError(400, 'missing signature header')
+			logging.verbose("Missing signature header")
+			raise HttpError(400, "missing signature header")
 
 		try:
 			message = await request.json(loads = Message.parse)
 
 		except Exception:
 			traceback.print_exc()
-			logging.verbose('Failed to parse message from actor: %s', signature.keyid)
-			raise HttpError(400, 'failed to parse message')
+			logging.verbose("Failed to parse message from actor: %s", signature.keyid)
+			raise HttpError(400, "failed to parse message")
 
 		if message is None:
-			logging.verbose('empty message')
-			raise HttpError(400, 'missing message')
+			logging.verbose("empty message")
+			raise HttpError(400, "missing message")
 
-		if 'actor' not in message:
-			logging.verbose('actor not in message')
-			raise HttpError(400, 'no actor in message')
+		if "actor" not in message:
+			logging.verbose("actor not in message")
+			raise HttpError(400, "no actor in message")
 
 		try:
 			actor = await app.client.get(signature.keyid, True, Message)
 
 		except HttpError as e:
-			# ld signatures aren't handled atm, so just ignore it
-			if message.type == 'Delete':
-				logging.verbose('Instance sent a delete which cannot be handled')
-				raise HttpError(202, '')
+			# ld signatures aren"t handled atm, so just ignore it
+			if message.type == "Delete":
+				logging.verbose("Instance sent a delete which cannot be handled")
+				raise HttpError(202, "")
 
-			logging.verbose('Failed to fetch actor: %s', signature.keyid)
-			logging.debug('HTTP Status %i: %s', e.status, e.message)
-			raise HttpError(400, 'failed to fetch actor')
+			logging.verbose("Failed to fetch actor: %s", signature.keyid)
+			logging.debug("HTTP Status %i: %s", e.status, e.message)
+			raise HttpError(400, "failed to fetch actor")
 
 		except ClientConnectorError as e:
-			logging.warning('Error when trying to fetch actor: %s, %s', signature.keyid, str(e))
-			raise HttpError(400, 'failed to fetch actor')
+			logging.warning("Error when trying to fetch actor: %s, %s", signature.keyid, str(e))
+			raise HttpError(400, "failed to fetch actor")
 
 		except Exception:
 			traceback.print_exc()
-			raise HttpError(500, 'unexpected error when fetching actor')
+			raise HttpError(500, "unexpected error when fetching actor")
 
 		try:
 			signer = actor.signer
 
 		except KeyError:
-			logging.verbose('Actor missing public key: %s', signature.keyid)
-			raise HttpError(400, 'actor missing public key')
+			logging.verbose("Actor missing public key: %s", signature.keyid)
+			raise HttpError(400, "actor missing public key")
 
 		try:
 			await signer.validate_request_async(request)
 
 		except SignatureFailureError as e:
-			logging.verbose('signature validation failed for "%s": %s', actor.id, e)
+			logging.verbose("signature validation failed for \"%s\": %s", actor.id, e)
 			raise HttpError(401, str(e))
 
 		return cls(signature, message, actor, signer, None)
@@ -128,30 +128,30 @@ async def handle_inbox(app: Application, request: Request) -> Response:
 
 		# reject if actor is banned
 		if conn.get_domain_ban(data.actor.domain):
-			logging.verbose('Ignored request from banned actor: %s', data.actor.id)
-			raise HttpError(403, 'access denied')
+			logging.verbose("Ignored request from banned actor: %s", data.actor.id)
+			raise HttpError(403, "access denied")
 
-		# reject if activity type isn't 'Follow' and the actor isn't following
-		if data.message.type != 'Follow' and not data.instance:
+		# reject if activity type isn"t "Follow" and the actor isn"t following
+		if data.message.type != "Follow" and not data.instance:
 			logging.verbose(
-				'Rejected actor for trying to post while not following: %s',
+				"Rejected actor for trying to post while not following: %s",
 				data.actor.id
 			)
 
-			raise HttpError(401, 'access denied')
+			raise HttpError(401, "access denied")
 
-	logging.debug('>> payload %s', data.message.to_json(4))
+	logging.debug(">> payload %s", data.message.to_json(4))
 
 	await run_processor(data)
 	return Response.new(status = 202)
 
 
-@register_route(HttpMethod.GET, '/outbox')
+@register_route(HttpMethod.GET, "/outbox")
 async def handle_outbox(app: Application, request: Request) -> Response:
 	msg = aputils.Message.new(
 		aputils.ObjectType.ORDERED_COLLECTION,
 		{
-			"id": f'https://{app.config.domain}/outbox',
+			"id": f"https://{app.config.domain}/outbox",
 			"totalItems": 0,
 			"orderedItems": []
 		}
@@ -160,15 +160,15 @@ async def handle_outbox(app: Application, request: Request) -> Response:
 	return Response.new(msg, ctype = "activity")
 
 
-@register_route(HttpMethod.GET, '/following', '/followers')
+@register_route(HttpMethod.GET, "/following", "/followers")
 async def handle_follow(app: Application, request: Request) -> Response:
 	with app.database.session(False) as s:
-		inboxes = [row['actor'] for row in s.get_inboxes()]
+		inboxes = [row["actor"] for row in s.get_inboxes()]
 
 	msg = aputils.Message.new(
 		aputils.ObjectType.COLLECTION,
 		{
-			"id": f'https://{app.config.domain}{request.path}',
+			"id": f"https://{app.config.domain}{request.path}",
 			"totalItems": len(inboxes),
 			"items": inboxes
 		}
@@ -177,21 +177,21 @@ async def handle_follow(app: Application, request: Request) -> Response:
 	return Response.new(msg, ctype = "activity")
 
 
-@register_route(HttpMethod.GET, '/.well-known/webfinger')
+@register_route(HttpMethod.GET, "/.well-known/webfinger")
 async def get(app: Application, request: Request) -> Response:
 	try:
-		subject = request.query['resource']
+		subject = request.query["resource"]
 
 	except KeyError:
-		raise HttpError(400, 'missing "resource" query key')
+		raise HttpError(400, "missing \"resource\" query key")
 
-	if subject != f'acct:relay@{app.config.domain}':
-		raise HttpError(404, 'user not found')
+	if subject != f"acct:relay@{app.config.domain}":
+		raise HttpError(404, "user not found")
 
 	data = aputils.Webfinger.new(
-		handle = 'relay',
+		handle = "relay",
 		domain = app.config.domain,
 		actor = app.config.actor
 	)
 
-	return Response.new(data, ctype = 'json')
+	return Response.new(data, ctype = "json")

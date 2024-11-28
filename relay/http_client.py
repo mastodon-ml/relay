@@ -17,6 +17,13 @@ if TYPE_CHECKING:
 	from .application import Application
 
 
+T = TypeVar("T", bound = JsonBase[Any])
+
+HEADERS = {
+	"Accept": f"{MIMETYPES["activity"]}, {MIMETYPES["json"]};q=0.9",
+	"User-Agent": f"ActivityRelay/{__version__}"
+}
+
 SUPPORTS_HS2019 = {
 	'friendica',
 	'gotosocial',
@@ -30,12 +37,6 @@ SUPPORTS_HS2019 = {
 	'foundkey',
 	'iceshrimp',
 	'sharkey'
-}
-
-T = TypeVar('T', bound = JsonBase[Any])
-HEADERS = {
-	'Accept': f'{MIMETYPES["activity"]}, {MIMETYPES["json"]};q=0.9',
-	'User-Agent': f'ActivityRelay/{__version__}'
 }
 
 
@@ -106,25 +107,25 @@ class HttpClient:
 					old_algo: bool) -> str | None:
 
 		if not self._session:
-			raise RuntimeError('Client not open')
+			raise RuntimeError("Client not open")
 
 		url = url.split("#", 1)[0]
 
 		if not force:
 			try:
-				if not (item := self.cache.get('request', url)).older_than(48):
+				if not (item := self.cache.get("request", url)).older_than(48):
 					return item.value # type: ignore [no-any-return]
 
 			except KeyError:
-				logging.verbose('No cached data for url: %s', url)
+				logging.verbose("No cached data for url: %s", url)
 
 		headers = {}
 
 		if sign_headers:
 			algo = AlgorithmType.RSASHA256 if old_algo else AlgorithmType.HS2019
-			headers = self.signer.sign_headers('GET', url, algorithm = algo)
+			headers = self.signer.sign_headers("GET", url, algorithm = algo)
 
-		logging.debug('Fetching resource: %s', url)
+		logging.debug("Fetching resource: %s", url)
 
 		async with self._session.get(url, headers = headers) as resp:
 			# Not expecting a response with 202s, so just return
@@ -142,7 +143,7 @@ class HttpClient:
 
 			raise HttpError(resp.status, error)
 
-		self.cache.set('request', url, data, 'str')
+		self.cache.set("request", url, data, "str")
 		return data
 
 
@@ -172,13 +173,13 @@ class HttpClient:
 				old_algo: bool = True) -> T | str | None:
 
 		if cls is not None and not issubclass(cls, JsonBase):
-			raise TypeError('cls must be a sub-class of "blib.JsonBase"')
+			raise TypeError("cls must be a sub-class of \"blib.JsonBase\"")
 
 		data = await self._get(url, sign_headers, force, old_algo)
 
 		if cls is not None:
 			if data is None:
-				# this shouldn't actually get raised, but keeping just in case
+				# this shouldn"t actually get raised, but keeping just in case
 				raise EmptyBodyError(f"GET {url}")
 
 			return cls.parse(data)
@@ -188,7 +189,7 @@ class HttpClient:
 
 	async def post(self, url: str, data: Message | bytes, instance: Instance | None = None) -> None:
 		if not self._session:
-			raise RuntimeError('Client not open')
+			raise RuntimeError("Client not open")
 
 		# akkoma and pleroma do not support HS2019 and other software still needs to be tested
 		if instance is not None and instance.software in SUPPORTS_HS2019:
@@ -210,14 +211,14 @@ class HttpClient:
 
 		mtype = message.type.value if isinstance(message.type, ObjectType) else message.type
 		headers = self.signer.sign_headers(
-			'POST',
+			"POST",
 			url,
 			body,
-			headers = {'Content-Type': 'application/activity+json'},
+			headers = {"Content-Type": "application/activity+json"},
 			algorithm = algorithm
 		)
 
-		logging.verbose('Sending "%s" to %s', mtype, url)
+		logging.verbose("Sending \"%s\" to %s", mtype, url)
 
 		async with self._session.post(url, headers = headers, data = body) as resp:
 			if resp.status not in (200, 202):
@@ -231,10 +232,10 @@ class HttpClient:
 	async def fetch_nodeinfo(self, domain: str, force: bool = False) -> Nodeinfo:
 		nodeinfo_url = None
 		wk_nodeinfo = await self.get(
-			f'https://{domain}/.well-known/nodeinfo', False, WellKnownNodeinfo, force
+			f"https://{domain}/.well-known/nodeinfo", False, WellKnownNodeinfo, force
 		)
 
-		for version in ('20', '21'):
+		for version in ("20", "21"):
 			try:
 				nodeinfo_url = wk_nodeinfo.get_url(version)
 
@@ -242,7 +243,7 @@ class HttpClient:
 				pass
 
 		if nodeinfo_url is None:
-			raise ValueError(f'Failed to fetch nodeinfo url for {domain}')
+			raise ValueError(f"Failed to fetch nodeinfo url for {domain}")
 
 		return await self.get(nodeinfo_url, False, Nodeinfo, force)
 

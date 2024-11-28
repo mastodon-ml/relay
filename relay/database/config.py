@@ -15,76 +15,76 @@ if TYPE_CHECKING:
 
 
 THEMES = {
-	'default': {
-		'text': '#DDD',
-		'background': '#222',
-		'primary': '#D85',
-		'primary-hover': '#DA8',
-		'section-background': '#333',
-		'table-background': '#444',
-		'border': '#444',
-		'message-text': '#DDD',
-		'message-background': '#335',
-		'message-border': '#446',
-		'error-text': '#DDD',
-		'error-background': '#533',
-		'error-border': '#644'
+	"default": {
+		"text": "#DDD",
+		"background": "#222",
+		"primary": "#D85",
+		"primary-hover": "#DA8",
+		"section-background": "#333",
+		"table-background": "#444",
+		"border": "#444",
+		"message-text": "#DDD",
+		"message-background": "#335",
+		"message-border": "#446",
+		"error-text": "#DDD",
+		"error-background": "#533",
+		"error-border": "#644"
 	},
-	'pink': {
-		'text': '#DDD',
-		'background': '#222',
-		'primary': '#D69',
-		'primary-hover': '#D36',
-		'section-background': '#333',
-		'table-background': '#444',
-		'border': '#444',
-		'message-text': '#DDD',
-		'message-background': '#335',
-		'message-border': '#446',
-		'error-text': '#DDD',
-		'error-background': '#533',
-		'error-border': '#644'
+	"pink": {
+		"text": "#DDD",
+		"background": "#222",
+		"primary": "#D69",
+		"primary-hover": "#D36",
+		"section-background": "#333",
+		"table-background": "#444",
+		"border": "#444",
+		"message-text": "#DDD",
+		"message-background": "#335",
+		"message-border": "#446",
+		"error-text": "#DDD",
+		"error-background": "#533",
+		"error-border": "#644"
 	},
-	'blue': {
-		'text': '#DDD',
-		'background': '#222',
-		'primary': '#69D',
-		'primary-hover': '#36D',
-		'section-background': '#333',
-		'table-background': '#444',
-		'border': '#444',
-		'message-text': '#DDD',
-		'message-background': '#335',
-		'message-border': '#446',
-		'error-text': '#DDD',
-		'error-background': '#533',
-		'error-border': '#644'
+	"blue": {
+		"text": "#DDD",
+		"background": "#222",
+		"primary": "#69D",
+		"primary-hover": "#36D",
+		"section-background": "#333",
+		"table-background": "#444",
+		"border": "#444",
+		"message-text": "#DDD",
+		"message-background": "#335",
+		"message-border": "#446",
+		"error-text": "#DDD",
+		"error-background": "#533",
+		"error-border": "#644"
 	}
 }
 
 # serializer | deserializer
 CONFIG_CONVERT: dict[str, tuple[Callable[[Any], str], Callable[[str], Any]]] = {
-	'str': (str, str),
-	'int': (str, int),
-	'bool': (str, convert_to_boolean),
-	'logging.LogLevel': (lambda x: x.name, logging.LogLevel.parse)
+	"str": (str, str),
+	"int": (str, int),
+	"bool": (str, convert_to_boolean),
+	"logging.LogLevel": (lambda x: x.name, logging.LogLevel.parse)
 }
 
 
 @dataclass()
 class ConfigData:
 	schema_version: int = 20240625
-	private_key: str = ''
+	private_key: str = ""
 	approval_required: bool = False
 	log_level: logging.LogLevel = logging.LogLevel.INFO
-	name: str = 'ActivityRelay'
-	note: str = ''
-	theme: str = 'default'
+	name: str = "ActivityRelay"
+	note: str = ""
+	theme: str = "default"
 	whitelist_enabled: bool = False
 
 
 	def __getitem__(self, key: str) -> Any:
-		if (value := getattr(self, key.replace('-', '_'), None)) is None:
+		if (value := getattr(self, key.replace("-", "_"), None)) is None:
 			raise KeyError(key)
 
 		return value
@@ -101,7 +101,7 @@ class ConfigData:
 
 	@staticmethod
 	def SYSTEM_KEYS() -> Sequence[str]:
-		return ('schema-version', 'schema_version', 'private-key', 'private_key')
+		return ("schema-version", "schema_version", "private-key", "private_key")
 
 
 	@classmethod
@@ -111,12 +111,12 @@ class ConfigData:
 
 	@classmethod
 	def DEFAULT(cls: type[Self], key: str) -> str | int | bool:
-		return cls.FIELD(key.replace('-', '_')).default # type: ignore[return-value]
+		return cls.FIELD(key.replace("-", "_")).default # type: ignore[return-value]
 
 
 	@classmethod
 	def FIELD(cls: type[Self], key: str) -> Field[str | int | bool]:
-		parsed_key = key.replace('-', '_')
+		parsed_key = key.replace("-", "_")
 
 		for field in fields(cls):
 			if field.name == parsed_key:
@@ -131,9 +131,9 @@ class ConfigData:
 		set_schema_version = False
 
 		for row in rows:
-			data.set(row['key'], row['value'])
+			data.set(row["key"], row["value"])
 
-			if row['key'] == 'schema-version':
+			if row["key"] == "schema-version":
 				set_schema_version = True
 
 		if not set_schema_version:
@@ -161,4 +161,4 @@ class ConfigData:
 
 
 	def to_dict(self) -> dict[str, Any]:
-		return {key.replace('_', '-'): value for key, value in asdict(self).items()}
+		return {key.replace("_", "-"): value for key, value in asdict(self).items()}

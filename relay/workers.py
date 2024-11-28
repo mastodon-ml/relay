@@ -96,16 +96,16 @@ class PushWorker(Process):
 			await self.client.post(item.inbox, item.message, item.instance)
 
 		except HttpError as e:
-			logging.error('HTTP Error when pushing to %s: %i %s', item.inbox, e.status, e.message)
+			logging.error("HTTP Error when pushing to %s: %i %s", item.inbox, e.status, e.message)
 
 		except AsyncTimeoutError:
-			logging.error('Timeout when pushing to %s', item.domain)
+			logging.error("Timeout when pushing to %s", item.domain)
 
 		except ClientConnectionError as e:
-			logging.error('Failed to connect to %s for message push: %s', item.domain, str(e))
+			logging.error("Failed to connect to %s for message push: %s", item.domain, str(e))
 
 		except ClientSSLError as e:
-			logging.error('SSL error when pushing to %s: %s', item.domain, str(e))
+			logging.error("SSL error when pushing to %s: %s", item.domain, str(e))
 
 
 class PushWorkers(list[PushWorker]):

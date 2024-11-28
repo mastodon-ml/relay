@@ -54,7 +54,7 @@ class LogLevel(IntEnum):
 		except ValueError:
 			pass
 
-		raise AttributeError(f'Invalid enum property for {cls.__name__}: {data}')
+		raise AttributeError(f"Invalid enum property for {cls.__name__}: {data}")
 
 
 def get_level() -> LogLevel:
@@ -80,7 +80,7 @@ critical: LoggingMethod = logging.critical
 
 
 try:
-	env_log_file: Path | None = Path(os.environ['LOG_FILE']).expanduser().resolve()
+	env_log_file: Path | None = Path(os.environ["LOG_FILE"]).expanduser().resolve()
 
 except KeyError:
 	env_log_file = None
@@ -90,16 +90,16 @@ handlers: list[Any] = [logging.StreamHandler()]
 if env_log_file:
 	handlers.append(logging.FileHandler(env_log_file))
 
-if os.environ.get('IS_SYSTEMD'):
-	logging_format = '%(levelname)s: %(message)s'
+if os.environ.get("IS_SYSTEMD"):
+	logging_format = "%(levelname)s: %(message)s"
 
 else:
-	logging_format = '[%(asctime)s] %(levelname)s: %(message)s'
+	logging_format = "[%(asctime)s] %(levelname)s: %(message)s"
 
-logging.addLevelName(LogLevel.VERBOSE, 'VERBOSE')
+logging.addLevelName(LogLevel.VERBOSE, "VERBOSE")
 logging.basicConfig(
 	level = LogLevel.INFO,
 	format = logging_format,
-	datefmt = '%Y-%m-%d %H:%M:%S',
+	datefmt = "%Y-%m-%d %H:%M:%S",
 	handlers = handlers
 )
