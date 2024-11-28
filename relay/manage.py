@@ -19,7 +19,7 @@ from .application import Application
 from .compat import RelayConfig, RelayDatabase
 from .config import Config
 from .database import RELAY_SOFTWARE, get_database, schema
-from .misc import ACTOR_FORMATS, SOFTWARE, IS_DOCKER, Message
+from .misc import ACTOR_FORMATS, IS_DOCKER, Message
 from .views import ROUTES
 
 
@@ -602,10 +602,7 @@ def cli_inbox_unfollow(ctx: click.Context, actor: str) -> None:
 @click.argument("inbox")
 @click.option("--actor", "-a", help = "Actor url for the inbox")
 @click.option("--followid", "-f", help = "Url for the follow activity")
-@click.option("--software", "-s",
-	type = click.Choice(SOFTWARE),
-	help = "Nodeinfo software name of the instance"
-)  # noqa: E124
+@click.option("--software", "-s", help = "Nodeinfo software name of the instance")
 @click.pass_context
 def cli_inbox_add(
 				ctx: click.Context,

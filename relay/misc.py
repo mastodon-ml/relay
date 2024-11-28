@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T")
+
+IS_DOCKER = bool(os.environ.get("DOCKER_RUNNING"))
+IS_WINDOWS = platform.system() == "Windows"
+
 ResponseType = TypedDict("ResponseType", {
 	"status": int,
 	"headers": dict[str, Any] | None,
@@ -24,9 +28,6 @@ ResponseType = TypedDict("ResponseType", {
 	"body": bytes | None,
 	"text": str | None
 })
-
-IS_DOCKER = bool(os.environ.get("DOCKER_RUNNING"))
-IS_WINDOWS = platform.system() == "Windows"
 
 MIMETYPES = {
 	"activity": "application/activity+json",
@@ -42,17 +43,6 @@ ACTOR_FORMATS = {
 	"akkoma": "https://{domain}/relay",
 	"pleroma": "https://{domain}/relay"
 }
-
-SOFTWARE = (
-	"mastodon",
-	"akkoma",
-	"pleroma",
-	"misskey",
-	"friendica",
-	"hubzilla",
-	"firefish",
-	"gotosocial"
-)
 
 JSON_PATHS: tuple[str, ...] = (
 	"/api/v1",
