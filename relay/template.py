@@ -5,7 +5,7 @@ import textwrap
 from aiohttp.web import Request
 from blib import File
 from collections.abc import Callable
-from hamlish_jinja import HamlishExtension
+from hamlish import HamlishExtension, HamlishSettings
 from jinja2 import Environment, FileSystemLoader
 from jinja2.ext import Extension
 from jinja2.nodes import CallBlock, Node
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 class Template(Environment):
 	render_markdown: Callable[[str], str]
+	hamlish: HamlishSettings
 
 
 	def __init__(self, app: Application):
@@ -39,8 +40,6 @@ class Template(Environment):
 		)
 
 		self.app = app
-		self.hamlish_enable_div_shortcut = True
-		self.hamlish_mode = 'indented'
 
 
 	def render(self, path: str, request: Request, **context: Any) -> str:

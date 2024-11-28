@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ActivityRelay"
 description = "Generic LitePub relay (works with all LitePub consumers and Mastodon)"
-license = {text = "AGPLv3"}
+license = {file = "LICENSE"}
 classifiers = [
     "Environment :: Console",
     "License :: OSI Approved :: GNU Affero General Public License v3",
@@ -16,15 +16,14 @@ classifiers = [
 dependencies = [
 	"activitypub-utils >= 0.3.2, < 0.4",
 	"aiohttp >= 3.9.5",
-	"aiohttp-swagger[performance] == 1.0.16",
 	"argon2-cffi == 23.1.0",
 	"barkshark-lib >= 0.2.3, < 0.3.0",
 	"barkshark-sql >= 0.2.0, < 0.3.0",
 	"click == 8.1.2",
 	"docstring-parser == 0.16",
+	"hamlish == 0.4.0",
 	"hiredis == 2.3.2",
 	"idna == 3.4",
-	"jinja2-haml == 0.3.5",
 	"markdown == 3.6",
 	"platformdirs == 4.2.2",
 	"pyyaml == 6.0.1",
@@ -40,7 +39,6 @@ content-type = "text/markdown; charset=UTF-8"
 [project.urls]
 Documentation = "https://git.pleroma.social/pleroma/relay/-/blob/main/docs/index.md"
 Source = "https://git.pleroma.social/pleroma/relay"
-Tracker = "https://git.pleroma.social/pleroma/relay/-/issues"
 
 [project.scripts]
 activityrelay = "relay.manage:main"
@@ -74,9 +72,6 @@ relay = [
 [tool.setuptools.dynamic]
 version = {attr = "relay.__version__"}
 
-[tool.setuptools.dynamic.optional-dependencies]
-dev = {file = ["dev-requirements.txt"]}
-
 [tool.mypy]
 show_traceback = true
 install_types = true
@@ -89,15 +84,3 @@ ignore_missing_imports = true
 implicit_reexport = true
 strict = true
 follow_imports = "silent"
-
-[[tool.mypy.overrides]]
-module = "relay.database"
-implicit_reexport = true
-
-[[tool.mypy.overrides]]
-module = "aputils"
-implicit_reexport = true
-
-[[tool.mypy.overrides]]
-module = "blib"
-implicit_reexport = true
