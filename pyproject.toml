@@ -1,11 +1,12 @@
 [build-system]
-requires = ["setuptools>=61.2"]
+requires = [
+	"setuptools>=61.2",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ActivityRelay"
 description = "Generic LitePub relay (works with all LitePub consumers and Mastodon)"
-license = {file = "LICENSE"}
 classifiers = [
 	"Development Status :: 4 - Beta",
 	"Environment :: Console",
@@ -19,7 +20,7 @@ classifiers = [
 	"Programming Language :: Python :: 3.13",
 	"Programming Language :: SQL",
 	"Topic :: Internet :: WWW/HTTP :: HTTP Servers",
-	"Typing :: Typed"
+	"Typing :: Typed",
 ]
 dependencies = [
 	"activitypub-utils >= 0.3.2, < 0.4",
@@ -35,10 +36,15 @@ dependencies = [
 	"markdown == 3.6",
 	"platformdirs == 4.2.2",
 	"pyyaml == 6.0.1",
-	"redis == 5.0.7"
+	"redis == 5.0.7",
 ]
 requires-python = ">=3.10"
-dynamic = ["version"]
+dynamic = [
+	"version",
+]
+
+[project.license]
+file = "LICENSE"
 
 [project.readme]
 file = "README.md"
@@ -53,10 +59,15 @@ activityrelay = "relay.manage:main"
 
 [project.optional-dependencies]
 dev = [
-	"flake8 == 7.1.0",
-	"mypy == 1.11.1",
+	"build == 1.2.2.post1",
+	"flake8 == 7.1.1",
+	"mypy == 1.13.0",
 	"pyinstaller == 6.10.0",
-	"watchdog == 4.0.2"
+]
+docs = [
+	"furo == 2024.1.29",
+	"sphinx == 7.2.6",
+	"sphinx-external-toc == 1.0.1",
 ]
 
 [tool.setuptools]
@@ -67,7 +78,9 @@ packages = [
 	"relay.views",
 ]
 include-package-data = true
-license-files = ["LICENSE"]
+license-files = [
+	"LICENSE",
+]
 
 [tool.setuptools.package-data]
 relay = [
@@ -75,11 +88,11 @@ relay = [
 	"data/*",
 	"frontend/*",
 	"frontend/page/*",
-	"frontend/static/*"
+	"frontend/static/*",
 ]
 
-[tool.setuptools.dynamic]
-version = {attr = "relay.__version__"}
+[tool.setuptools.dynamic.version]
+attr = "relay.__version__"
 
 [tool.mypy]
 show_traceback = true
