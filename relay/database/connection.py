@@ -26,7 +26,8 @@ RELAY_SOFTWARE = [
 	"activityrelay", # https://git.pleroma.social/pleroma/relay
 	"activity-relay", # https://github.com/yukimochi/Activity-Relay
 	"aoderelay", # https://git.asonix.dog/asonix/relay
-	"feditools-relay" # https://git.ptzo.gdn/feditools/relay
+	"feditools-relay", # https://git.ptzo.gdn/feditools/relay
+	"buzzrelay" # https://github.com/astro/buzzrelay
 ]
 
 
