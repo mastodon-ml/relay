@@ -138,7 +138,7 @@ class Connection(SqlConnection):
 		params = {
 			"key": key,
 			"value": data.get(key, serialize = True),
-			"type": "LogLevel" if field.type == "logging.LogLevel" else field.type # type: ignore
+			"type": "LogLevel" if field.type == "logging.LogLevel" else field.type
 		}
 
 		with self.run("put-config", params):
