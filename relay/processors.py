@@ -68,7 +68,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 		logging.verbose("Rejected banned actor: %s", data.actor.id)
 
 		app.push_message(
-			data.actor.shared_inbox,
+			data.shared_inbox,
 			Message.new_response(
 				host = app.config.domain,
 				actor = data.actor.id,
@@ -91,7 +91,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 		logging.verbose("Non-application actor tried to follow: %s", data.actor.id)
 
 		app.push_message(
-			data.actor.shared_inbox,
+			data.shared_inbox,
 			Message.new_response(
 				host = app.config.domain,
 				actor = data.actor.id,
@@ -111,7 +111,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 			with conn.transaction():
 				data.instance = conn.put_inbox(
 					domain = data.actor.domain,
-					inbox = data.actor.shared_inbox,
+					inbox = data.shared_inbox,
 					actor = data.actor.id,
 					followid = data.message.id,
 					software = software,
@@ -125,7 +125,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 			logging.verbose("Rejected actor for not being in the whitelist: %s", data.actor.id)
 
 			app.push_message(
-				data.actor.shared_inbox,
+				data.shared_inbox,
 				Message.new_response(
 					host = app.config.domain,
 					actor = data.actor.id,
@@ -140,7 +140,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 	with conn.transaction():
 		data.instance = conn.put_inbox(
 				domain = data.actor.domain,
-				inbox = data.actor.shared_inbox,
+				inbox = data.shared_inbox,
 				actor = data.actor.id,
 				followid = data.message.id,
 				software = software,
@@ -148,7 +148,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 			)
 
 	app.push_message(
-		data.actor.shared_inbox,
+		data.shared_inbox,
 		Message.new_response(
 			host = app.config.domain,
 			actor = data.actor.id,
@@ -162,7 +162,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 	# Ignoring only Mastodon for now
 	if software != "mastodon":
 		app.push_message(
-			data.actor.shared_inbox,
+			data.shared_inbox,
 			Message.new_follow(
 				host = app.config.domain,
 				actor = data.actor.id
@@ -193,7 +193,7 @@ async def handle_undo(app: Application, data: InboxData, conn: Connection) -> No
 			)
 
 	app.push_message(
-		data.actor.shared_inbox,
+		data.shared_inbox,
 		Message.new_unfollow(
 			host = app.config.domain,
 			actor = data.actor.id,

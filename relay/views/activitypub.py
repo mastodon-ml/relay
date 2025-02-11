@@ -66,8 +66,16 @@ class InboxData:
 			logging.verbose("actor not in message")
 			raise HttpError(400, "no actor in message")
 
+		actor_id: str
+
 		try:
-			actor = await app.client.get(signature.keyid, True, Message)
+			actor_id = message.actor_id
+
+		except AttributeError:
+			actor_id = signature.keyid
+
+		try:
+			actor = await app.client.get(actor_id, True, Message)
 
 		except HttpError as e:
 			# ld signatures aren"t handled atm, so just ignore it
@@ -104,6 +112,18 @@ class InboxData:
 		return cls(signature, message, actor, signer, None)
 
 
+	@property
+	def shared_inbox(self) -> str:
+		if self.actor is None:
+			raise AttributeError("Actor not set yet")
+
+		try:
+			return self.actor.shared_inbox
+
+		except KeyError:
+			return self.actor.inbox # type: ignore[no-any-return]
+
+
 @register_route(HttpMethod.GET, "/actor", "/inbox")
 async def handle_actor(app: Application, request: Request) -> Response:
 	with app.database.session(False) as conn:
@@ -124,7 +144,7 @@ async def handle_inbox(app: Application, request: Request) -> Response:
 	data = await InboxData.parse(app, request)
 
 	with app.database.session() as conn:
-		data.instance = conn.get_inbox(data.actor.shared_inbox)
+		data.instance = conn.get_inbox(data.shared_inbox)
 
 		# reject if actor is banned
 		if conn.get_domain_ban(data.actor.domain):
