@@ -150,8 +150,8 @@ def handle_run_watcher(
 	handler.run_procs()
 
 	watcher = Observer()
-	watcher.schedule(handler, str(watch_path), recursive=True) # type: ignore
-	watcher.start() # type: ignore
+	watcher.schedule(handler, str(watch_path), recursive=True)
+	watcher.start()
 
 	try:
 		while True:
@@ -161,7 +161,7 @@ def handle_run_watcher(
 		pass
 
 	handler.kill_procs()
-	watcher.stop() # type: ignore
+	watcher.stop()
 	watcher.join()
 
 
@@ -170,7 +170,7 @@ class WatchHandler(PatternMatchingEventHandler):
 
 
 	def __init__(self, *commands: Sequence[str], wait: bool = False) -> None:
-		PatternMatchingEventHandler.__init__(self) # type: ignore
+		PatternMatchingEventHandler.__init__(self)
 
 		self.commands: Sequence[Sequence[str]] = commands
 		self.wait: bool = wait
