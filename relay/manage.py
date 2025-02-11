@@ -238,7 +238,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 		with db.session(True) as conn:
 			conn.put_config("private-key", database["private-key"])
 			conn.put_config("note", config["note"])
-			conn.put_config("whitelist-enabled", config["whitelist_enabled"])
+			conn.put_config("whitelist-enabled", config.get("whitelist-enabled", False))
 
 			with click.progressbar(
 				database["relay-list"].values(),
@@ -246,25 +246,29 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 				width = 0
 			) as inboxes:
 				for inbox in inboxes:
-					if inbox["software"] in {"akkoma", "pleroma"}:
-						actor = f"https://{inbox["domain"]}/relay"
+					if inbox.get("domain") is None:
+						inbox["domain"] = urlparse(inbox["inbox"]).netloc
 
-					elif inbox["software"] == "mastodon":
-						actor = f"https://{inbox["domain"]}/actor"
+					match inbox.get("software"):
+						case "akkoma" | "pleroma":
+							inbox["actor"] = f"https://{inbox["domain"]}/relay"
 
-					else:
-						actor = None
+						case "mastodon":
+							inbox["actor"] = f"https://{inbox["domain"]}/actor"
+
+						case _:
+							inbox["actor"] = None
 
 					conn.put_inbox(
 						inbox["domain"],
 						inbox["inbox"],
-						actor = actor,
-						followid = inbox["followid"],
-						software = inbox["software"]
+						actor = inbox["actor"],
+						followid = inbox.get("followid"),
+						software = inbox.get("software")
 					)
 
 			with click.progressbar(
-				config["blocked_software"],
+				config.get("blocked_software", []),
 				label = "Banned software".ljust(15),
 				width = 0
 			) as banned_software:
@@ -276,7 +280,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 					)
 
 			with click.progressbar(
-				config["blocked_instances"],
+				config.get("blocked_instances", []),
 				label = "Banned domains".ljust(15),
 				width = 0
 			) as banned_software:
@@ -285,7 +289,7 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 					conn.put_domain_ban(domain)
 
 			with click.progressbar(
-				config["whitelist"],
+				config.get("whitelist", []),
 				label = "Whitelist".ljust(15),
 				width = 0
 			) as whitelist:
