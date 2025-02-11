@@ -16,15 +16,13 @@
 
 	-if config.approval_required
 		%div.section.message
-			Follow requests require approval. You will need to wait for an admin to accept or deny
-			your request.
+			Follow requests require approval. You will need to wait for an admin to accept or deny your request.
 
 	-elif config.whitelist_enabled
 		%fieldset.section.message
 			%legend << Whitelist Enabled
 
-			The whitelist is enabled on this instance. Ask the admin to add your instance before
-			joining.
+			The whitelist is enabled on this instance. Ask the admin to add your instance before joining.
 
 	%fieldset.section
 		%legend << Instances
