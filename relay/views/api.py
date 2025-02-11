@@ -181,7 +181,16 @@ async def handle_login(
 
 		application = s.put_app_login(user)
 
-	return objects.Application.from_row(application)
+	return objects.Application(
+		application.client_id,
+		application.client_secret,
+		application.name,
+		application.website,
+		application.redirect_uri,
+		application.token,
+		application.created,
+		application.accessed
+	)
 
 
 @Route(HttpMethod.GET, "/api/v1/app", "Application", True)

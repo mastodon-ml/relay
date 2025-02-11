@@ -499,8 +499,7 @@ function page_login() {
 	async function login(event) {
 		const values = {
 			username: fields.username.value.trim(),
-			password: fields.password.value.trim(),
-			redir: fields.redir.value.trim()
+			password: fields.password.value.trim()
 		}
 
 		if (values.username === "" | values.password === "") {
@@ -509,14 +508,16 @@ function page_login() {
 		}
 
 		try {
-			await request("POST", "v1/login", values);
+			application = await request("POST", "v1/login", values);
 
 		} catch (error) {
 			toast(error);
 			return;
 		}
 
-		document.location = values.redir;
+		const max_age = 60 * 60 * 24 * 30;
+		document.cookie = `user-token=${application.token};Secure;SameSite=Strict;Domain=${document.location.host};MaxAge=${max_age}`;
+		document.location = fields.redir.value.trim();
 	}
 
 
