@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
 	from .views.activitypub import InboxData
 
 
-def actor_type_check(actor: Message, software: str | None) -> bool:
+def is_application(actor: Message, software: str | None) -> bool:
 	if actor.type == "Application":
 		return True
 
@@ -65,8 +65,6 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 
 	# reject if software used by actor is banned
 	if software and conn.get_software_ban(software):
-		logging.verbose("Rejected banned actor: %s", data.actor.id)
-
 		app.push_message(
 			data.shared_inbox,
 			Message.new_response(
@@ -87,7 +85,7 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 		return
 
 	# reject if the actor is not an instance actor
-	if actor_type_check(data.actor, software):
+	if not is_application(data.actor, software):
 		logging.verbose("Non-application actor tried to follow: %s", data.actor.id)
 
 		app.push_message(
