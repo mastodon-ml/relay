@@ -284,7 +284,7 @@ class CacheCleanupThread(Thread):
 
 	def run(self) -> None:
 		while self.running.is_set():
-			time.sleep(3600)
+			self.running.wait(3600)
 			logging.verbose("Removing old cache items")
 			self.app.cache.delete_old(14)
 
