@@ -63,7 +63,7 @@ dev = [
 	"flake8 == 7.1.1",
 	"mypy == 1.13.0",
 	"pyinstaller == 6.10.0",
-	"typing-extensions == 4.12.2",
+	"typing-extensions == 4.12.2; python_version < '3.11'",
 ]
 docs = [
 	"furo == 2024.1.29",
