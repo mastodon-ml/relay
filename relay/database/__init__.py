@@ -3,8 +3,8 @@ import sqlite3
 from blib import Date, File
 from bsql import Database
 
-from .config import THEMES, ConfigData
-from .connection import RELAY_SOFTWARE, Connection
+from .config import ConfigData
+from .connection import Connection
 from .schema import TABLES, VERSIONS, migrate_0
 
 from .. import logger as logging

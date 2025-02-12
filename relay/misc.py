@@ -12,8 +12,13 @@ from typing import TYPE_CHECKING, Any, TypedDict, TypeVar, overload
 from uuid import uuid4
 
 if TYPE_CHECKING:
-	from typing import Self
 	from .application import Application
+
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 T = TypeVar("T")
@@ -56,6 +61,14 @@ JSON_PATHS: tuple[str, ...] = (
 	"/oauth/token",
 	"/oauth/revoke"
 )
+
+RELAY_SOFTWARE = [
+	"activityrelay", # https://git.pleroma.social/pleroma/relay
+	"activity-relay", # https://github.com/yukimochi/Activity-Relay
+	"aoderelay", # https://git.asonix.dog/asonix/relay
+	"feditools-relay", # https://git.ptzo.gdn/feditools/relay
+	"buzzrelay" # https://github.com/astro/buzzrelay
+]
 
 TOKEN_PATHS: tuple[str, ...] = (
 	"/logout",
@@ -168,7 +181,7 @@ class Message(aputils.Message):
 
 
 	@classmethod
-	def new_unfollow(cls: type[Self], host: str, actor: str, follow: dict[str, str]) -> Self:
+	def new_unfollow(cls: type[Self], host: str, actor: str, follow: dict[str, str] | str) -> Self:
 		return cls.new(aputils.ObjectType.UNDO, {
 			"id": f"https://{host}/activities/{uuid4()}",
 			"to": [actor],

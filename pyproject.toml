@@ -63,6 +63,7 @@ dev = [
 	"flake8 == 7.1.1",
 	"mypy == 1.13.0",
 	"pyinstaller == 6.10.0",
+	"typing-extensions == 4.12.2",
 ]
 docs = [
 	"furo == 2024.1.29",
@@ -72,11 +73,6 @@ docs = [
 
 [tool.setuptools]
 zip-safe = false
-packages = [
-	"relay",
-	"relay.database",
-	"relay.views",
-]
 include-package-data = true
 license-files = [
 	"LICENSE",
@@ -93,6 +89,9 @@ relay = [
 
 [tool.setuptools.dynamic.version]
 attr = "relay.__version__"
+
+[tool.setuptools.packages.find]
+include = ["relay*"]
 
 [tool.mypy]
 show_traceback = true

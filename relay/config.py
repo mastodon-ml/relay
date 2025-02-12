@@ -13,7 +13,11 @@ from typing import TYPE_CHECKING, Any
 from .misc import IS_DOCKER
 
 if TYPE_CHECKING:
-	from typing import Self
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 if platform.system() == "Windows":

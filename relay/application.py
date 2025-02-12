@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from mimetypes import guess_type
 from pathlib import Path
 from threading import Event, Thread
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from . import logger as logging
 from .cache import Cache, get_cache
@@ -29,6 +29,13 @@ from .http_client import HttpClient
 from .misc import JSON_PATHS, TOKEN_PATHS, Message, Response
 from .template import Template
 from .workers import PushWorkers
+
+if TYPE_CHECKING:
+	try:
+		from typing import Self
+
+	except ImportError:
+		from typing_extensions import Self
 
 
 def get_csp(request: web.Request) -> str:
@@ -49,6 +56,14 @@ def get_csp(request: web.Request) -> str:
 
 class Application(web.Application):
 	DEFAULT: Application | None = None
+
+
+	@classmethod
+	def default(cls: type[Self]) -> Application:
+		if cls.DEFAULT is None:
+			raise ValueError("Default application not set")
+
+		return cls.DEFAULT
 
 
 	def __init__(self, cfgpath: Path | None, dev: bool = False):

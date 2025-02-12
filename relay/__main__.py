@@ -1,4 +1,4 @@
-from relay.manage import main
+from relay.cli import main
 
 
 if __name__ == "__main__":

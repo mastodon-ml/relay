@@ -7,7 +7,7 @@ from urllib.parse import unquote
 
 from .base import METHODS, register_route
 
-from ..database import THEMES
+from ..database.config import THEMES
 from ..logger import LogLevel
 from ..misc import Response
 
