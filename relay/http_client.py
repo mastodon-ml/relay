@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 T = TypeVar("T", bound = JsonBase[Any])
 
 HEADERS = {
-	"Accept": f"{MIMETYPES["activity"]}, {MIMETYPES["json"]};q=0.9",
+	"Accept": f"{MIMETYPES['activity']}, {MIMETYPES['json']};q=0.9",
 	"User-Agent": f"ActivityRelay/{__version__}"
 }
 

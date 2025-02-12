@@ -48,7 +48,7 @@ def get_csp(request: web.Request) -> str:
 		"img-src 'self'",
 		"object-src 'none'",
 		"frame-ancestors 'none'",
-		f"manifest-src 'self' https://{request.app["config"].domain}"
+		f"manifest-src 'self' https://{request.app['config'].domain}"
 	]
 
 	return "; ".join(data) + ";"
