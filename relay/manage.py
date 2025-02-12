@@ -251,10 +251,10 @@ def cli_convert(ctx: click.Context, old_config: str) -> None:
 
 					match inbox.get("software"):
 						case "akkoma" | "pleroma":
-							inbox["actor"] = f"https://{inbox["domain"]}/relay"
+							inbox["actor"] = f"https://{inbox['domain']}/relay"
 
 						case "mastodon":
-							inbox["actor"] = f"https://{inbox["domain"]}/actor"
+							inbox["actor"] = f"https://{inbox['domain']}/actor"
 
 						case _:
 							inbox["actor"] = None
