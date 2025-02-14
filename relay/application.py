@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import multiprocessing
 import signal
-import time
 import traceback
 
 from Crypto.Random import get_random_bytes
@@ -86,7 +85,6 @@ class Application(web.Application):
 		self["database"] = get_database(self.config)
 		self["client"] = HttpClient()
 		self["cache"] = get_cache(self)
-		self["cache"].setup()
 		self["template"] = Template(self)
 		self["push_queue"] = multiprocessing.Queue()
 		self["workers"] = PushWorkers(self.config.workers)
