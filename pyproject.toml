@@ -84,6 +84,7 @@ relay = [
 	"data/*",
 	"frontend/*",
 	"frontend/page/*",
+	"frontend/page/admin/*",
 	"frontend/static/*",
 ]
 

@@ -709,7 +709,7 @@ async def handle_whitelist_del(app: Application, request: Request, domain: str) 
 	return objects.Message("Removed domain from whitelist")
 
 
-# remove /api/v1/user endpoints?
+# remove /api/v1/user endpoints in 0.4.0
 @Route(HttpMethod.GET, "/api/v1/user", "User", True)
 async def handle_users_get(app: Application, request: Request) -> list[objects.User]:
 	with app.database.session(False) as s:

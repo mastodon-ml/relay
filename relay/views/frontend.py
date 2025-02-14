@@ -74,7 +74,7 @@ async def handle_admin_instances(
 		if message:
 			context["message"] = message
 
-	return Response.new_template(200, "page/admin-instances.haml", request, context)
+	return Response.new_template(200, "page/admin/instances.haml", request, context)
 
 
 @register_route(HttpMethod.GET, "/admin/whitelist")
@@ -95,7 +95,7 @@ async def handle_admin_whitelist(
 		if message:
 			context["message"] = message
 
-	return Response.new_template(200, "page/admin-whitelist.haml", request, context)
+	return Response.new_template(200, "page/admin/whitelist.haml", request, context)
 
 
 @register_route(HttpMethod.GET, "/admin/domain_bans")
@@ -116,7 +116,7 @@ async def handle_admin_instance_bans(
 		if message:
 			context["message"] = message
 
-	return Response.new_template(200, "page/admin-domain_bans.haml", request, context)
+	return Response.new_template(200, "page/admin/domain_bans.haml", request, context)
 
 
 @register_route(HttpMethod.GET, "/admin/software_bans")
@@ -137,28 +137,7 @@ async def handle_admin_software_bans(
 		if message:
 			context["message"] = message
 
-	return Response.new_template(200, "page/admin-software_bans.haml", request, context)
-
-
-@register_route(HttpMethod.GET, "/admin/users")
-async def handle_admin_users(
-							app: Application,
-							request: Request,
-							error: str | None = None,
-							message: str | None = None) -> Response:
-
-	with app.database.session() as conn:
-		context: dict[str, Any] = {
-			"users": tuple(conn.execute("SELECT * FROM users ORDER BY username ASC"))
-		}
-
-		if error:
-			context["error"] = error
-
-		if message:
-			context["message"] = message
-
-	return Response.new_template(200, "page/admin-users.haml", request, context)
+	return Response.new_template(200, "page/admin/software_bans.haml", request, context)
 
 
 @register_route(HttpMethod.GET, "/admin/config")
@@ -184,7 +163,7 @@ async def handle_admin_config(
 		}
 	}
 
-	return Response.new_template(200, "page/admin-config.haml", request, context)
+	return Response.new_template(200, "page/admin/config.haml", request, context)
 
 
 @register_route(HttpMethod.GET, "/manifest.json")
