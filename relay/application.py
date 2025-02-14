@@ -234,6 +234,7 @@ class Application(web.Application):
 
 		self["starttime"] = None
 		self["running"] = False
+		await self["client"].close()
 		self["cleanup_thread"].stop()
 		self["database"].disconnect()
 		self["cache"].close()
