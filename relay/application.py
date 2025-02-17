@@ -10,12 +10,11 @@ from aiohttp import web
 from aiohttp.web import HTTPException, StaticResource
 from aputils.signer import Signer
 from base64 import b64encode
-from blib import File, HttpError, port_check
+from blib import File, HttpError, Path, port_check
 from bsql import Database
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from mimetypes import guess_type
-from pathlib import Path
 from threading import Event, Thread
 from typing import TYPE_CHECKING, Any, cast
 
@@ -65,7 +64,7 @@ class Application(web.Application):
 		return cls.DEFAULT
 
 
-	def __init__(self, cfgpath: Path | None, dev: bool = False):
+	def __init__(self, cfgpath: File | str | None, dev: bool = False):
 		web.Application.__init__(self,
 			middlewares = [
 				handle_response_headers, # type: ignore[list-item]
@@ -157,7 +156,7 @@ class Application(web.Application):
 
 		else:
 			static = CachedStaticResource(
-				"/static", Path(File.from_resource("relay", "frontend/static"))
+				"/static", File(File.from_resource("relay", "frontend/static"))
 			)
 
 		self.router.register_resource(static)
@@ -241,27 +240,30 @@ class Application(web.Application):
 
 
 class CachedStaticResource(StaticResource):
-	def __init__(self, prefix: str, path: Path):
+	def __init__(self, prefix: str, path: File):
 		StaticResource.__init__(self, prefix, path)
 
 		self.cache: dict[str, bytes] = {}
 
-		for filename in path.rglob("*"):
-			if filename.is_dir():
+		for filename in path.glob(recursive = True):
+			if filename.isdir:
 				continue
 
-			rel_path = str(filename.relative_to(path))
+			rel_path = filename.relative_to(path)
 
 			with filename.open("rb") as fd:
 				logging.debug("Loading static resource \"%s\"", rel_path)
-				self.cache[rel_path] = fd.read()
+				self.cache[str(rel_path)] = fd.read()
 
 
 	async def _handle(self, request: web.Request) -> web.StreamResponse:
-		rel_url = request.match_info["filename"]
+		rel_url = str(Path(request.match_info["filename"], True))
 
-		if Path(rel_url).anchor:
-			raise web.HTTPForbidden()
+		if rel_url.startswith("/"):
+			if len(rel_url) < 2:
+				raise web.HTTPForbidden()
+
+			rel_url = rel_url[1:]
 
 		try:
 			return web.Response(

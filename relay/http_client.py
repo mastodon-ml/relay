@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any, TypeVar, overload
 from . import __version__, logger as logging
 from .cache import Cache
 from .database.schema import Instance
-from .errors import EmptyBodyError
 from .misc import MIMETYPES, Message, get_app
 
 if TYPE_CHECKING:
@@ -38,6 +37,10 @@ SUPPORTS_HS2019 = {
 	'iceshrimp',
 	'sharkey'
 }
+
+
+class EmptyBodyError(Exception):
+	pass
 
 
 class HttpClient:

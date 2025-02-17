@@ -35,7 +35,7 @@ class Template(Environment):
 			],
 			loader = FileSystemLoader([
 				File.from_resource("relay", "frontend"),
-				app.config.path.parent.joinpath("template")
+				app.config.path.parent.join("template")
 			])
 		)
 

@@ -1,7 +1,7 @@
 import aputils
 import click
 
-from pathlib import Path
+from blib import File
 from shutil import copyfile
 
 from . import cli, pass_app
@@ -28,10 +28,10 @@ def check_alphanumeric(text: str) -> str:
 def cli_convert(app: Application, old_config: str) -> None:
 	"Convert an old config and jsonld database to the new format."
 
-	old_config = str(Path(old_config).expanduser().resolve()) if old_config else str(app.config.path)
-	backup = app.config.path.parent.joinpath(f"{app.config.path.stem}.backup.yaml")
+	old_config = File(old_config).resolve() if old_config else app.config.path
+	backup = app.config.path.parent.join(f"{app.config.path.stem}.backup.yaml")
 
-	if str(old_config) == str(app.config.path) and not backup.exists():
+	if str(old_config) == str(app.config.path) and not backup.exists:
 		logging.info("Created backup config @ %s", backup)
 		copyfile(app.config.path, backup)
 

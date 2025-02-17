@@ -2,21 +2,20 @@ import json
 import os
 import yaml
 
-from blib import convert_to_boolean
+from blib import File, convert_to_boolean
 from functools import cached_property
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 
 class RelayConfig(dict[str, Any]):
-	def __init__(self, path: str):
+	def __init__(self, path: File | str):
 		dict.__init__(self, {})
 
 		if self.is_docker:
 			path = "/data/config.yaml"
 
-		self._path = Path(path).expanduser().resolve()
+		self._path = File(path).resolve()
 		self.reset()
 
 
@@ -36,8 +35,8 @@ class RelayConfig(dict[str, Any]):
 
 
 	@property
-	def db(self) -> Path:
-		return Path(self["db"]).expanduser().resolve()
+	def db(self) -> File:
+		return File(self["db"]).resolve()
 
 
 	@property
@@ -63,7 +62,7 @@ class RelayConfig(dict[str, Any]):
 	def reset(self) -> None:
 		self.clear()
 		self.update({
-			"db": str(self._path.parent.joinpath(f"{self._path.stem}.jsonld")),
+			"db": self._path.parent.join(f"{self._path.stem}.jsonld"),
 			"listen": "0.0.0.0",
 			"port": 8080,
 			"note": "Make a note about your instance here.",
@@ -91,7 +90,7 @@ class RelayConfig(dict[str, Any]):
 			pass
 
 		try:
-			with self._path.open("r", encoding = "UTF-8") as fd:
+			with self._path.open("r") as fd:
 				config = yaml.load(fd, **options)
 
 		except FileNotFoundError:
@@ -172,5 +171,5 @@ class RelayDatabase(dict[str, Any]):
 			pass
 
 		except json.decoder.JSONDecodeError as e:
-			if self.config.db.stat().st_size > 0:
+			if self.config.db.size > 0:
 				raise e from None

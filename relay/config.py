@@ -5,8 +5,8 @@ import os
 import platform
 import yaml
 
+from blib import File
 from dataclasses import asdict, dataclass, fields
-from pathlib import Path
 from platformdirs import user_config_dir
 from typing import TYPE_CHECKING, Any
 
@@ -63,8 +63,8 @@ class Config:
 	rd_prefix: str = "activityrelay"
 
 
-	def __init__(self, path: Path | None = None, load: bool = False):
-		self.path: Path = Config.get_config_dir(path)
+	def __init__(self, path: File | str | None = None, load: bool = False):
+		self.path: File = Config.get_config_dir(path)
 		self.reset()
 
 		if load:
@@ -90,32 +90,31 @@ class Config:
 
 
 	@staticmethod
-	def get_config_dir(path: Path | str | None = None) -> Path:
-		if isinstance(path, str):
-			path = Path(path)
-
+	def get_config_dir(path: File | str | None = None) -> File:
 		if path is not None:
-			return path.expanduser().resolve()
+			return File(path).resolve()
 
 		paths = (
-			Path("relay.yaml").resolve(),
-			Path(user_config_dir("activityrelay"), "relay.yaml"),
-			Path("/etc/activityrelay/relay.yaml")
+			File("relay.yaml").resolve(),
+			File(user_config_dir("activityrelay")).join("relay.yaml"),
+			File("/etc/activityrelay/relay.yaml")
 		)
 
 		for cfgfile in paths:
-			if cfgfile.exists():
+			if cfgfile.exists:
 				return cfgfile
 
 		return paths[0]
 
 
 	@property
-	def sqlite_path(self) -> Path:
-		if not os.path.isabs(self.sq_path):
-			return self.path.parent.joinpath(self.sq_path).resolve()
+	def sqlite_path(self) -> File:
+		path = File(self.sq_path)
 
-		return Path(self.sq_path).expanduser().resolve()
+		if not path.isabsolute:
+			return self.path.parent.join(self.sq_path)
+
+		return path.resolve()
 
 
 	@property
@@ -143,7 +142,7 @@ class Config:
 		except AttributeError:
 			pass
 
-		with self.path.open("r", encoding = "UTF-8") as fd:
+		with self.path.open("r") as fd:
 			config = yaml.load(fd, **options)
 
 		if not config:
@@ -185,7 +184,7 @@ class Config:
 
 
 	def save(self) -> None:
-		self.path.parent.mkdir(exist_ok = True, parents = True)
+		self.path.parent.mkdir()
 
 		data: dict[str, Any] = {}
 
@@ -215,7 +214,7 @@ class Config:
 
 			data[key] = value
 
-		with self.path.open("w", encoding = "utf-8") as fd:
+		with self.path.open("w") as fd:
 			yaml.dump(data, fd, sort_keys = False)
 
 

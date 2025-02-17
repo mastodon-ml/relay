@@ -4,9 +4,9 @@ import click
 import json
 import multiprocessing
 
+from blib import File
 from collections.abc import Callable
 from functools import update_wrapper
-from pathlib import Path
 from typing import Concatenate, ParamSpec, TypeVar
 
 from .. import __version__
@@ -19,24 +19,24 @@ R = TypeVar("R")
 
 
 @click.group("cli", context_settings = {"show_default": True})
-@click.option("--config", "-c", type = Path, help = "path to the relay config")
+@click.option("--config", "-c", type = File, help = "path to the relay config")
 @click.version_option(version = __version__, prog_name = "ActivityRelay")
 @click.pass_context
-def cli(ctx: click.Context, config: Path | None) -> None:
+def cli(ctx: click.Context, config: File | None) -> None:
 	if IS_DOCKER:
-		config = Path("/data/relay.yaml")
+		config = File("/data/relay.yaml")
 
 		# The database was named "relay.jsonld" even though it"s an sqlite file. Fix it.
-		db = Path("/data/relay.sqlite3")
-		wrongdb = Path("/data/relay.jsonld")
+		db = File("/data/relay.sqlite3")
+		wrongdb = File("/data/relay.jsonld")
 
-		if wrongdb.exists() and not db.exists():
+		if wrongdb.exists and not db.exists:
 			try:
 				with wrongdb.open("rb") as fd:
 					json.load(fd)
 
 			except json.JSONDecodeError:
-				wrongdb.rename(db)
+				wrongdb.move(db)
 
 	ctx.obj = Application(config)
 

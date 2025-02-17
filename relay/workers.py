@@ -5,13 +5,12 @@ import traceback
 
 from aiohttp.client_exceptions import ClientConnectionError, ClientSSLError
 from asyncio.exceptions import TimeoutError as AsyncTimeoutError
-from blib import HttpError
+from blib import File, HttpError
 from dataclasses import dataclass
 from multiprocessing import Event, Process, Queue, Value
 from multiprocessing.queues import Queue as QueueType
 from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event as EventType
-from pathlib import Path
 from queue import Empty
 from urllib.parse import urlparse
 
@@ -41,7 +40,7 @@ class PushWorker(Process):
 
 		self.queue: QueueType[PostItem] = queue
 		self.shutdown: EventType = Event()
-		self.path: Path = get_app().config.path
+		self.path: File = get_app().config.path
 		self.log_level: Synchronized[int] = log_level
 		self._log_level_changed: EventType = Event()
 

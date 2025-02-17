@@ -3,16 +3,9 @@ from __future__ import annotations
 import logging
 import os
 
-from enum import IntEnum
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
-
-if TYPE_CHECKING:
-	try:
-		from typing import Self
-
-	except ImportError:
-		from typing_extensions import Self
+from blib import File
+from blib import IntEnum
+from typing import Any, Protocol
 
 
 class LoggingMethod(Protocol):
@@ -30,35 +23,6 @@ class LogLevel(IntEnum):
 
 	def __str__(self) -> str:
 		return self.name
-
-
-	@classmethod
-	def parse(cls: type[Self], data: Any) -> Self:
-		try:
-			data = int(data)
-
-		except ValueError:
-			pass
-
-		if isinstance(data, cls):
-			return data
-
-		if isinstance(data, str):
-			data = data.upper()
-
-		try:
-			return cls[data]
-
-		except KeyError:
-			pass
-
-		try:
-			return cls(data)
-
-		except ValueError:
-			pass
-
-		raise AttributeError(f"Invalid enum property for {cls.__name__}: {data}")
 
 
 def get_level() -> LogLevel:
@@ -84,7 +48,7 @@ critical: LoggingMethod = logging.critical
 
 
 try:
-	env_log_file: Path | None = Path(os.environ["LOG_FILE"]).expanduser().resolve()
+	env_log_file: File | None = File(os.environ["LOG_FILE"]).resolve()
 
 except KeyError:
 	env_log_file = None
