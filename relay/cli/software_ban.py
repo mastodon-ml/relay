@@ -1,11 +1,11 @@
 import asyncio
 import click
 
-from . import cli, pass_app
+from . import cli, pass_state
 
 from .. import http_client as http
-from ..application import Application
 from ..misc import RELAY_SOFTWARE
+from ..state import State
 
 
 @cli.group("software")
@@ -14,13 +14,13 @@ def cli_software() -> None:
 
 
 @cli_software.command("list")
-@pass_app
-def cli_software_list(app: Application) -> None:
+@pass_state
+def cli_software_list(state: State) -> None:
 	"List all banned software"
 
 	click.echo("Banned software:")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		for row in conn.get_software_bans():
 			if row.reason:
 				click.echo(f"- {row.name} ({row.reason})")
@@ -38,15 +38,15 @@ def cli_software_list(app: Application) -> None:
 	is_flag = True,
 	help = "Treat NAME like a domain and try to fetch the software name from nodeinfo"
 )
-@pass_app
-def cli_software_ban(app: Application,
+@pass_state
+def cli_software_ban(state: State,
 					name: str,
 					reason: str,
 					note: str,
 					fetch_nodeinfo: bool) -> None:
 	"Ban software. Use RELAYS for NAME to ban relays"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if name == "RELAYS":
 			for item in RELAY_SOFTWARE:
 				if conn.get_software_ban(item):
@@ -59,7 +59,7 @@ def cli_software_ban(app: Application,
 			return
 
 		if fetch_nodeinfo:
-			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(name))):
+			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(state, name))):
 				click.echo(f"Failed to fetch software name from domain: {name}")
 				return
 
@@ -85,11 +85,11 @@ def cli_software_ban(app: Application,
 	is_flag = True,
 	help = "Treat NAME like a domain and try to fetch the software name from nodeinfo"
 )
-@pass_app
-def cli_software_unban(app: Application, name: str, fetch_nodeinfo: bool) -> None:
+@pass_state
+def cli_software_unban(state: State, name: str, fetch_nodeinfo: bool) -> None:
 	"Ban software. Use RELAYS for NAME to unban relays"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if name == "RELAYS":
 			for software in RELAY_SOFTWARE:
 				if not conn.del_software_ban(software):
@@ -99,7 +99,7 @@ def cli_software_unban(app: Application, name: str, fetch_nodeinfo: bool) -> Non
 			return
 
 		if fetch_nodeinfo:
-			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(name))):
+			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(state, name))):
 				click.echo(f"Failed to fetch software name from domain: {name}")
 				return
 
@@ -117,9 +117,9 @@ def cli_software_unban(app: Application, name: str, fetch_nodeinfo: bool) -> Non
 @click.option("--reason", "-r")
 @click.option("--note", "-n")
 @click.pass_context
-@pass_app
+@pass_state
 def cli_software_update(
-					app: Application,
+					state: State,
 					ctx: click.Context,
 					name: str,
 					reason: str,
@@ -129,7 +129,7 @@ def cli_software_update(
 	if not (reason or note):
 		ctx.fail("Must pass --reason or --note")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if not (row := conn.update_software_ban(name, reason, note)):
 			click.echo(f"Failed to update software ban: {name}")
 			return

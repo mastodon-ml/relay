@@ -1,11 +1,11 @@
 import asyncio
 import click
 
-from . import cli, pass_app
+from . import cli, pass_state
 
 from .. import http_client as http
-from ..application import Application
 from ..misc import Message
+from ..state import State
 
 
 @cli.group("request")
@@ -14,13 +14,13 @@ def cli_request() -> None:
 
 
 @cli_request.command("list")
-@pass_app
-def cli_request_list(app: Application) -> None:
+@pass_state
+def cli_request_list(state: State) -> None:
 	"List all current follow requests"
 
 	click.echo("Follow requests:")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		for row in conn.get_requests():
 			date = row.created.strftime("%Y-%m-%d")
 			click.echo(f"- [{date}] {row.domain}")
@@ -28,12 +28,12 @@ def cli_request_list(app: Application) -> None:
 
 @cli_request.command("accept")
 @click.argument("domain")
-@pass_app
-def cli_request_accept(app: Application, domain: str) -> None:
+@pass_state
+def cli_request_accept(state: State, domain: str) -> None:
 	"Accept a follow request"
 
 	try:
-		with app.database.session() as conn:
+		with state.database.session() as conn:
 			instance = conn.put_request_response(domain, True)
 
 	except KeyError:
@@ -41,31 +41,31 @@ def cli_request_accept(app: Application, domain: str) -> None:
 		return
 
 	message = Message.new_response(
-		host = app.config.domain,
+		host = state.config.domain,
 		actor = instance.actor,
 		followid = instance.followid,
 		accept = True
 	)
 
-	asyncio.run(http.post(instance.inbox, message, instance))
+	asyncio.run(http.post(state, instance.inbox, message, instance))
 
 	if instance.software != "mastodon":
 		message = Message.new_follow(
-			host = app.config.domain,
+			host = state.config.domain,
 			actor = instance.actor
 		)
 
-		asyncio.run(http.post(instance.inbox, message, instance))
+		asyncio.run(http.post(state, instance.inbox, message, instance))
 
 
 @cli_request.command("deny")
 @click.argument("domain")
-@pass_app
-def cli_request_deny(app: Application, domain: str) -> None:
+@pass_state
+def cli_request_deny(state: State, domain: str) -> None:
 	"Accept a follow request"
 
 	try:
-		with app.database.session() as conn:
+		with state.database.session() as conn:
 			instance = conn.put_request_response(domain, False)
 
 	except KeyError:
@@ -73,10 +73,10 @@ def cli_request_deny(app: Application, domain: str) -> None:
 		return
 
 	response = Message.new_response(
-		host = app.config.domain,
+		host = state.config.domain,
 		actor = instance.actor,
 		followid = instance.followid,
 		accept = False
 	)
 
-	asyncio.run(http.post(instance.inbox, response, instance))
+	asyncio.run(http.post(state, instance.inbox, response, instance))

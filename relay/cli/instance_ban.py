@@ -1,8 +1,8 @@
 import click
 
-from . import cli, pass_app
+from . import cli, pass_state
 
-from ..application import Application
+from ..state import State
 
 
 @cli.group("instance")
@@ -11,13 +11,13 @@ def cli_instance() -> None:
 
 
 @cli_instance.command("list")
-@pass_app
-def cli_instance_list(app: Application) -> None:
+@pass_state
+def cli_instance_list(state: State) -> None:
 	"List all banned instances"
 
 	click.echo("Banned domains:")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		for row in conn.get_domain_bans():
 			if row.reason:
 				click.echo(f"- {row.domain} ({row.reason})")
@@ -30,11 +30,11 @@ def cli_instance_list(app: Application) -> None:
 @click.argument("domain")
 @click.option("--reason", "-r", help = "Public note about why the domain is banned")
 @click.option("--note", "-n", help = "Internal note that will only be seen by admins and mods")
-@pass_app
-def cli_instance_ban(app: Application, domain: str, reason: str, note: str) -> None:
+@pass_state
+def cli_instance_ban(state: State, domain: str, reason: str, note: str) -> None:
 	"Ban an instance and remove the associated inbox if it exists"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if conn.get_domain_ban(domain) is not None:
 			click.echo(f"Domain already banned: {domain}")
 			return
@@ -46,11 +46,11 @@ def cli_instance_ban(app: Application, domain: str, reason: str, note: str) -> N
 
 @cli_instance.command("unban")
 @click.argument("domain")
-@pass_app
-def cli_instance_unban(app: Application, domain: str) -> None:
+@pass_state
+def cli_instance_unban(state: State, domain: str) -> None:
 	"Unban an instance"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if conn.del_domain_ban(domain) is None:
 			click.echo(f"Instance wasn\"t banned: {domain}")
 			return
@@ -63,9 +63,9 @@ def cli_instance_unban(app: Application, domain: str) -> None:
 @click.option("--reason", "-r")
 @click.option("--note", "-n")
 @click.pass_context
-@pass_app
+@pass_state
 def cli_instance_update(
-					app: Application,
+					state: State,
 					ctx: click.Context,
 					domain: str,
 					reason: str,
@@ -75,7 +75,7 @@ def cli_instance_update(
 	if not (reason or note):
 		ctx.fail("Must pass --reason or --note")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if not (row := conn.update_domain_ban(domain, reason, note)):
 			click.echo(f"Failed to update domain ban: {domain}")
 			return

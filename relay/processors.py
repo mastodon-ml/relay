@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import typing
+from typing import TYPE_CHECKING, cast
 
 from . import logger as logging
 from .database import Connection
-from .misc import Message, get_app
+from .database.schema import Instance
+from .misc import Message, get_state
 
-if typing.TYPE_CHECKING:
-	from .app import Application
+if TYPE_CHECKING:
+	from .state import State
 	from .views.activitypub import InboxData
 
 
@@ -22,58 +23,58 @@ def is_application(actor: Message, software: str | None) -> bool:
 	return False
 
 
-async def handle_relay(app: Application, data: InboxData, conn: Connection) -> None:
+async def handle_relay(state: State, data: InboxData, conn: Connection) -> None:
 	try:
-		app.cache.get("handle-relay", data.message.object_id)
+		state.cache.get("handle-relay", data.message.object_id)
 		logging.verbose("already relayed %s", data.message.object_id)
 		return
 
 	except KeyError:
 		pass
 
-	message = Message.new_announce(app.config.domain, data.message.object_id)
+	message = Message.new_announce(state.config.domain, data.message.object_id)
 	logging.debug(">> relay: %s", message)
 
 	for instance in conn.distill_inboxes(data.message):
-		app.push_message(instance.inbox, message, instance)
+		state.push_message(instance.inbox, message, instance)
 
-	app.cache.set("handle-relay", data.message.object_id, message.id, "str")
+	state.cache.set("handle-relay", data.message.object_id, message.id, "str")
 
 
-async def handle_forward(app: Application, data: InboxData, conn: Connection) -> None:
+async def handle_forward(state: State, data: InboxData, conn: Connection) -> None:
 	try:
-		app.cache.get("handle-relay", data.message.id)
+		state.cache.get("handle-relay", data.message.id)
 		logging.verbose("already forwarded %s", data.message.id)
 		return
 
 	except KeyError:
 		pass
 
-	message = Message.new_announce(app.config.domain, data.message)
+	message = Message.new_announce(state.config.domain, data.message)
 	logging.debug(">> forward: %s", message)
 
 	for instance in conn.distill_inboxes(data.message):
-		app.push_message(instance.inbox, data.message, instance)
+		state.push_message(instance.inbox, data.message, instance)
 
-	app.cache.set("handle-relay", data.message.id, message.id, "str")
+	state.cache.set("handle-relay", data.message.id, message.id, "str")
 
 
-async def handle_follow(app: Application, data: InboxData, conn: Connection) -> None:
-	nodeinfo = await app.client.fetch_nodeinfo(data.actor.domain, force = True)
+async def handle_follow(state: State, data: InboxData, conn: Connection) -> None:
+	nodeinfo = await state.client.fetch_nodeinfo(data.actor.domain, force = True)
 	software = nodeinfo.sw_name if nodeinfo else None
 	config = conn.get_config_all()
 
 	# reject if software used by actor is banned
 	if software and conn.get_software_ban(software):
-		app.push_message(
+		state.push_message(
 			data.shared_inbox,
 			Message.new_response(
-				host = app.config.domain,
+				host = state.config.domain,
 				actor = data.actor.id,
 				followid = data.message.id,
 				accept = False
 			),
-			data.instance
+			cast(Instance, data.instance)
 		)
 
 		logging.verbose(
@@ -88,15 +89,15 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 	if not is_application(data.actor, software):
 		logging.verbose("Non-application actor tried to follow: %s", data.actor.id)
 
-		app.push_message(
+		state.push_message(
 			data.shared_inbox,
 			Message.new_response(
-				host = app.config.domain,
+				host = state.config.domain,
 				actor = data.actor.id,
 				followid = data.message.id,
 				accept = False
 			),
-			data.instance
+			cast(Instance, data.instance)
 		)
 
 		return
@@ -122,15 +123,15 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 		if config.whitelist_enabled:
 			logging.verbose("Rejected actor for not being in the whitelist: %s", data.actor.id)
 
-			app.push_message(
+			state.push_message(
 				data.shared_inbox,
 				Message.new_response(
-					host = app.config.domain,
+					host = state.config.domain,
 					actor = data.actor.id,
 					followid = data.message.id,
 					accept = False
 				),
-				data.instance
+				cast(Instance, data.instance)
 			)
 
 			return
@@ -145,10 +146,10 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 				accepted = True
 			)
 
-	app.push_message(
+	state.push_message(
 		data.shared_inbox,
 		Message.new_response(
-			host = app.config.domain,
+			host = state.config.domain,
 			actor = data.actor.id,
 			followid = data.message.id,
 			accept = True
@@ -159,20 +160,20 @@ async def handle_follow(app: Application, data: InboxData, conn: Connection) -> 
 	# Are Akkoma and Pleroma the only two that expect a follow back?
 	# Ignoring only Mastodon for now
 	if software != "mastodon":
-		app.push_message(
+		state.push_message(
 			data.shared_inbox,
 			Message.new_follow(
-				host = app.config.domain,
+				host = state.config.domain,
 				actor = data.actor.id
 			),
 			data.instance
 		)
 
 
-async def handle_undo(app: Application, data: InboxData, conn: Connection) -> None:
+async def handle_undo(state: State, data: InboxData, conn: Connection) -> None:
 	if data.message.object["type"] != "Follow":
 		# forwarding deletes does not work, so don"t bother
-		# await handle_forward(app, data, conn)
+		# await handle_forward(state, data, conn)
 		return
 
 	if data.instance is None:
@@ -190,10 +191,10 @@ async def handle_undo(app: Application, data: InboxData, conn: Connection) -> No
 				data.message.object_id
 			)
 
-	app.push_message(
+	state.push_message(
 		data.shared_inbox,
 		Message.new_unfollow(
-			host = app.config.domain,
+			host = state.config.domain,
 			actor = data.actor.id,
 			follow = data.message
 		),
@@ -221,12 +222,12 @@ async def run_processor(data: InboxData) -> None:
 
 		return
 
-	app = get_app()
+	state = get_state()
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if data.instance:
 			if not data.instance.software:
-				if (nodeinfo := await app.client.fetch_nodeinfo(data.instance.domain)):
+				if (nodeinfo := await state.client.fetch_nodeinfo(data.instance.domain)):
 					with conn.transaction():
 						data.instance = conn.put_inbox(
 							domain = data.instance.domain,
@@ -241,4 +242,4 @@ async def run_processor(data: InboxData) -> None:
 					)
 
 		logging.verbose("New \"%s\" from actor: %s", data.message.type, data.actor.id)
-		await processors[data.message.type](app, data, conn)
+		await processors[data.message.type](state, data, conn)

@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import sqlite3
 
+from aputils import Signer
 from blib import Date, File
 from bsql import Database
+from typing import TYPE_CHECKING
 
 from .config import ConfigData
 from .connection import Connection
@@ -10,11 +14,14 @@ from .schema import TABLES, VERSIONS, migrate_0
 from .. import logger as logging
 from ..config import Config
 
+if TYPE_CHECKING:
+	from ..state import State
+
 
 sqlite3.register_adapter(Date, Date.timestamp)
 
 
-def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
+def get_database(state: State, migrate: bool = True) -> Database[Connection]:
 	options = {
 		"connection_class": Connection,
 		"pool_size": 5,
@@ -23,16 +30,16 @@ def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
 
 	db: Database[Connection]
 
-	if config.db_type == "sqlite":
-		db = Database.sqlite(config.sqlite_path, **options)
+	if state.config.db_type == "sqlite":
+		db = Database.sqlite(state.config.sqlite_path, **options)
 
-	elif config.db_type == "postgres":
+	elif state.config.db_type == "postgres":
 		db = Database.postgresql(
-			config.pg_name,
-			config.pg_host,
-			config.pg_port,
-			config.pg_user,
-			config.pg_pass,
+			state.config.pg_name,
+			state.config.pg_host,
+			state.config.pg_port,
+			state.config.pg_user,
+			state.config.pg_pass,
 			**options
 		)
 
@@ -46,9 +53,8 @@ def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
 		if "config" not in conn.get_tables():
 			logging.info("Creating database tables")
 			migrate_0(conn)
-			return db
 
-		if (schema_ver := conn.get_config("schema-version")) < ConfigData.DEFAULT("schema-version"):
+		elif (schema_ver := conn.get_config("schema-version")) < ConfigData.DEFAULT("schema-version"):
 			logging.info("Migrating database from version '%i'", schema_ver)
 
 			for ver, func in VERSIONS.items():
@@ -56,9 +62,6 @@ def get_database(config: Config, migrate: bool = True) -> Database[Connection]:
 					func(conn)
 					conn.put_config("schema-version", ver)
 					logging.info("Updated database to %i", ver)
-
-		if (privkey := conn.get_config("private-key")):
-			conn.app.signer = privkey
 
 		logging.set_level(conn.get_config("log-level"))
 

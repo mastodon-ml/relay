@@ -3,12 +3,12 @@ import click
 
 from urllib.parse import urlparse
 
-from . import cli, pass_app
+from . import cli, pass_state
 
 from .. import http_client as http
-from ..application import Application
 from ..database.schema import Instance
 from ..misc import ACTOR_FORMATS, Message
+from ..state import State
 
 
 @cli.group("inbox")
@@ -17,26 +17,26 @@ def cli_inbox() -> None:
 
 
 @cli_inbox.command("list")
-@pass_app
-def cli_inbox_list(app: Application) -> None:
+@pass_state
+def cli_inbox_list(state: State) -> None:
 	"List the connected instances or relays"
 
 	click.echo("Connected to the following instances or relays:")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		for row in conn.get_inboxes():
 			click.echo(f"- {row.inbox}")
 
 
 @cli_inbox.command("follow")
 @click.argument("actor")
-@pass_app
-def cli_inbox_follow(app: Application, actor: str) -> None:
+@pass_state
+def cli_inbox_follow(state: State, actor: str) -> None:
 	"Follow an actor (Relay must be running)"
 
 	instance: Instance | None = None
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if conn.get_domain_ban(actor):
 			click.echo(f"Error: Refusing to follow banned actor: {actor}")
 			return
@@ -48,30 +48,30 @@ def cli_inbox_follow(app: Application, actor: str) -> None:
 			if not actor.startswith("http"):
 				actor = f"https://{actor}/actor"
 
-			if (actor_data := asyncio.run(http.get(actor, sign_headers = True))) is None:
+			if (actor_data := asyncio.run(http.get(state, actor, sign_headers = True))) is None:
 				click.echo(f"Failed to fetch actor: {actor}")
 				return
 
 			inbox = actor_data.shared_inbox
 
 	message = Message.new_follow(
-		host = app.config.domain,
+		host = state.config.domain,
 		actor = actor
 	)
 
-	asyncio.run(http.post(inbox, message, instance))
+	asyncio.run(http.post(state, inbox, message, instance))
 	click.echo(f"Sent follow message to actor: {actor}")
 
 
 @cli_inbox.command("unfollow")
 @click.argument("actor")
-@pass_app
-def cli_inbox_unfollow(app: Application, actor: str) -> None:
+@pass_state
+def cli_inbox_unfollow(state: State, actor: str) -> None:
 	"Unfollow an actor (Relay must be running)"
 
 	instance: Instance | None = None
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if conn.get_domain_ban(actor):
 			click.echo(f"Error: Refusing to follow banned actor: {actor}")
 			return
@@ -79,7 +79,7 @@ def cli_inbox_unfollow(app: Application, actor: str) -> None:
 		if (instance := conn.get_inbox(actor)):
 			inbox = instance.inbox
 			message = Message.new_unfollow(
-				host = app.config.domain,
+				host = state.config.domain,
 				actor = actor,
 				follow = instance.followid
 			)
@@ -88,7 +88,7 @@ def cli_inbox_unfollow(app: Application, actor: str) -> None:
 			if not actor.startswith("http"):
 				actor = f"https://{actor}/actor"
 
-			actor_data = asyncio.run(http.get(actor, sign_headers = True))
+			actor_data = asyncio.run(http.get(state, actor, sign_headers = True))
 
 			if not actor_data:
 				click.echo("Failed to fetch actor")
@@ -96,16 +96,16 @@ def cli_inbox_unfollow(app: Application, actor: str) -> None:
 
 			inbox = actor_data.shared_inbox
 			message = Message.new_unfollow(
-				host = app.config.domain,
+				host = state.config.domain,
 				actor = actor,
 				follow = {
 					"type": "Follow",
 					"object": actor,
-					"actor": f"https://{app.config.domain}/actor"
+					"actor": f"https://{state.config.domain}/actor"
 				}
 			)
 
-	asyncio.run(http.post(inbox, message, instance))
+	asyncio.run(http.post(state, inbox, message, instance))
 	click.echo(f"Sent unfollow message to: {actor}")
 
 
@@ -114,9 +114,9 @@ def cli_inbox_unfollow(app: Application, actor: str) -> None:
 @click.option("--actor", "-a", help = "Actor url for the inbox")
 @click.option("--followid", "-f", help = "Url for the follow activity")
 @click.option("--software", "-s", help = "Nodeinfo software name of the instance")
-@pass_app
+@pass_state
 def cli_inbox_add(
-				app: Application,
+				state: State,
 				inbox: str,
 				actor: str | None = None,
 				followid: str | None = None,
@@ -131,7 +131,7 @@ def cli_inbox_add(
 		domain = urlparse(inbox).netloc
 
 	if not software:
-		if (nodeinfo := asyncio.run(http.fetch_nodeinfo(domain))):
+		if (nodeinfo := asyncio.run(http.fetch_nodeinfo(state, domain))):
 			software = nodeinfo.sw_name
 
 	if not actor and software:
@@ -141,7 +141,7 @@ def cli_inbox_add(
 		except KeyError:
 			pass
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if conn.get_domain_ban(domain):
 			click.echo(f"Refusing to add banned inbox: {inbox}")
 			return
@@ -157,11 +157,11 @@ def cli_inbox_add(
 
 @cli_inbox.command("remove")
 @click.argument("inbox")
-@pass_app
-def cli_inbox_remove(app: Application, inbox: str) -> None:
+@pass_state
+def cli_inbox_remove(state: State, inbox: str) -> None:
 	"Remove an inbox from the database"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if not conn.del_inbox(inbox):
 			click.echo(f"Inbox not in database: {inbox}")
 			return

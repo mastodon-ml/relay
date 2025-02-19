@@ -12,12 +12,15 @@ from multiprocessing.queues import Queue as QueueType
 from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event as EventType
 from queue import Empty
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from . import application, logger as logging
+from . import logger as logging
 from .database.schema import Instance
-from .http_client import HttpClient
-from .misc import IS_WINDOWS, Message, get_app
+from .misc import Message
+
+if TYPE_CHECKING:
+	from .state import State
 
 
 @dataclass
@@ -32,15 +35,15 @@ class PostItem:
 
 
 class PushWorker(Process):
-	client: HttpClient
+	state: State
 
 
-	def __init__(self, queue: QueueType[PostItem], log_level: Synchronized[int]) -> None:
+	def __init__(self, path: File, queue: QueueType[PostItem], log_level: Synchronized[int]) -> None:
 		Process.__init__(self)
 
 		self.queue: QueueType[PostItem] = queue
 		self.shutdown: EventType = Event()
-		self.path: File = get_app().config.path
+		self.path: File = path
 		self.log_level: Synchronized[int] = log_level
 		self._log_level_changed: EventType = Event()
 
@@ -54,17 +57,10 @@ class PushWorker(Process):
 
 
 	async def handle_queue(self) -> None:
-		if IS_WINDOWS:
-			app = application.Application(self.path)
-			self.client = app.client
-
-			self.client.open()
-			app.database.connect()
-			app.cache.setup()
-
-		else:
-			self.client = HttpClient()
-			self.client.open()
+		from .state import State
+		self.state = State(self.path, False)
+		self.state.cache.setup()
+		self.state.client.open()
 
 		logging.verbose("[%i] Starting worker", self.pid)
 
@@ -83,16 +79,12 @@ class PushWorker(Process):
 			except Exception:
 				traceback.print_exc()
 
-		if IS_WINDOWS:
-			app.database.disconnect()
-			app.cache.close()
-
-		await self.client.close()
+		await self.state.close()
 
 
 	async def handle_post(self, item: PostItem) -> None:
 		try:
-			await self.client.post(item.inbox, item.message, item.instance)
+			await self.state.client.post(item.inbox, item.message, item.instance)
 
 		except HttpError as e:
 			logging.error("HTTP Error when pushing to %s: %i %s", item.inbox, e.status, e.message)
@@ -108,10 +100,10 @@ class PushWorker(Process):
 
 
 class PushWorkers(list[PushWorker]):
-	def __init__(self, count: int) -> None:
+	def __init__(self, state: State) -> None:
+		self.state: State = state
 		self.queue: QueueType[PostItem] = Queue()
 		self._log_level: Synchronized[int] = Value("i", logging.get_level())
-		self._count: int = count
 
 
 	def push_message(self, inbox: str, message: Message, instance: Instance) -> None:
@@ -129,8 +121,8 @@ class PushWorkers(list[PushWorker]):
 		if len(self) > 0:
 			return
 
-		for _ in range(self._count):
-			worker = PushWorker(self.queue, self._log_level)
+		for _ in range(self.state.config.workers):
+			worker = PushWorker(self.state.config.path, self.queue, self._log_level)
 			worker.start()
 			self.append(worker)
 

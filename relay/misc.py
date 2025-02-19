@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, TypeVar, overload
 from uuid import uuid4
 
 if TYPE_CHECKING:
-	from .application import Application
+	from .state import State
 
 	try:
 		from typing import Self
@@ -79,13 +79,9 @@ TOKEN_PATHS: tuple[str, ...] = (
 )
 
 
-def get_app() -> Application:
-	from .application import Application
-
-	if not Application.DEFAULT:
-		raise ValueError("No default application set")
-
-	return Application.DEFAULT
+def get_state() -> State:
+	from .state import State
+	return State.default()
 
 
 @overload
@@ -253,7 +249,7 @@ class Response(AiohttpResponse):
 					headers: dict[str, Any] | None = None,
 					ctype: str = "html") -> Self:
 
-		body = get_app().template.render(path, request, **(context or {}))
+		body = get_state().template.render(path, request, **(context or {}))
 		return cls.new(body, status, headers, ctype)
 
 

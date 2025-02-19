@@ -3,17 +3,16 @@ from __future__ import annotations
 import json
 
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
-from aputils import AlgorithmType, Nodeinfo, ObjectType, Signer, WellKnownNodeinfo
+from aputils import AlgorithmType, Nodeinfo, ObjectType, WellKnownNodeinfo
 from blib import HttpError, JsonBase
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from . import __version__, logger as logging
-from .cache import Cache
 from .database.schema import Instance
-from .misc import MIMETYPES, Message, get_app
+from .misc import MIMETYPES, Message
 
 if TYPE_CHECKING:
-	from .application import Application
+	from .state import State
 
 
 T = TypeVar("T", bound = JsonBase[Any])
@@ -44,9 +43,10 @@ class EmptyBodyError(Exception):
 
 
 class HttpClient:
-	def __init__(self, limit: int = 100, timeout: int = 10):
-		self.limit = limit
-		self.timeout = timeout
+	def __init__(self, state: State, limit: int = 100, timeout: int = 10):
+		self.state: State = state
+		self.limit: int = limit
+		self.timeout: int = timeout
 		self._conn: TCPConnector | None = None
 		self._session: ClientSession | None = None
 
@@ -58,21 +58,6 @@ class HttpClient:
 
 	async def __aexit__(self, *_: Any) -> None:
 		await self.close()
-
-
-	@property
-	def app(self) -> Application:
-		return get_app()
-
-
-	@property
-	def cache(self) -> Cache:
-		return self.app.cache
-
-
-	@property
-	def signer(self) -> Signer:
-		return self.app.signer
 
 
 	def open(self) -> None:
@@ -116,7 +101,7 @@ class HttpClient:
 
 		if not force:
 			try:
-				if not (item := self.cache.get("request", url)).older_than(48):
+				if not (item := self.state.cache.get("request", url)).older_than(48):
 					return item.value # type: ignore [no-any-return]
 
 			except KeyError:
@@ -124,9 +109,9 @@ class HttpClient:
 
 		headers = {}
 
-		if sign_headers:
+		if sign_headers and self.state.signer is not None:
 			algo = AlgorithmType.RSASHA256 if old_algo else AlgorithmType.HS2019
-			headers = self.signer.sign_headers("GET", url, algorithm = algo)
+			headers = self.state.signer.sign_headers("GET", url, algorithm = algo)
 
 		logging.debug("Fetching resource: %s", url)
 
@@ -146,7 +131,7 @@ class HttpClient:
 
 			raise HttpError(resp.status, error)
 
-		self.cache.set("request", url, data, "str")
+		self.state.cache.set("request", url, data, "str")
 		return data
 
 
@@ -194,6 +179,9 @@ class HttpClient:
 		if not self._session:
 			raise RuntimeError("Client not open")
 
+		if self.state.signer is None:
+			raise RuntimeError("Signer is not available")
+
 		# akkoma and pleroma do not support HS2019 and other software still needs to be tested
 		if instance is not None and instance.software in SUPPORTS_HS2019:
 			algorithm = AlgorithmType.HS2019
@@ -213,7 +201,7 @@ class HttpClient:
 			message = data
 
 		mtype = message.type.value if isinstance(message.type, ObjectType) else message.type
-		headers = self.signer.sign_headers(
+		headers = self.state.signer.sign_headers(
 			"POST",
 			url,
 			body,
@@ -251,16 +239,16 @@ class HttpClient:
 		return await self.get(nodeinfo_url, False, Nodeinfo, force)
 
 
-async def get(*args: Any, **kwargs: Any) -> Any:
-	async with HttpClient() as client:
+async def get(state: State, *args: Any, **kwargs: Any) -> Any:
+	async with HttpClient(state) as client:
 		return await client.get(*args, **kwargs)
 
 
-async def post(*args: Any, **kwargs: Any) -> None:
-	async with HttpClient() as client:
+async def post(state: State, *args: Any, **kwargs: Any) -> None:
+	async with HttpClient(state) as client:
 		return await client.post(*args, **kwargs)
 
 
-async def fetch_nodeinfo(*args: Any, **kwargs: Any) -> Nodeinfo | None:
-	async with HttpClient() as client:
+async def fetch_nodeinfo(state: State, *args: Any, **kwargs: Any) -> Nodeinfo | None:
+	async with HttpClient(state) as client:
 		return await client.fetch_nodeinfo(*args, **kwargs)

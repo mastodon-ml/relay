@@ -1,9 +1,9 @@
 import click
 
-from . import cli, pass_app
+from . import cli, pass_state
 
-from ..application import Application
 from ..database.schema import Whitelist
+from ..state import State
 
 
 @cli.group("whitelist")
@@ -13,24 +13,24 @@ def cli_whitelist() -> None:
 
 @cli_whitelist.command("list")
 @click.pass_context
-@pass_app
-def cli_whitelist_list(app: Application, ctx: click.Context) -> None:
+@pass_state
+def cli_whitelist_list(state: State, ctx: click.Context) -> None:
 	"List all the instances in the whitelist"
 
 	click.echo("Current whitelisted domains:")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		for row in conn.execute("SELECT * FROM whitelist").all(Whitelist):
 			click.echo(f"- {row.domain}")
 
 
 @cli_whitelist.command("add")
 @click.argument("domain")
-@pass_app
-def cli_whitelist_add(app: Application, domain: str) -> None:
+@pass_state
+def cli_whitelist_add(state: State, domain: str) -> None:
 	"Add a domain to the whitelist"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if conn.get_domain_whitelist(domain):
 			click.echo(f"Instance already in the whitelist: {domain}")
 			return
@@ -41,11 +41,11 @@ def cli_whitelist_add(app: Application, domain: str) -> None:
 
 @cli_whitelist.command("remove")
 @click.argument("domain")
-@pass_app
-def cli_whitelist_remove(app: Application, domain: str) -> None:
+@pass_state
+def cli_whitelist_remove(state: State, domain: str) -> None:
 	"Remove an instance from the whitelist"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if not conn.del_domain_whitelist(domain):
 			click.echo(f"Domain not in the whitelist: {domain}")
 			return
@@ -58,11 +58,11 @@ def cli_whitelist_remove(app: Application, domain: str) -> None:
 
 
 @cli_whitelist.command("import")
-@pass_app
-def cli_whitelist_import(app: Application) -> None:
+@pass_state
+def cli_whitelist_import(state: State) -> None:
 	"Add all current instances to the whitelist"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		for row in conn.get_inboxes():
 			if conn.get_domain_whitelist(row.domain) is not None:
 				click.echo(f"Domain already in whitelist: {row.domain}")

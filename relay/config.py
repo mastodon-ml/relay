@@ -91,6 +91,9 @@ class Config:
 
 	@staticmethod
 	def get_config_dir(path: File | str | None = None) -> File:
+		if isinstance(path, File):
+			return path.resolve()
+
 		if path is not None:
 			return File(path).resolve()
 

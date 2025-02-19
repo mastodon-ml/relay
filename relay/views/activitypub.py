@@ -18,7 +18,7 @@ from ..misc import Message, Response
 from ..processors import run_processor
 
 if TYPE_CHECKING:
-	from ..application import Application
+	from ..state import State
 
 	try:
 		from typing import Self
@@ -37,7 +37,7 @@ class InboxData:
 
 
 	@classmethod
-	async def parse(cls: type[Self], app: Application, request: Request) -> Self:
+	async def parse(cls: type[Self], state: State, request: Request) -> Self:
 		signature: Signature | None = None
 		message: Message | None = None
 		actor: Message | None = None
@@ -75,7 +75,7 @@ class InboxData:
 			actor_id = signature.keyid
 
 		try:
-			actor = await app.client.get(actor_id, True, Message)
+			actor = await state.client.get(actor_id, True, Message)
 
 		except HttpError as e:
 			# ld signatures aren"t handled atm, so just ignore it
@@ -125,14 +125,18 @@ class InboxData:
 
 
 @register_route(HttpMethod.GET, "/actor", "/inbox")
-async def handle_actor(app: Application, request: Request) -> Response:
-	with app.database.session(False) as conn:
+async def handle_actor(state: State, request: Request) -> Response:
+	if state.signer is None:
+		logging.error("Signer not set")
+		raise HttpError(500, "Server Error")
+
+	with state.database.session(False) as conn:
 		config = conn.get_config_all()
 
 	data = Message.new_actor(
-		host = app.config.domain,
-		pubkey = app.signer.pubkey,
-		description = app.template.render_markdown(config.note),
+		host = state.config.domain,
+		pubkey = state.signer.pubkey,
+		description = state.template.render_markdown(config.note),
 		approves = config.approval_required
 	)
 
@@ -140,10 +144,10 @@ async def handle_actor(app: Application, request: Request) -> Response:
 
 
 @register_route(HttpMethod.POST, "/actor", "/inbox")
-async def handle_inbox(app: Application, request: Request) -> Response:
-	data = await InboxData.parse(app, request)
+async def handle_inbox(state: State, request: Request) -> Response:
+	data = await InboxData.parse(state, request)
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		data.instance = conn.get_inbox(data.shared_inbox)
 
 		# reject if actor is banned
@@ -167,11 +171,11 @@ async def handle_inbox(app: Application, request: Request) -> Response:
 
 
 @register_route(HttpMethod.GET, "/outbox")
-async def handle_outbox(app: Application, request: Request) -> Response:
+async def handle_outbox(state: State, request: Request) -> Response:
 	msg = aputils.Message.new(
 		aputils.ObjectType.ORDERED_COLLECTION,
 		{
-			"id": f"https://{app.config.domain}/outbox",
+			"id": f"https://{state.config.domain}/outbox",
 			"totalItems": 0,
 			"orderedItems": []
 		}
@@ -181,14 +185,14 @@ async def handle_outbox(app: Application, request: Request) -> Response:
 
 
 @register_route(HttpMethod.GET, "/following", "/followers")
-async def handle_follow(app: Application, request: Request) -> Response:
-	with app.database.session(False) as s:
+async def handle_follow(state: State, request: Request) -> Response:
+	with state.database.session(False) as s:
 		inboxes = [row["actor"] for row in s.get_inboxes()]
 
 	msg = aputils.Message.new(
 		aputils.ObjectType.COLLECTION,
 		{
-			"id": f"https://{app.config.domain}{request.path}",
+			"id": f"https://{state.config.domain}{request.path}",
 			"totalItems": len(inboxes),
 			"items": inboxes
 		}
@@ -198,20 +202,20 @@ async def handle_follow(app: Application, request: Request) -> Response:
 
 
 @register_route(HttpMethod.GET, "/.well-known/webfinger")
-async def get(app: Application, request: Request) -> Response:
+async def get(state: State, request: Request) -> Response:
 	try:
 		subject = request.query["resource"]
 
 	except KeyError:
 		raise HttpError(400, "missing \"resource\" query key")
 
-	if subject != f"acct:relay@{app.config.domain}":
+	if subject != f"acct:relay@{state.config.domain}":
 		raise HttpError(404, "user not found")
 
 	data = aputils.Webfinger.new(
 		handle = "relay",
-		domain = app.config.domain,
-		actor = app.config.actor
+		domain = state.config.domain,
+		actor = state.config.actor
 	)
 
 	return Response.new(data, ctype = "json")

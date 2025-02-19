@@ -11,14 +11,14 @@ from urllib.parse import urlparse
 from .base import DEFAULT_REDIRECT, Route
 
 from .. import api_objects as objects, __version__
-from ..application import Application
 from ..database import ConfigData, schema
 from ..misc import Message, Response, idna_to_utf
+from ..state import State
 
 
 @Route(HttpMethod.GET, "/oauth/authorize", "Authorization", False)
 async def handle_authorize_get(
-			app: Application,
+			state: State,
 			request: Request,
 			response_type: str,
 			client_id: str,
@@ -36,7 +36,7 @@ async def handle_authorize_get(
 	if response_type != "code":
 		raise HttpError(400, "Response type is not 'code'")
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		with s.select("apps", client_id = client_id) as cur:
 			if (application := cur.one(schema.App)) is None:
 				raise HttpError(404, "Could not find app")
@@ -59,14 +59,14 @@ async def handle_authorize_get(
 
 @Route(HttpMethod.POST, "/oauth/authorize", "Authorization", False)
 async def handle_authorize_post(
-			app: Application,
+			state: State,
 			request: Request,
 			client_id: str,
 			client_secret: str,
 			redirect_uri: str,
 			response: str) -> Response:
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if (application := s.get_app(client_id, client_secret)) is None:
 			raise HttpError(404, "Could not find app")
 
@@ -91,7 +91,7 @@ async def handle_authorize_post(
 
 @Route(HttpMethod.POST, "/oauth/token", "Authorization", False)
 async def handle_new_token(
-						app: Application,
+						state: State,
 						request: Request,
 						grant_type: str,
 						code: str,
@@ -111,7 +111,7 @@ async def handle_new_token(
 	if grant_type != "authorization_code":
 		raise HttpError(400, "Invalid grant type")
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if (application := s.get_app(client_id, client_secret)) is None:
 			raise HttpError(404, "Application not found")
 
@@ -128,7 +128,7 @@ async def handle_new_token(
 
 @Route(HttpMethod.POST, "/api/oauth/revoke", "Authorization", True)
 async def handle_token_revoke(
-			app: Application,
+			state: State,
 			request: Request,
 			client_id: str,
 			client_secret: str,
@@ -141,7 +141,7 @@ async def handle_token_revoke(
 		:param token: Token associated with the application
 	"""
 
-	with app.database.session(True) as conn:
+	with state.database.session(True) as conn:
 		if (application := conn.get_app(client_id, client_secret, token)) is None:
 			raise HttpError(404, "Could not find token")
 
@@ -156,7 +156,7 @@ async def handle_token_revoke(
 
 @Route(HttpMethod.POST, "/api/v1/login", "Authorization", False)
 async def handle_login(
-					app: Application,
+					state: State,
 					request: Request,
 					username: str,
 					password: str) -> objects.Application:
@@ -169,7 +169,7 @@ async def handle_login(
 		:param password: Password of the user
 	"""
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if not (user := s.get_user(username)):
 			raise HttpError(401, "User not found")
 
@@ -194,7 +194,7 @@ async def handle_login(
 
 
 @Route(HttpMethod.GET, "/api/v1/app", "Application", True)
-async def handle_get_app(app: Application, request: Request) -> objects.Application:
+async def handle_get_app(state: State, request: Request) -> objects.Application:
 	"Get data for the application currently in use"
 
 	return objects.Application.from_row(request["application"])
@@ -202,7 +202,7 @@ async def handle_get_app(app: Application, request: Request) -> objects.Applicat
 
 @Route(HttpMethod.POST, "/api/v1/app", "Application", True)
 async def handle_create_app(
-							app: Application,
+							state: State,
 							request: Request,
 							name: str,
 							redirect_uri: str,
@@ -215,7 +215,7 @@ async def handle_create_app(
 		:param website: Homepage of the application
 	"""
 
-	with app.database.session(True) as conn:
+	with state.database.session(True) as conn:
 		application = conn.put_app(
 			name = name,
 			redirect_uri = redirect_uri,
@@ -226,22 +226,22 @@ async def handle_create_app(
 
 
 @Route(HttpMethod.GET, "/api/v1/config", "Config", True)
-async def handle_config_get(app: Application, request: Request) -> objects.Config:
+async def handle_config_get(state: State, request: Request) -> objects.Config:
 	"Get all config options"
 
-	with app.database.session(False) as conn:
+	with state.database.session(False) as conn:
 		return objects.Config.from_config(conn.get_config_all())
 
 
 @Route(HttpMethod.GET, "/api/v2/config", "Config", True)
-async def handle_config_get_v2(app: Application, request: Request) -> list[objects.ConfigItem]:
+async def handle_config_get_v2(state: State, request: Request) -> list[objects.ConfigItem]:
 	"Get all config options including the type name for each"
 
 	data: list[objects.ConfigItem] = []
 	cfg = ConfigData()
 	user_keys = ConfigData.USER_KEYS()
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		for row in s.execute("SELECT * FROM \"config\"").all(schema.Config):
 			if row.key.replace("-", "_") not in user_keys:
 				continue
@@ -254,7 +254,7 @@ async def handle_config_get_v2(app: Application, request: Request) -> list[objec
 
 @Route(HttpMethod.POST, "/api/v1/config", "Config", True)
 async def handle_config_update(
-							app: Application,
+							state: State,
 							request: Request,
 							key: str,
 							value: Any) -> objects.Message:
@@ -268,17 +268,17 @@ async def handle_config_update(
 	if (field := ConfigData.FIELD(key)).name not in ConfigData.USER_KEYS():
 		raise HttpError(400, "Invalid key")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		value = conn.put_config(key, value)
 
 	if field.name == "log_level":
-		app.workers.set_log_level(value)
+		state.workers.set_log_level(value)
 
 	return objects.Message("Updated config")
 
 
 @Route(HttpMethod.DELETE, "/api/v1/config", "Config", True)
-async def handle_config_reset(app: Application, request: Request, key: str) -> objects.Message:
+async def handle_config_reset(state: State, request: Request, key: str) -> objects.Message:
 	"""
 		Set a config option to the default value
 
@@ -288,25 +288,25 @@ async def handle_config_reset(app: Application, request: Request, key: str) -> o
 	if (field := ConfigData.FIELD(key)).name not in ConfigData.USER_KEYS():
 		raise HttpError(400, "Invalid key")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		value = conn.put_config(field.name, field.default)
 
 	if field.name == "log_level":
-		app.workers.set_log_level(value)
+		state.workers.set_log_level(value)
 
 	return objects.Message("Updated config")
 
 
 @Route(HttpMethod.GET, "/api/v1/relay", "Misc", False)
-async def get(app: Application, request: Request) -> objects.Relay:
+async def get(state: State, request: Request) -> objects.Relay:
 	"Get info about the relay instance"
 
-	with app.database.session() as s:
+	with state.database.session() as s:
 		config = s.get_config_all()
 		inboxes = [row.domain for row in s.get_inboxes()]
 
 	return objects.Relay(
-		app.config.domain,
+		state.config.domain,
 		config.name,
 		config.note,
 		__version__,
@@ -319,12 +319,12 @@ async def get(app: Application, request: Request) -> objects.Relay:
 
 
 @Route(HttpMethod.GET, "/api/v1/instance", "Instance", True)
-async def handle_instances_get(app: Application, request: Request) -> list[objects.Instance]:
+async def handle_instances_get(state: State, request: Request) -> list[objects.Instance]:
 	"Get all subscribed instances"
 
 	data: list[objects.Instance] = []
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		for row in s.get_inboxes():
 			data.append(objects.Instance.from_row(row))
 
@@ -333,7 +333,7 @@ async def handle_instances_get(app: Application, request: Request) -> list[objec
 
 @Route(HttpMethod.POST, "/api/v1/instance", "Instance", True)
 async def handle_instance_add(
-			app: Application,
+			state: State,
 			request: Request,
 			actor: str,
 			inbox: str | None = None,
@@ -350,13 +350,13 @@ async def handle_instance_add(
 
 	domain = idna_to_utf(urlparse(actor).netloc)
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		if s.get_inbox(domain) is not None:
 			raise HttpError(404, "Instance already in database")
 
 		if inbox is None:
 			try:
-				actor_data = await app.client.get(actor, True, Message)
+				actor_data = await state.client.get(actor, True, Message)
 
 			except Exception:
 				traceback.print_exc()
@@ -366,7 +366,7 @@ async def handle_instance_add(
 
 		if software is None:
 			try:
-				software = (await app.client.fetch_nodeinfo(domain)).sw_name
+				software = (await state.client.fetch_nodeinfo(domain)).sw_name
 
 			except Exception:
 				traceback.print_exc()
@@ -384,7 +384,7 @@ async def handle_instance_add(
 
 @Route(HttpMethod.PATCH, "/api/v1/instance", "Instance", True)
 async def handle_instance_update(
-			app: Application,
+			state: State,
 			request: Request,
 			domain: str,
 			actor: str | None = None,
@@ -403,7 +403,7 @@ async def handle_instance_update(
 
 	domain = idna_to_utf(domain)
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		if (instance := s.get_inbox(domain)) is None:
 			raise HttpError(404, "Instance with domain not found")
 
@@ -419,7 +419,7 @@ async def handle_instance_update(
 
 
 @Route(HttpMethod.DELETE, "/api/v1/instance", "Instance", True)
-async def handle_instance_del(app: Application, request: Request, domain: str) -> objects.Message:
+async def handle_instance_del(state: State, request: Request, domain: str) -> objects.Message:
 	"""
 		Remove an instance from the database
 
@@ -428,7 +428,7 @@ async def handle_instance_del(app: Application, request: Request, domain: str) -
 
 	domain = idna_to_utf(domain)
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		if not s.get_inbox(domain):
 			raise HttpError(404, "Instance with domain not found")
 
@@ -438,7 +438,7 @@ async def handle_instance_del(app: Application, request: Request, domain: str) -
 
 
 @Route(HttpMethod.GET, "/api/v1/request", "Request", True)
-async def handle_requests_get(app: Application, request: Request) -> list[objects.Instance]:
+async def handle_requests_get(state: State, request: Request) -> list[objects.Instance]:
 	"""
 		Get all follow requests.
 
@@ -447,7 +447,7 @@ async def handle_requests_get(app: Application, request: Request) -> list[object
 
 	data: list[objects.Instance] = []
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		for row in s.get_requests():
 			data.append(objects.Instance.from_row(row))
 
@@ -456,7 +456,7 @@ async def handle_requests_get(app: Application, request: Request) -> list[object
 
 @Route(HttpMethod.POST, "/api/v1/request", "Request", True)
 async def handle_request_response(
-								app: Application,
+								state: State,
 								request: Request,
 								domain: str,
 								accept: bool) -> objects.Message:
@@ -468,28 +468,28 @@ async def handle_request_response(
 	"""
 
 	try:
-		with app.database.session(True) as conn:
+		with state.database.session(True) as conn:
 			row = conn.put_request_response(domain, accept)
 
 	except KeyError:
 		raise HttpError(404, "Request not found") from None
 
 	message = Message.new_response(
-		host = app.config.domain,
+		host = state.config.domain,
 		actor = row.actor,
 		followid = row.followid,
 		accept = accept
 	)
 
-	app.push_message(row.inbox, message, row)
+	state.push_message(row.inbox, message, row)
 
 	if accept and row.software != "mastodon":
 		message = Message.new_follow(
-			host = app.config.domain,
+			host = state.config.domain,
 			actor = row.actor
 		)
 
-		app.push_message(row.inbox, message, row)
+		state.push_message(row.inbox, message, row)
 
 	if accept:
 		return objects.Message("Request accepted")
@@ -498,12 +498,12 @@ async def handle_request_response(
 
 
 @Route(HttpMethod.GET, "/api/v1/domain_ban", "Domain Ban", True)
-async def handle_domain_bans_get(app: Application, request: Request) -> list[objects.DomainBan]:
+async def handle_domain_bans_get(state: State, request: Request) -> list[objects.DomainBan]:
 	"Get all banned domains"
 
 	data: list[objects.DomainBan] = []
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		for row in s.get_domain_bans():
 			data.append(objects.DomainBan.from_row(row))
 
@@ -512,7 +512,7 @@ async def handle_domain_bans_get(app: Application, request: Request) -> list[obj
 
 @Route(HttpMethod.POST, "/api/v1/domain_ban", "Domain Ban", True)
 async def handle_domain_ban_add(
-								app: Application,
+								state: State,
 								request: Request,
 								domain: str,
 								note: str | None = None,
@@ -528,7 +528,7 @@ async def handle_domain_ban_add(
 		:param reason: Publicly viewable details for the ban
 	"""
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		if s.get_domain_ban(domain) is not None:
 			raise HttpError(400, "Domain already banned")
 
@@ -538,7 +538,7 @@ async def handle_domain_ban_add(
 
 @Route(HttpMethod.PATCH, "/api/v1/domain_ban", "Domain Ban", True)
 async def handle_domain_ban_update(
-								app: Application,
+								state: State,
 								request: Request,
 								domain: str,
 								note: str | None = None,
@@ -551,7 +551,7 @@ async def handle_domain_ban_update(
 		:param reason: Publicly viewable details for the ban
 	"""
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if not any([note, reason]):
 			raise HttpError(400, "Must include note and/or reason parameters")
 
@@ -563,14 +563,14 @@ async def handle_domain_ban_update(
 
 
 @Route(HttpMethod.DELETE, "/api/v1/domain_ban", "Domain Ban", True)
-async def handle_domain_unban(app: Application, request: Request, domain: str) -> objects.Message:
+async def handle_domain_unban(state: State, request: Request, domain: str) -> objects.Message:
 	"""
 		Unban a domain
 
 		:param domain: Hostname to unban
 	"""
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if s.get_domain_ban(domain) is None:
 			raise HttpError(404, "Domain not banned")
 
@@ -580,12 +580,12 @@ async def handle_domain_unban(app: Application, request: Request, domain: str) -
 
 
 @Route(HttpMethod.GET, "/api/v1/software_ban", "Software Ban", True)
-async def handle_software_bans_get(app: Application, request: Request) -> list[objects.SoftwareBan]:
+async def handle_software_bans_get(state: State, request: Request) -> list[objects.SoftwareBan]:
 	"Get all banned software"
 
 	data: list[objects.SoftwareBan] = []
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		for row in s.get_software_bans():
 			data.append(objects.SoftwareBan.from_row(row))
 
@@ -594,7 +594,7 @@ async def handle_software_bans_get(app: Application, request: Request) -> list[o
 
 @Route(HttpMethod.POST, "/api/v1/software_ban", "Software Ban", True)
 async def handle_software_ban_add(
-								app: Application,
+								state: State,
 								request: Request,
 								name: str,
 								note: str | None = None,
@@ -607,7 +607,7 @@ async def handle_software_ban_add(
 		:param reason: Publicly viewable details for the ban
 	"""
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if s.get_software_ban(name) is not None:
 			raise HttpError(400, "Software already banned")
 
@@ -617,7 +617,7 @@ async def handle_software_ban_add(
 
 @Route(HttpMethod.PATCH, "/api/v1/software_ban", "Software Ban", True)
 async def handle_software_ban(
-							app: Application,
+							state: State,
 							request: Request,
 							name: str,
 							note: str | None = None,
@@ -630,7 +630,7 @@ async def handle_software_ban(
 		:param reason: Publicly viewable details for the ban
 	"""
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if not any([note, reason]):
 			raise HttpError(400, "Must include note and/or reason parameters")
 
@@ -642,14 +642,14 @@ async def handle_software_ban(
 
 
 @Route(HttpMethod.PATCH, "/api/v1/software_ban", "Software Ban", True)
-async def handle_software_unban(app: Application, request: Request, name: str) -> objects.Message:
+async def handle_software_unban(state: State, request: Request, name: str) -> objects.Message:
 	"""
 		Unban the specified software
 
 		:param name: Nodeinfo name of the software to unban
 	"""
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if s.get_software_ban(name) is None:
 			raise HttpError(404, "Software not banned")
 
@@ -659,14 +659,14 @@ async def handle_software_unban(app: Application, request: Request, name: str) -
 
 
 @Route(HttpMethod.GET, "/api/v1/whitelist", "Whitelist", True)
-async def handle_whitelist_get(app: Application, request: Request) -> list[objects.Whitelist]:
+async def handle_whitelist_get(state: State, request: Request) -> list[objects.Whitelist]:
 	"""
 		Get all currently whitelisted domains
 	"""
 
 	data: list[objects.Whitelist] = []
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		for row in s.get_domains_whitelist():
 			data.append(objects.Whitelist.from_row(row))
 
@@ -675,7 +675,7 @@ async def handle_whitelist_get(app: Application, request: Request) -> list[objec
 
 @Route(HttpMethod.POST, "/api/v1/whitelist", "Whitelist", True)
 async def handle_whitelist_add(
-							app: Application,
+							state: State,
 							request: Request,
 							domain: str) -> objects.Whitelist:
 	"""
@@ -684,7 +684,7 @@ async def handle_whitelist_add(
 		:param domain: Hostname to allow
 	"""
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if s.get_domain_whitelist(domain) is not None:
 			raise HttpError(400, "Domain already added to whitelist")
 
@@ -693,14 +693,14 @@ async def handle_whitelist_add(
 
 
 @Route(HttpMethod.DELETE, "/api/v1/whitelist", "Whitelist", True)
-async def handle_whitelist_del(app: Application, request: Request, domain: str) -> objects.Message:
+async def handle_whitelist_del(state: State, request: Request, domain: str) -> objects.Message:
 	"""
 		Remove a domain from the whitelist
 
 		:param domain: Hostname to remove from the whitelist
 	"""
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if s.get_domain_whitelist(domain) is None:
 			raise HttpError(404, "Domain not in whitelist")
 
@@ -711,8 +711,8 @@ async def handle_whitelist_del(app: Application, request: Request, domain: str) 
 
 # remove /api/v1/user endpoints in 0.4.0
 @Route(HttpMethod.GET, "/api/v1/user", "User", True)
-async def handle_users_get(app: Application, request: Request) -> list[objects.User]:
-	with app.database.session(False) as s:
+async def handle_users_get(state: State, request: Request) -> list[objects.User]:
+	with state.database.session(False) as s:
 		items = []
 
 		for row in s.get_users():
@@ -723,13 +723,13 @@ async def handle_users_get(app: Application, request: Request) -> list[objects.U
 
 @Route(HttpMethod.POST, "/api/v1/user", "User", True)
 async def handle_user_add(
-			app: Application,
+			state: State,
 			request: Request,
 			username: str,
 			password: str,
 			handle: str | None = None) -> objects.User:
 
-	with app.database.session() as s:
+	with state.database.session() as s:
 		if s.get_user(username) is not None:
 			raise HttpError(404, "User already exists")
 
@@ -739,13 +739,13 @@ async def handle_user_add(
 
 @Route(HttpMethod.PATCH, "/api/v1/user", "User", True)
 async def handle_user_update(
-			app: Application,
+			state: State,
 			request: Request,
 			username: str,
 			password: str | None = None,
 			handle: str | None = None) -> objects.User:
 
-	with app.database.session(True) as s:
+	with state.database.session(True) as s:
 		if s.get_user(username) is None:
 			raise HttpError(404, "User does not  exist")
 
@@ -754,8 +754,8 @@ async def handle_user_update(
 
 
 @Route(HttpMethod.DELETE, "/api/v1/user", "User", True)
-async def handle_user_del(app: Application, request: Request, username: str) -> objects.Message:
-	with app.database.session(True) as s:
+async def handle_user_del(state: State, request: Request, username: str) -> objects.Message:
+	with state.database.session(True) as s:
 		if s.get_user(username) is None:
 			raise HttpError(404, "User does not exist")
 

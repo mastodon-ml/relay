@@ -1,18 +1,18 @@
 import aputils
+import asyncio
 import click
 
 from blib import File
 from shutil import copyfile
 
-from . import cli, pass_app
+from . import cli, pass_state
 
 from .. import logger as logging
-from ..application import Application
 from ..compat import RelayConfig, RelayDatabase
 from ..config import Config
 from ..database import TABLES, get_database
 from ..misc import IS_DOCKER, RELAY_SOFTWARE
-from ..views import ROUTES
+from ..state import State
 
 
 def check_alphanumeric(text: str) -> str:
@@ -24,16 +24,16 @@ def check_alphanumeric(text: str) -> str:
 
 @cli.command("convert")
 @click.option("--old-config", "-o", help = "Path to the config file to convert from")
-@pass_app
-def cli_convert(app: Application, old_config: str) -> None:
+@pass_state
+def cli_convert(state: State, old_config: str) -> None:
 	"Convert an old config and jsonld database to the new format."
 
-	old_config = File(old_config).resolve() if old_config else app.config.path
-	backup = app.config.path.parent.join(f"{app.config.path.stem}.backup.yaml")
+	old_config = File(old_config).resolve() if old_config else state.config.path
+	backup = state.config.path.parent.join(f"{state.config.path.stem}.backup.yaml")
 
-	if str(old_config) == str(app.config.path) and not backup.exists:
+	if str(old_config) == str(state.config.path) and not backup.exists:
 		logging.info("Created backup config @ %s", backup)
-		copyfile(app.config.path, backup)
+		copyfile(state.config.path, backup)
 
 	config = RelayConfig(old_config)
 	config.load()
@@ -41,14 +41,14 @@ def cli_convert(app: Application, old_config: str) -> None:
 	database = RelayDatabase(config)
 	database.load()
 
-	app.config.set("listen", config["listen"])
-	app.config.set("port", config["port"])
-	app.config.set("workers", config["workers"])
-	app.config.set("sq_path", config["db"].replace("jsonld", "sqlite3"))
-	app.config.set("domain", config["host"])
-	app.config.save()
+	state.config.set("listen", config["listen"])
+	state.config.set("port", config["port"])
+	state.config.set("workers", config["workers"])
+	state.config.set("sq_path", config["db"].replace("jsonld", "sqlite3"))
+	state.config.set("domain", config["host"])
+	state.config.save()
 
-	with get_database(app.config) as db:
+	with state.database as db:
 		with db.session(True) as conn:
 			conn.put_config("private-key", database["private-key"])
 			conn.put_config("note", config["note"])
@@ -112,14 +112,14 @@ def cli_convert(app: Application, old_config: str) -> None:
 
 
 @cli.command("db-maintenance")
-@pass_app
-def cli_db_maintenance(app: Application) -> None:
+@pass_state
+def cli_db_maintenance(state: State) -> None:
 	"Perform maintenance tasks on the database"
 
-	if app.config.db_type == "postgres":
+	if state.config.db_type == "postgres":
 		return
 
-	with app.database.session(False) as s:
+	with state.database.session(False) as s:
 		with s.transaction():
 			s.fix_timestamps()
 
@@ -129,141 +129,138 @@ def cli_db_maintenance(app: Application) -> None:
 
 @cli.command("edit-config")
 @click.option("--editor", "-e", help = "Text editor to use")
-@pass_app
-def cli_editconfig(app: Application, editor: str) -> None:
+@pass_state
+def cli_editconfig(state: State, editor: str) -> None:
 	"Edit the config file"
 
 	click.edit(
 		editor = editor,
-		filename = str(app.config.path)
+		filename = str(state.config.path)
 	)
 
 
 @cli.command("run")
 @click.option("--dev", "-d", is_flag=True, help="Enable developer mode")
-@pass_app
-def cli_run(app: Application, dev: bool = False) -> None:
+@pass_state
+def cli_run(state: State, dev: bool = False) -> None:
 	"Run the relay"
 
-	if app.config.domain.endswith("example.com") or app.signer is None:
+	if state.signer is None or state.config.domain.endswith("example.com"):
 		if not IS_DOCKER:
 			click.echo("Relay is not set up. Please run \"activityrelay setup\"")
 
 			return
 
-		cli_setup.callback() # type: ignore
+		cli_setup.callback() # type: ignore[misc]
 		return
 
-	for method, path, handler in ROUTES:
-		app.router.add_route(method, path, handler)
-
-	app["dev"] = dev
-	app.run()
+	state.dev = dev
+	asyncio.run(state.handle_start())
 
 
 @cli.command("setup")
 @click.option("--skip-questions", "-s", is_flag = True,
 	help = "Assume the config file is correct and just setup the database")
-@pass_app
-def cli_setup(app: Application, skip_questions: bool) -> None:
+@pass_state
+def cli_setup(state: State, skip_questions: bool) -> None:
 	"Generate a new config and create the database"
 
-	if app.signer is not None:
+	if state.signer is not None:
 		if not click.prompt("The database is already setup. Are you sure you want to continue?"):
 			return
 
-	if skip_questions and app.config.domain.endswith("example.com"):
+	if skip_questions and state.config.domain.endswith("example.com"):
 		click.echo("You cannot skip the questions if the relay is not configured yet")
 		return
 
 	if not skip_questions:
 		while True:
-			app.config.domain = click.prompt(
+			state.config.domain = click.prompt(
 				"What domain will the relay be hosted on?",
-				default = app.config.domain
+				default = state.config.domain
 			)
 
-			if not app.config.domain.endswith("example.com"):
+			if not state.config.domain.endswith("example.com"):
 				break
 
 			click.echo("The domain must not end with \"example.com\"")
 
 		if not IS_DOCKER:
-			app.config.listen = click.prompt(
+			state.config.listen = click.prompt(
 				"Which address should the relay listen on?",
-				default = app.config.listen
+				default = state.config.listen
 			)
 
-			app.config.port = click.prompt(
+			state.config.port = click.prompt(
 				"What TCP port should the relay listen on?",
-				default = app.config.port,
+				default = state.config.port,
 				type = int
 			)
 
-		app.config.db_type = click.prompt(
+		state.config.db_type = click.prompt(
 			"Which database backend will be used?",
-			default = app.config.db_type,
+			default = state.config.db_type,
 			type = click.Choice(["postgres", "sqlite"], case_sensitive = False)
 		)
 
-		if app.config.db_type == "sqlite" and not IS_DOCKER:
-			app.config.sq_path = click.prompt(
+		if state.config.db_type == "sqlite" and not IS_DOCKER:
+			state.config.sq_path = click.prompt(
 				"Where should the database be stored?",
-				default = app.config.sq_path
+				default = state.config.sq_path
 			)
 
-		elif app.config.db_type == "postgres":
-			config_postgresql(app.config)
+		elif state.config.db_type == "postgres":
+			config_postgresql(state.config)
 
-		app.config.ca_type = click.prompt(
+		state.config.ca_type = click.prompt(
 			"Which caching backend?",
-			default = app.config.ca_type,
+			default = state.config.ca_type,
 			type = click.Choice(["database", "redis"], case_sensitive = False)
 		)
 
-		if app.config.ca_type == "redis":
-			app.config.rd_host = click.prompt(
+		if state.config.ca_type == "redis":
+			state.config.rd_host = click.prompt(
 				"What IP address, hostname, or unix socket does the server listen on?",
-				default = app.config.rd_host
+				default = state.config.rd_host
 			)
 
-			app.config.rd_port = click.prompt(
+			state.config.rd_port = click.prompt(
 				"What port does the server listen on?",
-				default = app.config.rd_port,
+				default = state.config.rd_port,
 				type = int
 			)
 
-			app.config.rd_user = click.prompt(
+			state.config.rd_user = click.prompt(
 				"Which user will authenticate with the server",
-				default = app.config.rd_user
+				default = state.config.rd_user
 			)
 
-			app.config.rd_pass = click.prompt(
+			state.config.rd_pass = click.prompt(
 				"User password",
 				hide_input = True,
 				show_default = False,
-				default = app.config.rd_pass or ""
+				default = state.config.rd_pass or ""
 			) or None
 
-			app.config.rd_database = click.prompt(
+			state.config.rd_database = click.prompt(
 				"Which database number to use?",
-				default = app.config.rd_database,
+				default = state.config.rd_database,
 				type = int
 			)
 
-			app.config.rd_prefix = click.prompt(
+			state.config.rd_prefix = click.prompt(
 				"What text should each cache key be prefixed with?",
-				default = app.config.rd_database,
+				default = state.config.rd_database,
 				type = check_alphanumeric
 			)
 
-		app.config.save()
+		state.config.save()
 
 	config = {
 		"private-key": aputils.Signer.new("n/a").export()
 	}
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		for key, value in config.items():
 			conn.put_config(key, value)
 
@@ -276,8 +273,8 @@ def cli_setup(app: Application, skip_questions: bool) -> None:
 
 
 @cli.command("switch-backend")
-@pass_app
-def cli_switchbackend(app: Application) -> None:
+@pass_state
+def cli_switchbackend(state: State) -> None:
 	"""
 		Copy the database from one backend to the other
 
@@ -287,12 +284,13 @@ def cli_switchbackend(app: Application) -> None:
 		the database in postgresql already exists.
 	"""
 
-	config = Config(app.config.path, load = True)
-	config.db_type = "sqlite" if config.db_type == "postgres" else "postgres"
+	new_state = State(state.config.path, False)
+	new_state.config.db_type = "sqlite" if new_state.config.db_type == "postgres" else "postgres"
+	new_state.database = get_database(new_state, False)
 
-	if config.db_type == "postgres":
+	if new_state.config.db_type == "postgres":
 		if click.confirm("Setup PostgreSQL configuration?"):
-			config_postgresql(config)
+			config_postgresql(new_state.config)
 
 		order = ("SQLite", "PostgreSQL")
 		click.pause("Make sure the database and user already exist before continuing")
@@ -301,9 +299,8 @@ def cli_switchbackend(app: Application) -> None:
 		order = ("PostgreSQL", "SQLite")
 
 	click.echo(f"About to convert from {order[0]} to {order[1]}...")
-	database = get_database(config, migrate = False)
 
-	with database.session(True) as new, app.database.session(False) as old:
+	with new_state.database.session(True) as new, state.database.session(False) as old:
 		if click.confirm("All tables in the destination database will be dropped. Continue?"):
 			new.drop_tables()
 
@@ -313,7 +310,7 @@ def cli_switchbackend(app: Application) -> None:
 			for row in old.execute(f"SELECT * FROM {table}"):
 				new.insert(table, row).close()
 
-		config.save()
+		new_state.config.save()
 		click.echo("Done!")
 
 

@@ -2,9 +2,9 @@ import click
 
 from typing import Any
 
-from . import cli, pass_app
+from . import cli, pass_state
 
-from ..application import Application
+from ..state import State
 
 
 @cli.group("config")
@@ -13,13 +13,13 @@ def cli_config() -> None:
 
 
 @cli_config.command("list")
-@pass_app
-def cli_config_list(app: Application) -> None:
+@pass_state
+def cli_config_list(state: State) -> None:
 	"List the current relay config"
 
 	click.echo("Relay Config:")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		config = conn.get_config_all()
 
 		for key, value in config.to_dict().items():
@@ -36,12 +36,12 @@ def cli_config_list(app: Application) -> None:
 @cli_config.command("set")
 @click.argument("key")
 @click.argument("value")
-@pass_app
-def cli_config_set(app: Application, key: str, value: Any) -> None:
+@pass_state
+def cli_config_set(state: State, key: str, value: Any) -> None:
 	"Set a config value"
 
 	try:
-		with app.database.session() as conn:
+		with state.database.session() as conn:
 			new_value = conn.put_config(key, value)
 
 	except Exception:

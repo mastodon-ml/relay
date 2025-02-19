@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Any, cast, get_origin, get_type_hints, overloa
 
 from .. import logger as logging
 from ..api_objects import ApiObject
-from ..application import Application
-from ..misc import Response, get_app
+from ..misc import Response, get_state
+from ..state import State
 
 if TYPE_CHECKING:
 	try:
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 		from typing_extensions import Self
 
 	ApiRouteHandler = Callable[..., Awaitable[ApiObject | list[Any] | StreamResponse]]
-	RouteHandler = Callable[[Application, Request], Awaitable[Response]]
+	RouteHandler = Callable[[State, Request], Awaitable[Response]]
 	HandlerCallback = Callable[[Request], Awaitable[Response]]
 
 
@@ -63,7 +63,7 @@ def register_route(
 
 	def wrapper(handler: RouteHandler) -> HandlerCallback:
 		async def inner(request: Request) -> Response:
-			return await handler(get_app(), request, **request.match_info)
+			return await handler(get_state(), request, **request.match_info)
 
 		for path in paths:
 			ROUTES.append((HttpMethod.parse(method), path, inner))
@@ -120,7 +120,7 @@ class Method:
 
 					types.append(subtype)
 
-			elif vtype.__name__ in {"Application", "Request"}:
+			elif vtype in {Request, State}:
 				continue
 
 			else:
@@ -236,7 +236,7 @@ class Route:
 			if not code:
 				raise HttpError(401, "Missing token")
 
-			with get_app().database.session(False) as s:
+			with get_state().database.session(False) as s:
 				if (application := s.get_app_by_token(code)) is None:
 					raise HttpError(401, "Invalid token")
 
@@ -259,7 +259,7 @@ class Route:
 			post_data = {key: str(value) for key, value in request.query.items()}
 
 		try:
-			response = await self.handler(get_app(), request, **post_data)
+			response = await self.handler(get_state(), request, **post_data)
 
 		except HttpError as error:
 			return Response.new({"error": error.message}, error.status, ctype = "json")

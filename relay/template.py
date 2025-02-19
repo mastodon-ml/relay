@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from . import __version__
 
 if TYPE_CHECKING:
-	from .application import Application
+	from .state import State
 
 
 class Template(Environment):
@@ -24,7 +24,7 @@ class Template(Environment):
 	hamlish: HamlishSettings
 
 
-	def __init__(self, app: Application):
+	def __init__(self, state: State):
 		Environment.__init__(self,
 			autoescape = True,
 			trim_blocks = True,
@@ -35,20 +35,20 @@ class Template(Environment):
 			],
 			loader = FileSystemLoader([
 				File.from_resource("relay", "frontend"),
-				app.config.path.parent.join("template")
+				state.config.path.parent.join("template")
 			])
 		)
 
-		self.app = app
+		self.state = state
 
 
 	def render(self, path: str, request: Request, **context: Any) -> str:
-		with self.app.database.session(False) as conn:
+		with self.state.database.session(False) as conn:
 			config = conn.get_config_all()
 
 		new_context = {
 			"request": request,
-			"domain": self.app.config.domain,
+			"domain": self.state.config.domain,
 			"version": __version__,
 			"config": config,
 			**(context or {})

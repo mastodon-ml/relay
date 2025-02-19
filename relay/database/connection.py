@@ -17,10 +17,10 @@ from .config import (
 )
 
 from .. import logger as logging
-from ..misc import Message, get_app
+from ..misc import Message, get_state
 
 if TYPE_CHECKING:
-	from ..application import Application
+	from ..state import State
 
 
 class Connection(SqlConnection):
@@ -29,8 +29,8 @@ class Connection(SqlConnection):
 	)
 
 	@property
-	def app(self) -> Application:
-		return get_app()
+	def state(self) -> State:
+		return get_state()
 
 
 	def distill_inboxes(self, message: Message) -> Iterator[schema.Instance]:
@@ -107,12 +107,12 @@ class Connection(SqlConnection):
 
 		match field.name:
 			case "private_key":
-				self.app.signer = value
+				self.state.signer = value
 
 			case "log_level":
 				value = logging.LogLevel.parse(value)
 				logging.set_level(value)
-				self.app["workers"].set_log_level(value)
+				self.state.workers.set_log_level(value)
 
 			case "approval_required":
 				value = convert_to_boolean(value)

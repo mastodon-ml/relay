@@ -16,7 +16,7 @@ from .database import Connection, get_database
 from .misc import Message
 
 if TYPE_CHECKING:
-	from .application import Application
+	from .state import State
 
 
 SerializerCallback = Callable[[Any], str]
@@ -40,8 +40,8 @@ class RedisConnectType(TypedDict):
 	db: int
 
 
-def get_cache(app: Application) -> Cache:
-	return BACKENDS[app.config.ca_type](app)
+def get_cache(state: State) -> Cache:
+	return BACKENDS[state.config.ca_type](state)
 
 
 def register_cache(backend: type[Cache]) -> type[Cache]:
@@ -96,8 +96,8 @@ class Cache(ABC):
 	name: str
 
 
-	def __init__(self, app: Application):
-		self.app = app
+	def __init__(self, state: State):
+		self.state: State = state
 
 
 	@abstractmethod
@@ -163,8 +163,8 @@ class SqlCache(Cache):
 	name: str = "database"
 
 
-	def __init__(self, app: Application):
-		Cache.__init__(self, app)
+	def __init__(self, state: State):
+		Cache.__init__(self, state)
 		self._db: Database[Connection] | None = None
 
 
@@ -263,7 +263,7 @@ class SqlCache(Cache):
 		if self._db and self._db.connected:
 			return
 
-		self._db = get_database(self.app.config)
+		self._db = get_database(self.state)
 		self._db.connect()
 
 		with self._db.session(True) as conn:
@@ -284,14 +284,14 @@ class RedisCache(Cache):
 	name: str = "redis"
 
 
-	def __init__(self, app: Application):
-		Cache.__init__(self, app)
+	def __init__(self, state: State):
+		Cache.__init__(self, state)
 		self._rd: Redis | None = None
 
 
 	@property
 	def prefix(self) -> str:
-		return self.app.config.rd_prefix
+		return self.state.config.rd_prefix
 
 
 	def get_key_name(self, namespace: str, key: str) -> str:
@@ -389,23 +389,23 @@ class RedisCache(Cache):
 			return
 
 		options: RedisConnectType = {
-			"client_name": f"ActivityRelay_{self.app.config.domain}",
+			"client_name": f"ActivityRelay_{self.state.config.domain}",
 			"decode_responses": True,
-			"username": self.app.config.rd_user,
-			"password": self.app.config.rd_pass,
-			"db": self.app.config.rd_database
+			"username": self.state.config.rd_user,
+			"password": self.state.config.rd_pass,
+			"db": self.state.config.rd_database
 		}
 
-		if os.path.exists(self.app.config.rd_host):
+		if os.path.exists(self.state.config.rd_host):
 			self._rd = Redis(
-				unix_socket_path = self.app.config.rd_host,
+				unix_socket_path = self.state.config.rd_host,
 				**options
 			)
 			return
 
 		self._rd = Redis(
-			host = self.app.config.rd_host,
-			port = self.app.config.rd_port,
+			host = self.state.config.rd_host,
+			port = self.state.config.rd_port,
 			**options
 		)
 

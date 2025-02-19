@@ -1,8 +1,8 @@
 import click
 
-from . import cli, pass_app
+from . import cli, pass_state
 
-from ..application import Application
+from ..state import State
 
 
 @cli.group("user")
@@ -11,13 +11,13 @@ def cli_user() -> None:
 
 
 @cli_user.command("list")
-@pass_app
-def cli_user_list(app: Application) -> None:
+@pass_state
+def cli_user_list(state: State) -> None:
 	"List all local users"
 
 	click.echo("Users:")
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		for row in conn.get_users():
 			click.echo(f"- {row.username}")
 
@@ -25,11 +25,11 @@ def cli_user_list(app: Application) -> None:
 @cli_user.command("create")
 @click.argument("username")
 @click.argument("handle", required = False)
-@pass_app
-def cli_user_create(app: Application, username: str, handle: str) -> None:
+@pass_state
+def cli_user_create(state: State, username: str, handle: str) -> None:
 	"Create a new local user"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if conn.get_user(username) is not None:
 			click.echo(f"User already exists: {username}")
 			return
@@ -52,11 +52,11 @@ def cli_user_create(app: Application, username: str, handle: str) -> None:
 
 @cli_user.command("delete")
 @click.argument("username")
-@pass_app
-def cli_user_delete(app: Application, username: str) -> None:
+@pass_state
+def cli_user_delete(state: State, username: str) -> None:
 	"Delete a local user"
 
-	with app.database.session() as conn:
+	with state.database.session() as conn:
 		if conn.get_user(username) is None:
 			click.echo(f"User does not exist: {username}")
 			return

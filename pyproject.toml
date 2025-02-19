@@ -106,3 +106,7 @@ ignore_missing_imports = true
 implicit_reexport = true
 strict = true
 follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+module = "relay."
+follow_imports = "error"
