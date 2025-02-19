@@ -1,9 +1,7 @@
-import asyncio
 import click
 
 from . import cli, pass_state
 
-from .. import http_client as http
 from ..misc import Message
 from ..state import State
 
@@ -29,7 +27,7 @@ def cli_request_list(state: State) -> None:
 @cli_request.command("accept")
 @click.argument("domain")
 @pass_state
-def cli_request_accept(state: State, domain: str) -> None:
+async def cli_request_accept(state: State, domain: str) -> None:
 	"Accept a follow request"
 
 	try:
@@ -40,28 +38,29 @@ def cli_request_accept(state: State, domain: str) -> None:
 		click.echo("Request not found")
 		return
 
-	message = Message.new_response(
+	response = Message.new_response(
 		host = state.config.domain,
 		actor = instance.actor,
 		followid = instance.followid,
 		accept = True
 	)
 
-	asyncio.run(http.post(state, instance.inbox, message, instance))
+	async with state.client:
+		await state.client.post(instance.inbox, response, instance)
 
-	if instance.software != "mastodon":
-		message = Message.new_follow(
-			host = state.config.domain,
-			actor = instance.actor
-		)
+		if instance.software != "mastodon":
+			follow = Message.new_follow(
+				host = state.config.domain,
+				actor = instance.actor
+			)
 
-		asyncio.run(http.post(state, instance.inbox, message, instance))
+			await state.client.post(instance.inbox, follow, instance)
 
 
 @cli_request.command("deny")
 @click.argument("domain")
 @pass_state
-def cli_request_deny(state: State, domain: str) -> None:
+async def cli_request_deny(state: State, domain: str) -> None:
 	"Accept a follow request"
 
 	try:
@@ -79,4 +78,5 @@ def cli_request_deny(state: State, domain: str) -> None:
 		accept = False
 	)
 
-	asyncio.run(http.post(state, instance.inbox, response, instance))
+	async with state.client:
+		await state.client.post(instance.inbox, response, instance)

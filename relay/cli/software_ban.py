@@ -1,9 +1,7 @@
-import asyncio
 import click
 
 from . import cli, pass_state
 
-from .. import http_client as http
 from ..misc import RELAY_SOFTWARE
 from ..state import State
 
@@ -39,7 +37,7 @@ def cli_software_list(state: State) -> None:
 	help = "Treat NAME like a domain and try to fetch the software name from nodeinfo"
 )
 @pass_state
-def cli_software_ban(state: State,
+async def cli_software_ban(state: State,
 					name: str,
 					reason: str,
 					note: str,
@@ -59,7 +57,10 @@ def cli_software_ban(state: State,
 			return
 
 		if fetch_nodeinfo:
-			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(state, name))):
+			async with state.client:
+				nodeinfo = await state.client.fetch_nodeinfo(name)
+
+			if not nodeinfo:
 				click.echo(f"Failed to fetch software name from domain: {name}")
 				return
 
@@ -86,7 +87,7 @@ def cli_software_ban(state: State,
 	help = "Treat NAME like a domain and try to fetch the software name from nodeinfo"
 )
 @pass_state
-def cli_software_unban(state: State, name: str, fetch_nodeinfo: bool) -> None:
+async def cli_software_unban(state: State, name: str, fetch_nodeinfo: bool) -> None:
 	"Ban software. Use RELAYS for NAME to unban relays"
 
 	with state.database.session() as conn:
@@ -99,7 +100,10 @@ def cli_software_unban(state: State, name: str, fetch_nodeinfo: bool) -> None:
 			return
 
 		if fetch_nodeinfo:
-			if not (nodeinfo := asyncio.run(http.fetch_nodeinfo(state, name))):
+			async with state.client:
+				nodeinfo = await state.client.fetch_nodeinfo(name)
+
+			if not nodeinfo:
 				click.echo(f"Failed to fetch software name from domain: {name}")
 				return
 

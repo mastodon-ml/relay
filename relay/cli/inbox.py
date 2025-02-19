@@ -1,11 +1,9 @@
-import asyncio
 import click
 
 from urllib.parse import urlparse
 
 from . import cli, pass_state
 
-from .. import http_client as http
 from ..database.schema import Instance
 from ..misc import ACTOR_FORMATS, Message
 from ..state import State
@@ -31,82 +29,86 @@ def cli_inbox_list(state: State) -> None:
 @cli_inbox.command("follow")
 @click.argument("actor")
 @pass_state
-def cli_inbox_follow(state: State, actor: str) -> None:
+async def cli_inbox_follow(state: State, actor: str) -> None:
 	"Follow an actor (Relay must be running)"
 
 	instance: Instance | None = None
 
-	with state.database.session() as conn:
-		if conn.get_domain_ban(actor):
-			click.echo(f"Error: Refusing to follow banned actor: {actor}")
-			return
-
-		if (instance := conn.get_inbox(actor)) is not None:
-			inbox = instance.inbox
-
-		else:
-			if not actor.startswith("http"):
-				actor = f"https://{actor}/actor"
-
-			if (actor_data := asyncio.run(http.get(state, actor, sign_headers = True))) is None:
-				click.echo(f"Failed to fetch actor: {actor}")
+	async with state.client:
+		with state.database.session() as conn:
+			if conn.get_domain_ban(actor):
+				click.echo(f"Error: Refusing to follow banned actor: {actor}")
 				return
 
-			inbox = actor_data.shared_inbox
+			if (instance := conn.get_inbox(actor)) is not None:
+				inbox = instance.inbox
 
-	message = Message.new_follow(
-		host = state.config.domain,
-		actor = actor
-	)
+			else:
+				if not actor.startswith("http"):
+					actor = f"https://{actor}/actor"
 
-	asyncio.run(http.post(state, inbox, message, instance))
-	click.echo(f"Sent follow message to actor: {actor}")
+				actor_data = await state.client.get(actor, cls = Message, sign_headers = True)
+
+				if not actor_data:
+					click.echo(f"Failed to fetch actor: {actor}")
+					return
+
+				inbox = actor_data.shared_inbox
+
+		message = Message.new_follow(
+			host = state.config.domain,
+			actor = actor
+		)
+
+		await state.client.post(inbox, message, instance)
+		click.echo(f"Sent follow message to actor: {actor}")
 
 
 @cli_inbox.command("unfollow")
 @click.argument("actor")
 @pass_state
-def cli_inbox_unfollow(state: State, actor: str) -> None:
+async def cli_inbox_unfollow(state: State, actor: str) -> None:
 	"Unfollow an actor (Relay must be running)"
 
 	instance: Instance | None = None
 
-	with state.database.session() as conn:
-		if conn.get_domain_ban(actor):
-			click.echo(f"Error: Refusing to follow banned actor: {actor}")
-			return
-
-		if (instance := conn.get_inbox(actor)):
-			inbox = instance.inbox
-			message = Message.new_unfollow(
-				host = state.config.domain,
-				actor = actor,
-				follow = instance.followid
-			)
-
-		else:
-			if not actor.startswith("http"):
-				actor = f"https://{actor}/actor"
-
-			actor_data = asyncio.run(http.get(state, actor, sign_headers = True))
-
-			if not actor_data:
-				click.echo("Failed to fetch actor")
+	async with state.client:
+		with state.database.session() as conn:
+			if conn.get_domain_ban(actor):
+				click.echo(f"Error: Refusing to follow banned actor: {actor}")
 				return
 
-			inbox = actor_data.shared_inbox
-			message = Message.new_unfollow(
-				host = state.config.domain,
-				actor = actor,
-				follow = {
-					"type": "Follow",
-					"object": actor,
-					"actor": f"https://{state.config.domain}/actor"
-				}
-			)
+			if (instance := conn.get_inbox(actor)):
+				inbox = instance.inbox
+				message = Message.new_unfollow(
+					host = state.config.domain,
+					actor = actor,
+					follow = instance.followid
+				)
 
-	asyncio.run(http.post(state, inbox, message, instance))
-	click.echo(f"Sent unfollow message to: {actor}")
+			else:
+				if not actor.startswith("http"):
+					actor = f"https://{actor}/actor"
+
+				actor_data = await state.client.get(actor, cls = Message, sign_headers = True)
+
+				if not actor_data:
+					click.echo("Failed to fetch actor")
+					return
+
+				inbox = actor_data.shared_inbox
+				message = Message.new_unfollow(
+					host = state.config.domain,
+					actor = actor,
+					follow = {
+						"type": "Follow",
+						"object": actor,
+						"actor": f"https://{state.config.domain}/actor"
+					}
+				)
+
+		await state.client.post(inbox, message, instance)
+		click.echo(f"Sent unfollow message to: {actor}")
 
 
 @cli_inbox.command("add")
@@ -115,7 +117,7 @@ def cli_inbox_unfollow(state: State, actor: str) -> None:
 @click.option("--followid", "-f", help = "Url for the follow activity")
 @click.option("--software", "-s", help = "Nodeinfo software name of the instance")
 @pass_state
-def cli_inbox_add(
+async def cli_inbox_add(
 				state: State,
 				inbox: str,
 				actor: str | None = None,
@@ -131,8 +133,9 @@ def cli_inbox_add(
 		domain = urlparse(inbox).netloc
 
 	if not software:
-		if (nodeinfo := asyncio.run(http.fetch_nodeinfo(state, domain))):
-			software = nodeinfo.sw_name
+		async with state.client:
+			if (nodeinfo := await state.client.fetch_nodeinfo(domain)):
+				software = nodeinfo.sw_name
 
 	if not actor and software:
 		try:

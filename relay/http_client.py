@@ -167,7 +167,7 @@ class HttpClient:
 
 		if cls is not None:
 			if data is None:
-				# this shouldn"t actually get raised, but keeping just in case
+				# this shouldn't actually get raised, but keeping just in case
 				raise EmptyBodyError(f"GET {url}")
 
 			return cls.parse(data)
@@ -237,18 +237,3 @@ class HttpClient:
 			raise ValueError(f"Failed to fetch nodeinfo url for {domain}")
 
 		return await self.get(nodeinfo_url, False, Nodeinfo, force)
-
-
-async def get(state: State, *args: Any, **kwargs: Any) -> Any:
-	async with HttpClient(state) as client:
-		return await client.get(*args, **kwargs)
-
-
-async def post(state: State, *args: Any, **kwargs: Any) -> None:
-	async with HttpClient(state) as client:
-		return await client.post(*args, **kwargs)
-
-
-async def fetch_nodeinfo(state: State, *args: Any, **kwargs: Any) -> Nodeinfo | None:
-	async with HttpClient(state) as client:
-		return await client.fetch_nodeinfo(*args, **kwargs)

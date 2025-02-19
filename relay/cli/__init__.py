@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import click
+import inspect
 import json
 import multiprocessing
 
@@ -42,6 +44,9 @@ def cli(config: File | None) -> None:
 
 def pass_state(func: Callable[Concatenate[State, P], R]) -> Callable[P, R]:
 	def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+		if inspect.iscoroutinefunction(func):
+			return asyncio.run(func(State.default(), *args, **kwargs)) # type: ignore[no-any-return]
+
 		return func(State.default(), *args, **kwargs)
 
 	return update_wrapper(wrapper, func)
