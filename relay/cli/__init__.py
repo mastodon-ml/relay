@@ -16,6 +16,14 @@ from ..misc import IS_DOCKER
 from ..state import State
 
 
+try:
+	import uvloop
+	asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+except ImportError:
+	pass
+
+
 P = ParamSpec("P")
 R = TypeVar("R")
 

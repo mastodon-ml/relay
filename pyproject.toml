@@ -58,17 +58,14 @@ Source = "https://git.pleroma.social/pleroma/relay"
 activityrelay = "relay.manage:main"
 
 [project.optional-dependencies]
+performance = [
+	"uvloop == 0.21.1",
+]
 dev = [
-	"build == 1.2.2.post1",
 	"flake8 == 7.1.1",
 	"mypy == 1.13.0",
 	"pyinstaller == 6.10.0",
 	"typing-extensions == 4.12.2; python_version < '3.11'",
-]
-docs = [
-	"furo == 2024.1.29",
-	"sphinx == 7.2.6",
-	"sphinx-external-toc == 1.0.1",
 ]
 
 [tool.setuptools]
