@@ -7,7 +7,7 @@ from ..state import State
 
 
 # remove this in 0.4.0
-@cli.group("software")
+@cli.group("software", hidden = True)
 def cli_software() -> None:
 	"""
 		Manage software bans (deprecated)

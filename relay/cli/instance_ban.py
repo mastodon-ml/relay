@@ -6,7 +6,7 @@ from ..state import State
 
 
 # remove this in 0.4.0
-@cli.group("instance")
+@cli.group("instance", hidden = True)
 def cli_instance() -> None:
 	"""
 		Manage instance bans (deprecated)

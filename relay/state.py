@@ -112,6 +112,7 @@ class State:
 			return
 
 		from .views import ROUTES, middleware as mw
+
 		logging.info(
 			"Starting webserver at %s (%s:%d)",
 			self.config.domain,

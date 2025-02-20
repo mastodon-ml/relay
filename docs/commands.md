@@ -92,27 +92,6 @@ Delete a user.
 	activityrelay user delete <username>
 
 
-### List Tokens
-
-List all API tokens for a user.
-
-	activityrelay user list-tokens <username>
-
-
-### Create Token
-
-Generate a new API token for a user.
-
-	activityrelay user create-token <username>
-
-
-### Delete Token
-
-Delete an API token.
-
-	activityrelay user delete-token <code>
-
-
 ## Inbox
 
 Manage the list of subscribed instances.
@@ -193,81 +172,37 @@ Add all current inboxes to the whitelist.
 	activityrelay whitelist import
 
 
-## Instance
+## Ban
 
-Manage the instance ban list.
-
-
-### List
-
-List the currently banned instances.
-
-	activityrelay instance list
-
-
-### Ban
-
-Add an instance to the ban list. If the instance is currently subscribed, it will be removed from
-the inbox list.
-
-	activityrelay instance ban <domain> --reason <text> --note <text>
-
-
-### Unban
-
-Remove an instance from the ban list.
-
-	activityrelay instance unban <domain>
-
-
-### Update
-
-Update the ban reason or note for an instance ban. Either `--reason` and/or `--note` must be
-specified.
-
-	activityrelay instance update bad.example.com --reason <text> --note <text>
-
-
-## Software
-
-Manage the software ban list. To get the correct name, check the software's nodeinfo endpoint.
-You can find it at `nodeinfo['software']['name']`.
+Manage the domain and software bans.
 
 
 ### List
 
-List the currently banned software.
+List the current bans. Use `--only-domains` to display just the banned domains and `--only-software`
+to just list the banned software. Specifying both will result in an error. `--expanded-format` will
+put the reason on the next line.
 
-	activityrelay software list
-
-
-### Ban
-
-Add a software name to the ban list.
-
-If `-f` or `--fetch-nodeinfo` is set, treat the name as a domain and try to fetch the software
-name via nodeinfo.
-
-If the name is `RELAYS` (case-sensitive), add all known relay software names to the list.
-
-	activityrelay software ban [-f/--fetch-nodeinfo] <name, domain, or RELAYS> --reason <text> --note <text>
+	activityrelay instance list --only-domains --only-software --expanded-format
 
 
-### Unban
+### Add
 
-Remove a software name from the ban list.
+Add a domain or software to the ban list. If the instance is currently subscribed, it will be removed
+from the relay.
 
-If `-f` or `--fetch-nodeinfo` is set, treat the name as a domain and try to fetch the software
-name via nodeinfo.
+	activityrelay ban add <name> --reason <text> --note <text> --software --fetch-nodeinfo
 
-If the name is `RELAYS` (case-sensitive), remove all known relay software names from the list.
 
-	activityrelay software unban [-f/--fetch-nodeinfo] <name, domain, or RELAYS>
+### Remove
+
+Remove a ban.
+
+	activityrelay ban remove <name> --software
 
 
 ### Update
 
-Update the ban reason or note for a software ban. Either `--reason` and/or `--note` must be
-specified.
+Update the reason or note for a ban. Either `--reason` and/or `--note` must be specified.
 
-	activityrelay software update relay.example.com --reason <text> --note <text>
+	activityrelay ban update <name> --reason <text> --note <text> --software

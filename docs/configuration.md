@@ -16,8 +16,7 @@ Hostname the relay will be hosted on.
 #### Listener
 
 The address and port the relay will listen on. If the reverse proxy (nginx, apache, caddy, etc)
-is running on the same host, it is recommended to change `listen` to `localhost` if the reverse
-proxy is on the same host.
+is running on the same host, it is recommended to change `listen` to `localhost`.
 
 	listen: 0.0.0.0
 	port: 8080
@@ -40,14 +39,14 @@ SQL database backend to use. Valid values are `sqlite` or `postgres`.
 
 #### Cache type
 
-Cache backend to use. Valid values are `database` or `redis`
+Cache backend to use. Valid values are `database` or `redis`.
 
 	cache_type: database
 
 
 #### Sqlite File Path
 
-Path to the sqlite database file. If the path is not absolute, it is relative to the config file.
+Path to the sqlite database file. If the path is not absolute, it is relative to the config file
 directory.
 
 	sqlite_path: relay.jsonld
@@ -102,14 +101,14 @@ Password for the specified user.
 
 Hostname, IP address, or unix socket the server is hosted on.
 
-	host: /var/run/postgresql
+	host: localhost
 
 
 #### Port
 
 Port number the server is listening on.
 
-	port: 5432
+	port: 6379
 
 
 #### Username
