@@ -6,9 +6,14 @@ from ..misc import RELAY_SOFTWARE
 from ..state import State
 
 
+# remove this in 0.4.0
 @cli.group("software")
 def cli_software() -> None:
-	"Manage banned software"
+	"""
+		Manage software bans (deprecated)
+
+		Use 'activityrelay ban' instead
+	"""
 
 
 @cli_software.command("list")
@@ -16,6 +21,7 @@ def cli_software() -> None:
 def cli_software_list(state: State) -> None:
 	"List all banned software"
 
+	click.echo("[DEPRECATED] Please use 'activityrelay ban list' instead")
 	click.echo("Banned software:")
 
 	with state.database.session() as conn:
@@ -43,6 +49,8 @@ async def cli_software_ban(state: State,
 					note: str,
 					fetch_nodeinfo: bool) -> None:
 	"Ban software. Use RELAYS for NAME to ban relays"
+
+	click.echo("[DEPRECATED] Please use 'activityrelay ban add --software' instead")
 
 	with state.database.session() as conn:
 		if name == "RELAYS":
@@ -90,6 +98,8 @@ async def cli_software_ban(state: State,
 async def cli_software_unban(state: State, name: str, fetch_nodeinfo: bool) -> None:
 	"Ban software. Use RELAYS for NAME to unban relays"
 
+	click.echo("[DEPRECATED] Please use 'activityrelay ban remove --software' instead")
+
 	with state.database.session() as conn:
 		if name == "RELAYS":
 			for software in RELAY_SOFTWARE:
@@ -129,6 +139,8 @@ def cli_software_update(
 					reason: str,
 					note: str) -> None:
 	"Update the public reason or internal note for a software ban"
+
+	click.echo("[DEPRECATED] Please use 'activityrelay ban update --software' instead")
 
 	if not (reason or note):
 		ctx.fail("Must pass --reason or --note")

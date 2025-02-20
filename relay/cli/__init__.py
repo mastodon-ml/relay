@@ -58,6 +58,7 @@ def main() -> None:
 
 
 from . import ( # noqa: E402
+	ban,
 	base,
 	config as config_cli,
 	inbox,

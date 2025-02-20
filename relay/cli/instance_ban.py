@@ -5,9 +5,14 @@ from . import cli, pass_state
 from ..state import State
 
 
+# remove this in 0.4.0
 @cli.group("instance")
 def cli_instance() -> None:
-	"Manage instance bans"
+	"""
+		Manage instance bans (deprecated)
+
+		Use 'activityrelay ban' instead
+	"""
 
 
 @cli_instance.command("list")
@@ -15,6 +20,7 @@ def cli_instance() -> None:
 def cli_instance_list(state: State) -> None:
 	"List all banned instances"
 
+	click.echo("[DEPRECATED] Please use 'activityrelay ban list' instead")
 	click.echo("Banned domains:")
 
 	with state.database.session() as conn:
@@ -34,6 +40,8 @@ def cli_instance_list(state: State) -> None:
 def cli_instance_ban(state: State, domain: str, reason: str, note: str) -> None:
 	"Ban an instance and remove the associated inbox if it exists"
 
+	click.echo("[DEPRECATED] Please use 'activityrelay ban add' instead")
+
 	with state.database.session() as conn:
 		if conn.get_domain_ban(domain) is not None:
 			click.echo(f"Domain already banned: {domain}")
@@ -49,6 +57,8 @@ def cli_instance_ban(state: State, domain: str, reason: str, note: str) -> None:
 @pass_state
 def cli_instance_unban(state: State, domain: str) -> None:
 	"Unban an instance"
+
+	click.echo("[DEPRECATED] Please use 'activityrelay ban remove' instead")
 
 	with state.database.session() as conn:
 		if conn.del_domain_ban(domain) is None:
@@ -71,6 +81,8 @@ def cli_instance_update(
 					reason: str,
 					note: str) -> None:
 	"Update the public reason or internal note for a domain ban"
+
+	click.echo("[DEPRECATED] Please use 'activityrelay ban list' instead")
 
 	if not (reason or note):
 		ctx.fail("Must pass --reason or --note")
