@@ -47,7 +47,7 @@ async def handle_nodeinfo(app: Application, request: Request, niversion: str) ->
 			protocols = ["activitypub"],
 			open_regs = not conn.get_config("whitelist-enabled"),
 			users = 1,
-			repo = "https://codeberg.org/barkshark/activityrelay" if niversion == "2.1" else None,
+			repo = "https://git.pleroma.social/pleroma/relay" if niversion == "2.1" else None,
 			metadata = {
 				"approval_required": conn.get_config("approval-required"),
 				"peers": [inbox["domain"] for inbox in inboxes]
