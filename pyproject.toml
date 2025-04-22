@@ -55,7 +55,7 @@ Documentation = "https://git.pleroma.social/pleroma/relay/-/blob/main/docs/index
 Source = "https://git.pleroma.social/pleroma/relay"
 
 [project.scripts]
-activityrelay = "relay.manage:main"
+activityrelay = "relay.cli:main"
 
 [project.optional-dependencies]
 performance = [
