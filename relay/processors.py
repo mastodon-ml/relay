@@ -20,8 +20,8 @@ def is_application(actor: Message, software: str | None) -> bool:
 	if software in {"akkoma", "pleroma"} and actor.id == f"https://{actor.domain}/relay":
 		return True
 
-	if software == "gotosocial" and actor.preferred_username == "vice_instance_actor":
-		# Hack for GtS due to no native relay support
+	if software in {"gotosocial", "mitra"} and actor.preferred_username == "vice_instance_actor":
+		# Hack for GtS and Mitra due to no native relay support
 		return True
 
 	return False
